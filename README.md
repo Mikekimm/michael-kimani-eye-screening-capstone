@@ -1,4 +1,6 @@
 Retinal Disease Screening — Initial MVP
+
+Video Demo Link: https://youtu.be/5CVl1Cbt8A0
 Description
 
 This is the initial MVP for my capstone project: an offline-first application for multi-disease retinal screening in primary health centers, where specialist ophthalmologists and expensive diagnostic equipment are often unavailable.
