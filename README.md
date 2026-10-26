@@ -1,86 +1,146 @@
-Retinal Disease Screening — Initial MVP
+# Retinal Screening Assistant: offline-first diabetic retinopathy screening prototype
 
-Video Demo Link: https://youtu.be/5CVl1Cbt8A0
-Description
+A research prototype that lets a primary health centre worker screen a retinal fundus photograph for
+**diabetic retinopathy (DR)** with **no internet connection**, keep the record safely on the device, and
+**send flagged or borderline cases to a specialist** when a connection is available. It is preliminary
+screening support, **not a diagnosis**, and it is not clinically validated.
 
-This is the initial MVP for my capstone project: an offline-first application for multi-disease retinal screening in primary health centers, where specialist ophthalmologists and expensive diagnostic equipment are often unavailable.
+| | |
+|---|---|
+| **Video walkthrough** | TODO-paste-video-link |
+| **Technical report (PDF, 5 pages)** | TODO-paste-report-link |
+| **Repository** | https://github.com/Mikekimm/michael-kimani-eye-screening-capstone |
 
-Many preventable causes of blindness — diabetic retinopathy, glaucoma, cataracts — can be caught early from a simple photo of the retina, but screening requires access to a specialist. This project explores whether a lightweight, pretrained computer vision model can bring a first layer of screening directly into a clinic or community health worker's hands, with no internet connection required at inference time.
+## Who it is for and the demonstration workflow
 
-This MVP covers the first of those three conditions: diabetic retinopathy (DR). A user uploads a retinal fundus photo, and a MobileNetV2-based model returns a preliminary result — DR present or not — along with a recommended next action. Glaucoma and cataract screening, true offline/on-device inference, and specialist referral routing are planned for the Final Capstone Implementation.
+**User:** a clinical officer at a rural primary health centre with an intermittent internet connection and no
+ophthalmologist on site. **Reviewer:** an ophthalmologist at a regional hospital.
 
-GitHub Repository
+1. The clinical officer enters a **patient code** (not a name), chooses the **eye**, and uploads a fundus photo.
+2. The app checks image quality, runs the model **locally**, and shows the result and advice. The record
+   (image, eye, model version, score, threshold) is saved on the device immediately.
+3. Flagged or **borderline** scores are marked for specialist review. Nothing is lost while offline.
+4. When connected, **Sync now** uploads pending records and pulls back specialist decisions.
+5. The specialist opens the **review portal**, sees the image, eye and model version, and approves or overrides.
+   Every decision is kept in the case history; the clinic receives it at its next sync.
 
+Research evaluation (how good is the model?) is documented separately from software verification
+(does the system behave?): see [docs/DATA_AND_EVALUATION.md](docs/DATA_AND_EVALUATION.md) and [docs/TESTING.md](docs/TESTING.md).
 
+## Features and scope
 
-Environment Setup
-Requirements
-Python 3.9+
-~400MB free disk space (model file + dependencies)
-1. Clone the repository
-bash
+See [docs/SCOPE_TABLE.md](docs/SCOPE_TABLE.md) for the full planned-versus-delivered table. In short:
+DR classification, offline inference (Keras and TensorFlow Lite), local SQLite storage, two-way sync,
+token-authenticated REST backend, specialist review portal with history, and quality checks are implemented.
+**Glaucoma, cataract and the Android app are not implemented** (future work).
+
+## Architecture
+
+![Architecture](docs/diagrams/architecture.png)
+
+Diagrams for the use cases and data model are in [docs/diagrams](docs/diagrams) and explained in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Repository structure
+
+```
+app.py                     Clinic app UI (offline-first): screen, save, sync
+specialist_app.py          Specialist review portal UI
+src/
+  config.py                paths and constants
+  domain.py                records, enums, validation (laterality, patient code, review decisions)
+  preprocessing.py         ImagePreprocessor: decode, convert, resize, scale (matches training)
+  quality.py               ImageQualityChecker: blank, size, blur, brightness, fundus-likeness
+  classifier.py            BaseClassifier + KerasClassifier + TFLiteClassifier + factory
+  thresholding.py          sensitivity-targeted threshold selection
+  evaluation.py            tune/test split, AUC, bootstrap confidence intervals
+  result.py                ScreeningResult (flagged / borderline / needs_review)
+  service.py               ScreeningService: load -> quality -> predict -> decide
+  storage.py               ScreeningRepository: SQLite store, review history, sync bookkeeping
+  workflow.py              ScreeningWorkflow: screen + save in one step
+  sync.py                  SyncService + RemoteClient interface
+  api_client.py            ApiClient, ClinicClient, SpecialistClient (HTTP, error translation)
+  server.py                REST backend with token authentication and roles
+  exceptions.py            domain-specific errors
+scripts/
+  run_server.py            start the backend
+  calibrate_threshold.py   choose threshold on one half, report on the other, with intervals
+  benchmark.py             model latency, size, memory
+  benchmark_pipeline.py    preprocessing, quality, storage and sync timings
+  export_tflite.py         convert the Keras model to TensorFlow Lite
+tests/                     pytest suite (unit, integration, connectivity, UI smoke)
+notebooks/                 model_notebook.ipynb (training and evaluation, run on Kaggle)
+models/                    dr_screening_model.h5, dr_screening_model.tflite (+ threshold.json once calibrated)
+docs/                      data and evaluation, scope table, testing, architecture, diagrams, video script
+```
+
+## Installation
+
+Requirements: Python 3.10 or newer (TensorFlow does not yet support every newest Python; use the version in the table below).
+
+```bash
 git clone https://github.com/Mikekimm/michael-kimani-eye-screening-capstone.git
 cd michael-kimani-eye-screening-capstone
-2. Create a virtual environment
-bash
 python -m venv .venv
-3. Activate it
-
-Windows (PowerShell):
-
-powershell
-.venv\Scripts\activate
-
-Mac/Linux:
-
-bash
-source .venv/bin/activate
-4. Install dependencies
-bash
+.venv\Scripts\activate          # Windows
+source .venv/bin/activate       # macOS / Linux
 pip install -r requirements.txt
-5. (Optional) Re-run the training notebook
+```
 
-model_notebook.ipynb was developed and run on Kaggle with a GPU accelerator (T4 x2), using the ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy dataset. To reproduce training, open the notebook in Kaggle (recommended — it downloads the ~90k+ image dataset automatically) and run all cells in order. Running it on a local CPU machine is not recommended; it is the slowest way to get here, and the trained model (dr_screening_model.h5) is already included in this repo so you don't need to.
+### Run the demo (three terminals, same folder, virtual environment active)
 
-6. Run the Streamlit application
-bash
+```bash
+# 1. backend (prints access tokens; --demo-tokens uses fixed INSECURE tokens for demos only)
+python scripts/run_server.py --demo-tokens
+
+# 2. clinic app: set the token in the sidebar (demo: demo-clinician-token)
 streamlit run app.py
 
-This opens automatically at http://localhost:8501. Upload a retinal fundus image (JPG or PNG) to get a screening result.
+# 3. specialist portal: token demo-specialist-token
+streamlit run specialist_app.py --server.port 8502
+```
 
-Model Performance (Initial MVP)
+To demonstrate offline use, screen a few patients **before** starting the backend, then start it and press **Sync now**.
 
-Trained for 8 epochs with a frozen MobileNetV2 backbone (ImageNet weights), evaluated on a held-out, group-stratified validation split:
+## Technical requirements
 
-Metric	Score
-Accuracy	0.790
-Precision	0.920
-Recall (sensitivity)	0.542
-F1 score	0.682
-Class	Precision	Recall	F1
-No DR	0.75	0.97	0.84
-DR present	0.92	0.54	0.68
+| Item | Version used |
+|---|---|
+| OS | TODO |
+| Python | TODO (`python --version`) |
+| TensorFlow / Keras | TODO (`pip show tensorflow keras`) |
+| Streamlit | TODO (`pip show streamlit`) |
+| NumPy / Pillow | TODO (`pip show numpy pillow`) |
+| Hardware | TODO (CPU, RAM) |
+| Training | Kaggle notebook, GPU T4 x2 |
 
-On the recall gap: my proposal set a target of 85% sensitivity for DR classification, prioritized over raw accuracy, since missing a real positive case carries far more clinical risk than a false alarm. This MVP's recall (0.542) sits below that target, which is expected for a first pass with a frozen backbone and only 8 training epochs. Closing this gap — by unfreezing deeper backbone layers, training longer, and tuning the decision threshold toward higher sensitivity — is the main technical priority for the Final Capstone Implementation.
+## Testing
 
+```bash
+pip install -r requirements-dev.txt
+pytest                         # everything (tests needing TensorFlow skip if it is absent)
+pytest -m "not integration"    # skip the tests that load the real model
+python scripts/benchmark.py --runs 50
+python scripts/benchmark_pipeline.py --runs 30 --records 50
+```
 
+Strategy, input cases and results: [docs/TESTING.md](docs/TESTING.md).
 
+## Model, data and metrics (read this)
 
-Deployment Plan
+* **Model:** MobileNetV2 (ImageNet weights, frozen backbone) with a small classification head; binary output (DR present or absent).
+* **Data:** a public Kaggle collection (EyePACS + APTOS + Messidor-2). It has **no patient identifiers** and contains augmented
+  copies, so a patient-separated split was not possible and **all metrics are optimistic estimates**.
+  Full details: [docs/DATA_AND_EVALUATION.md](docs/DATA_AND_EVALUATION.md).
+* **Metrics for the deployed model:** TODO-paste-the-table-from `scripts/calibrate_threshold.py`.
+  Earlier training-run figures (0.790 accuracy, 0.542 recall) belong to a previous run whose weights were not saved, so they
+  must not be read as this model's performance.
+* **Threshold:** chosen on a tuning half of the hold-out to reach 85% sensitivity; every reported number comes from the test half.
+  A higher sensitivity means more false alarms, an accepted trade-off for a screening tool.
 
-Current (MVP): a Streamlit web application running locally, loading the trained MobileNetV2 model (dr_screening_model.h5) directly for inference. This demonstrates the full intended workflow end-to-end: a user uploads an image, the app preprocesses it, runs it through the model, and returns a clear, color-coded result with a recommended next step.
+## Known limitations
 
-Path to production:
-
-Hosting: deploy the same Streamlit app to Streamlit Community Cloud (or an equivalent lightweight host) for a shareable, always-on demo link, without changing any application code.
-Offline-first mobile deployment: the training notebook already exports a dr_screening_model.tflite version of the model alongside the .h5 file. The Final Capstone Implementation will use this to run inference directly on-device (e.g. via a mobile app), so screening works in clinics without reliable internet access — the core requirement this project is built around.
-Multi-disease expansion: extend the same pipeline to glaucoma and cataract classification (using the ODIR-5K dataset), combining all three into a single multi-head model rather than three separate tools.
-Video Demo
-
-<insert your video link here>
-
-Code Files
-model_notebook.ipynb — dataset loading, visualization, model architecture, training, evaluation, and model export (including the leakage-safe, group-stratified train/validation split)
-app.py — the Streamlit screening interface
-dr_screening_model.h5 — the trained MobileNetV2 model used by the app
-requirements.txt — Python depend
+* DR only; no glaucoma or cataract; no Android app.
+* Not clinically validated; retrospective public data; no external evaluation set; no patient-level split.
+* Prototype security: bearer tokens without expiry, plain HTTP (use TLS in production), no user accounts.
+* The clinic app runs on a laptop; offline inference on a phone would need the TFLite model packaged in a mobile app.
+* No usability study with health workers was possible.
