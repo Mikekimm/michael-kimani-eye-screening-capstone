@@ -28,7 +28,13 @@ export function ScreeningResultCard({ result }: { result: ConditionResult }) {
       <CardContent className="flex flex-col gap-3">
         {result.model_available && result.probability !== null && result.threshold !== null ? (
           <>
-            <SeverityMeter band={result.severity_band} />
+            {result.severity_band !== null ? (
+              <SeverityMeter band={result.severity_band} />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Binary result only: the data this model was trained on has no severity grades, so no severity band is given.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               Model score {percent(result.probability)} (referral threshold {percent(result.threshold)}). The score is how
               strongly the model leans towards signs of disease; it is not a probability that the patient has the disease.
