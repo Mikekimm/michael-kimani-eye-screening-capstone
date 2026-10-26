@@ -24,7 +24,7 @@ def test_real_model_returns_one_result_per_condition(client):
     assert response.status_code == 201, response.text
     body = response.json()
     results = {r["condition"]: r for r in body["results"]}
-    assert set(results) == {"dr", "glaucoma", "cataract"}
+    assert [r["condition"] for r in body["results"]] == ["dr", "glaucoma", "cataract"]  # product order
 
     dr = results["dr"]
     assert dr["model_available"] is True

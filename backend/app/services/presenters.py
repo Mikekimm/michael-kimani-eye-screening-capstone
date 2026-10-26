@@ -15,6 +15,12 @@ def quality_out(report: QualityReport) -> dict:
                       brightness=report.brightness, contrast=report.contrast).model_dump()
 
 
+def _result_order(condition: str) -> tuple[int, str]:
+    """Product order (DR, glaucoma, cataract), not alphabetical; unknown conditions go last."""
+    order = list(DISPLAY_NAMES)
+    return (order.index(condition) if condition in order else len(order), condition)
+
+
 def screening_out(screening: Screening, schema: type[ScreeningOut] = ScreeningOut, **extra) -> ScreeningOut:
     return schema(
         id=screening.id, client_uuid=screening.client_uuid, patient_id=screening.patient_id,
@@ -23,7 +29,8 @@ def screening_out(screening: Screening, schema: type[ScreeningOut] = ScreeningOu
         created_by_name=screening.created_by.full_name,
         quality=QualityOut.model_validate(screening.quality),
         results=[ConditionResultOut.model_validate(r).model_copy(
-            update={"display_name": DISPLAY_NAMES.get(r.condition, r.condition)}) for r in screening.results],
+            update={"display_name": DISPLAY_NAMES.get(r.condition, r.condition)})
+            for r in sorted(screening.results, key=lambda r: _result_order(r.condition))],
         referral_reason=screening.referral.reason if screening.referral else None,
         reviews=[ReviewEventOut(id=e.id, action=e.action, condition=e.condition,
                                 override_positive=e.override_positive, note=e.note,
