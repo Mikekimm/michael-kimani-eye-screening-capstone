@@ -38,12 +38,24 @@ MODEL_CARD_PATH = REPO_ROOT / "models" / "dr" / "model_card.json"
 TARGET_SPECIFICITY = 0.80  # from the proposal (Section 3.3)
 
 
+LABEL_COLUMNS = ("y_true", "label")
+# prob_tflite first: the .tflite file is what the app serves, so its scores are what we report.
+SCORE_COLUMNS = ("y_prob", "prob_tflite", "prob_h5")
+
+
 def read_predictions(path):
+    """Read labels and scores; accepts both the old (y_true, y_prob) and the Kaggle cell's columns."""
     y_true, y_prob = [], []
     with open(path, newline="", encoding="utf-8") as handle:
-        for row in csv.DictReader(handle):
-            y_true.append(int(float(row["y_true"])))
-            y_prob.append(float(row["y_prob"]))
+        reader = csv.DictReader(handle)
+        label = next((c for c in LABEL_COLUMNS if c in reader.fieldnames), None)
+        score = next((c for c in SCORE_COLUMNS if c in reader.fieldnames), None)
+        if label is None or score is None:
+            raise SystemExit(f"{path} needs a label column {LABEL_COLUMNS} and a score column {SCORE_COLUMNS}.")
+        print(f"Using labels from '{label}' and scores from '{score}'.")
+        for row in reader:
+            y_true.append(int(float(row[label])))
+            y_prob.append(float(row[score]))
     return np.array(y_true), np.array(y_prob)
 
 
