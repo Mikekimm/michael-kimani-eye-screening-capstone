@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from app.ml.thresholding import load_threshold, metrics_at_threshold, save_threshold, select_threshold
+from app.ml.thresholding import metrics_at_threshold, select_threshold
 
 
 def test_perfect_separation_picks_highest_threshold_with_full_recall():
@@ -55,20 +55,3 @@ def test_lower_target_gives_higher_or_equal_threshold():
 def test_invalid_inputs_raise(y_true, y_prob, target):
     with pytest.raises(ValueError):
         select_threshold(y_true, y_prob, target)
-
-
-def test_save_and_load_round_trip(tmp_path):
-    point = select_threshold([0, 0, 1, 1], [0.1, 0.4, 0.6, 0.9], 0.85)
-    path = tmp_path / "threshold.json"
-    save_threshold(point, 0.85, path)
-    assert load_threshold(path) == pytest.approx(point.threshold)
-
-
-def test_load_threshold_falls_back_when_missing_or_invalid(tmp_path):
-    assert load_threshold(tmp_path / "missing.json", default=0.5) == 0.5
-    bad = tmp_path / "bad.json"
-    bad.write_text("{not json")
-    assert load_threshold(bad, default=0.5) == 0.5
-    out_of_range = tmp_path / "range.json"
-    out_of_range.write_text('{"threshold": 7}')
-    assert load_threshold(out_of_range, default=0.5) == 0.5

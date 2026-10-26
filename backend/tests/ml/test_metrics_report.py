@@ -61,3 +61,22 @@ def test_card_update_keeps_the_model_loadable(tmp_path):
     registry = ModelRegistry(("dr",)).discover(models_dir)
     assert registry.status("dr").available
     assert registry.get("dr").card.threshold == report["threshold"]
+
+
+def test_calibrate_script_writes_metrics_and_updates_the_card(tmp_path):
+    """Runs scripts/calibrate_threshold.py end to end (synthetic CSV, temp outputs)."""
+    import subprocess
+    import sys
+
+    _, _, csv_path = _synthetic_predictions(tmp_path)
+    card = tmp_path / "model_card.json"
+    shutil.copy(REPO_ROOT / "models" / "dr" / "model_card.json", card)
+    metrics = tmp_path / "metrics.json"
+    result = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "calibrate_threshold.py"), "--predictions", str(csv_path),
+         "--metrics-out", str(metrics), "--model-card", str(card)],
+        capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr
+    report = json.loads(metrics.read_text(encoding="utf-8"))
+    assert report["status"] == UNVERIFIED
+    assert json.loads(card.read_text(encoding="utf-8"))["threshold"] == report["threshold"]
