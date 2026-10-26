@@ -62,10 +62,26 @@ It writes [metrics.json](metrics.json) and updates the model card the API serves
 | RQ3 how accurately the model classifies DR | hold-out metrics in [metrics.json](metrics.json), **pending** |
 | RQ4 how the referral workflow connects workers to specialists | end-to-end journeys: referral, review, decision pulled back; no clinical outcome study |
 
-## 6. Qualified claims
+## 6. Glaucoma and cataract (ODIR-5K)
+
+[notebooks/odir_glaucoma_cataract.ipynb](../notebooks/odir_glaucoma_cataract.ipynb) applies the same rigour
+with one improvement ODIR-5K allows: it has **patient IDs**, so the split is by patient (70/15/15,
+stratified), and no person appears in two splits (checked by an assertion and in the final checks).
+
+* Labels per eye from ODIR's diagnostic keywords: positive if the condition is named for that eye;
+  "suspected" findings and (for glaucoma) an invisible optic disc are excluded rather than guessed;
+  photos marked low quality, offset, anterior segment or "no fundus image" are excluded.
+* The notebook prints the true class counts before training and states when positives are too few
+  to trust (fewer than 150 positive training eyes or 30 positive test eyes).
+* Threshold chosen on the validation split only (highest with >= 85% sensitivity); the test split is
+  scored once, with the exported `.tflite`, with patient-level bootstrap intervals.
+* Binary output only: ODIR-5K has no severity grades, so no severity band is produced.
+* Results, when run: `odir_metrics.json` and each model card. **Not yet run.**
+
+## 7. Qualified claims
 
 * Screening support only, not a diagnosis, not clinically validated.
-* Only diabetic retinopathy has a model; glaucoma and cataract are future work.
+* Only diabetic retinopathy has a deployed model so far; glaucoma and cataract models depend on the ODIR-5K notebook run and will be reported with their real, possibly weak, results.
 * Lowering the threshold to reach the sensitivity target raises false alarms (more referrals); the
   borderline band adds referrals by design.
 * Synthetic images used in tests and benchmarks are code-path fixtures, never used to report model
