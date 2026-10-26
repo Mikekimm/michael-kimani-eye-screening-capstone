@@ -157,3 +157,27 @@ def test_utc_timestamps_round_trip(referred):
     created = datetime.fromisoformat(screening["created_at"])
     assert created.tzinfo is not None and created.utcoffset().total_seconds() == 0
     assert abs((datetime.now(timezone.utc) - created).total_seconds()) < 120
+
+
+def test_health_worker_can_refer_a_negative_result_manually(stub_client):
+    FixedScoreModel.score = 0.05
+    _, worker = auth_headers(stub_client, Role.HEALTH_WORKER)
+    _, specialist = auth_headers(stub_client, Role.SPECIALIST)
+    screening = upload(stub_client, worker, register_patient(stub_client, worker)["id"]).json()
+    assert stub_client.get("/api/reviews/queue", headers=specialist).json() == []
+
+    referred = stub_client.post(f"/api/screenings/{screening['id']}/refer", headers=worker)
+    assert referred.status_code == 200
+    assert referred.json()["status"] == "referred" and referred.json()["referral_reason"] == "manual"
+    assert [q["screening_id"] for q in stub_client.get("/api/reviews/queue", headers=specialist).json()] == [screening["id"]]
+    assert stub_client.post(f"/api/screenings/{screening['id']}/refer", headers=worker).status_code == 409
+
+
+def test_only_the_owner_can_refer(stub_client):
+    FixedScoreModel.score = 0.05
+    _, worker = auth_headers(stub_client, Role.HEALTH_WORKER)
+    _, other = auth_headers(stub_client, Role.HEALTH_WORKER)
+    _, specialist = auth_headers(stub_client, Role.SPECIALIST)
+    screening = upload(stub_client, worker, register_patient(stub_client, worker)["id"]).json()
+    assert stub_client.post(f"/api/screenings/{screening['id']}/refer", headers=other).status_code == 404
+    assert stub_client.post(f"/api/screenings/{screening['id']}/refer", headers=specialist).status_code == 403

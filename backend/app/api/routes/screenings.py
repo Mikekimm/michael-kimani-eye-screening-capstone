@@ -49,6 +49,12 @@ def get_screening(screening_id: str, user: ClinicalUser, screenings: Screenings)
     return screening_out(screenings.get(user, screening_id))
 
 
+@router.post("/{screening_id}/refer", response_model=ScreeningOut)
+def refer_screening(screening_id: str, user: HealthWorker, screenings: Screenings):
+    """Send a non-referred screening to the specialist queue (reason: manual)."""
+    return screening_out(screenings.refer(user, screening_id))
+
+
 @router.get("/{screening_id}/image", response_class=FileResponse)
 def get_image(screening_id: str, user: ClinicalUser, screenings: Screenings):
     path = screenings.image_path(user, screening_id)
