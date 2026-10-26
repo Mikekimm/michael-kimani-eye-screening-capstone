@@ -1,0 +1,22 @@
+{
+  "_comment": "Every number that turns a model score into a screening decision lives here. Reasoning: docs/risk_policy.md. The decision threshold itself comes from each model's model_card.json.",
+  "default": {
+    "uncertainty_margin": 0.10,
+    "refer_when_positive": true,
+    "refer_when_uncertain": true,
+    "recommendations": {
+      "low": "No signs detected. Recommend routine screening at the next scheduled visit.",
+      "medium": "Borderline result. The case is sent to a specialist for review; consider a retake if the image was poor.",
+      "high": "Signs detected. Refer the patient to an eye specialist."
+    }
+  },
+  "conditions": {
+    "dr": {
+      "recommendations": {
+        "low": "No signs of diabetic retinopathy detected. Recommend routine annual diabetic eye screening.",
+        "medium": "Borderline diabetic retinopathy score. Sent for specialist review.",
+        "high": "Signs of diabetic retinopathy detected. Refer to an eye specialist."
+      }
+    }
+  }
+}

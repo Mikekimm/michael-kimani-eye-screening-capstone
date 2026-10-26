@@ -1,0 +1,41 @@
+{
+  "condition": "dr",
+  "display_name": "Diabetic retinopathy",
+  "version": "mobilenetv2-dr-binary-0.3",
+  "file": "model.tflite",
+  "sha256": "cb627a5d2c52e8b6376d9a00350f4293ca2849a073f36109a0ea92796b6b3be6",
+  "task": "binary",
+  "labels": {
+    "0": "No DR",
+    "1": "DR present (ICDR grades 1-4)"
+  },
+  "input": {
+    "shape": [1, 224, 224, 3],
+    "dtype": "float32",
+    "color": "RGB",
+    "resize": "nearest-neighbour to 224x224 (matches Keras flow_from_dataframe default)",
+    "normalisation": "MobileNetV2 preprocess_input: pixel / 127.5 - 1, range [-1, 1]"
+  },
+  "output": {
+    "shape": [1, 1],
+    "meaning": "sigmoid score for DR present, in [0, 1]"
+  },
+  "threshold": 0.5,
+  "threshold_source": "default 0.5, not yet calibrated (scripts/calibrate_threshold.py writes the calibrated value once hold-out predictions exist)",
+  "architecture": "MobileNetV2 (ImageNet weights, frozen) -> GlobalAveragePooling2D -> Dropout(0.3) -> Dense(64, relu) -> Dropout(0.2) -> Dense(1, sigmoid); Adam lr 1e-4; SEED 42 (verified in notebooks/model_notebook.ipynb)",
+  "training": {
+    "dataset": "Kaggle ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy (EyePACS + APTOS 2019 + Messidor-2 redistribution, pre-augmented, no patient identifiers)",
+    "run": "Author-reported: 2-epoch fine-tune on a 15,000-image stratified subset (seed 42). The Kaggle session that produced this file is not in the repository; the committed notebook shows an earlier 8-epoch configuration whose weights were lost.",
+    "licence_note": "Underlying data is for non-commercial / academic use; no images are stored in this repository."
+  },
+  "metrics": null,
+  "metrics_status": "not yet measured",
+  "limitations": [
+    "Screening support only. Not a diagnosis and not clinically validated.",
+    "Held-out performance of this model has not been measured yet.",
+    "The dataset has no patient identifiers, so splits are image-level and any future metric is an optimistic estimate.",
+    "The dataset contains augmented near-duplicates; leakage between training and evaluation images cannot be ruled out.",
+    "No external evaluation; images from low-cost smartphone fundus lenses were never tested.",
+    "The 1-5 severity band is estimated from a binary score by a configurable policy; it is not an ICDR grade."
+  ]
+}

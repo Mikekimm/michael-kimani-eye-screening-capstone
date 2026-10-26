@@ -15,8 +15,8 @@ def _resolve_model_file(name: str) -> Path:
     return preferred
 
 
-KERAS_MODEL_PATH = _resolve_model_file("dr_screening_model.h5")
-TFLITE_MODEL_PATH = _resolve_model_file("dr_screening_model.tflite")
+KERAS_MODEL_PATH = _resolve_model_file("dr/model.h5")
+TFLITE_MODEL_PATH = _resolve_model_file("dr/model.tflite")
 THRESHOLD_PATH = MODEL_DIR / "threshold.json"
 
 # Local, offline-first data (SQLite database + stored fundus images). Never committed.
