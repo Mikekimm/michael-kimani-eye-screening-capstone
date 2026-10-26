@@ -10,23 +10,32 @@
     "1": "DR present (ICDR grades 1-4)"
   },
   "input": {
-    "shape": [1, 224, 224, 3],
+    "shape": [
+      1,
+      224,
+      224,
+      3
+    ],
     "dtype": "float32",
     "color": "RGB",
     "resize": "nearest-neighbour to 224x224 (matches Keras flow_from_dataframe default)",
     "normalisation": "MobileNetV2 preprocess_input: pixel / 127.5 - 1, range [-1, 1]"
   },
   "output": {
-    "shape": [1, 1],
+    "shape": [
+      1,
+      1
+    ],
     "meaning": "sigmoid score for DR present, in [0, 1]"
   },
   "threshold": 0.5,
   "threshold_source": "default 0.5, not yet calibrated (scripts/calibrate_threshold.py writes the calibrated value once hold-out predictions exist)",
-  "architecture": "MobileNetV2 (ImageNet weights, frozen) -> GlobalAveragePooling2D -> Dropout(0.3) -> Dense(64, relu) -> Dropout(0.2) -> Dense(1, sigmoid); Adam lr 1e-4; SEED 42 (verified in notebooks/model_notebook.ipynb)",
+  "architecture": "MobileNetV2 (ImageNet weights, frozen) -> GlobalAveragePooling2D -> Dropout(0.3) -> Dense(64, relu) -> Dropout(0.2) -> Dense(1, sigmoid); Adam lr 1e-4; class weights; early stopping on validation loss; SEED 42 (verified in notebooks/model_notebook.ipynb)",
   "training": {
     "dataset": "Kaggle ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy (EyePACS + APTOS 2019 + Messidor-2 redistribution, pre-augmented, no patient identifiers)",
-    "run": "Author-reported: 2-epoch fine-tune on a 15,000-image stratified subset (seed 42). The Kaggle session that produced this file is not in the repository; the committed notebook shows an earlier 8-epoch configuration whose weights were lost.",
-    "licence_note": "Underlying data is for non-commercial / academic use; no images are stored in this repository."
+    "run": "notebooks/model_notebook.ipynb trains for 8 epochs on a StratifiedGroupKFold split (188,936 train / 47,234 validation) and saves dr_screening_model.h5 and .tflite; its validation metrics at 0.5 were accuracy 0.790, precision 0.920, recall 0.542, F1 0.682. Whether the shipped files are that run is checked by notebooks/kaggle_holdout_eval.ipynb (pending).",
+    "licence_note": "Underlying data is for non-commercial / academic use; no images are stored in this repository.",
+    "export": "model.tflite is about 2.6 MB (quantized export); its scores differ from model.h5 by up to 0.034 on test inputs"
   },
   "metrics": null,
   "metrics_status": "not yet measured",
