@@ -1,6 +1,0 @@
-# Runtime dependencies for the app and scripts.
-# The training notebook runs on Kaggle, which provides its own environment.
-streamlit>=1.40
-tensorflow>=2.16
-pillow>=10.0
-numpy>=1.26
