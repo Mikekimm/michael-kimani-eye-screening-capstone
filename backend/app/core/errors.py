@@ -51,9 +51,11 @@ class PayloadTooLargeError(AppError):
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
-        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else {}
+        if "retry_after_seconds" in exc.details:
+            headers["Retry-After"] = str(exc.details["retry_after_seconds"])
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": exc.code, "message": exc.message, "details": exc.details},
-            headers=headers,
+            headers=headers or None,
         )

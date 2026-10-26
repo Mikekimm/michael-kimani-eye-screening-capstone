@@ -11,6 +11,7 @@ from .core.config import Settings, get_settings
 from .core.database import Database
 from .core.errors import register_error_handlers
 from .core.security import PasswordHasher, TokenService
+from .core.throttle import LoginThrottle
 from .ml.registry import ModelRegistry
 from .ml.risk_policy import RiskPolicyFactory
 from .services.image_store import ImageStore
@@ -33,6 +34,7 @@ def build_container(settings: Settings, registry: ModelRegistry | None = None) -
         tokens=TokenService(settings.jwt_secret, settings.jwt_algorithm,
                             timedelta(minutes=settings.access_token_minutes),
                             timedelta(days=settings.refresh_token_days)),
+        login_throttle=LoginThrottle(settings.login_max_failures, settings.login_window_seconds),
     )
 
 

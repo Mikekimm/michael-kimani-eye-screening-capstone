@@ -44,6 +44,8 @@ class Settings(DatabaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 15
     refresh_token_days: int = 7
+    login_max_failures: int = 5
+    login_window_seconds: int = 15 * 60
 
     models_dir: Path = REPO_ROOT / "models"
     risk_policy_path: Path = BACKEND_ROOT / "config" / "risk_policy.json"

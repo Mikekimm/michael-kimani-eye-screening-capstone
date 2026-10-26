@@ -88,3 +88,23 @@ def test_logout_revokes_refresh_token(client):
     tokens = client.post("/api/auth/login", json={"email": user.email, "password": PASSWORD}).json()
     assert client.post("/api/auth/logout", json={"refresh_token": tokens["refresh_token"]}).status_code == 204
     assert client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]}).status_code == 401
+
+
+def test_repeated_wrong_passwords_are_throttled_even_for_the_right_password(client):
+    user = create_user(client, Role.HEALTH_WORKER)
+    for _ in range(5):
+        assert client.post("/api/auth/login", json={"email": user.email, "password": "wrong-guess-1"}).status_code == 401
+    blocked = client.post("/api/auth/login", json={"email": user.email, "password": PASSWORD})
+    assert blocked.status_code == 429
+    assert int(blocked.headers["Retry-After"]) > 0
+    assert "Too many failed sign-in attempts" in blocked.json()["message"]
+
+
+def test_successful_login_resets_the_failure_count(client):
+    user = create_user(client, Role.HEALTH_WORKER)
+    for _ in range(4):
+        client.post("/api/auth/login", json={"email": user.email, "password": "wrong-guess-1"})
+    assert client.post("/api/auth/login", json={"email": user.email, "password": PASSWORD}).status_code == 200
+    for _ in range(4):
+        client.post("/api/auth/login", json={"email": user.email, "password": "wrong-guess-1"})
+    assert client.post("/api/auth/login", json={"email": user.email, "password": PASSWORD}).status_code == 200

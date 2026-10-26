@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from ...schemas import LoginRequest, RefreshRequest, RegisterRequest, TokenPair, UserOut
 from ...services.auth import AuthService
@@ -17,8 +17,9 @@ def register(body: RegisterRequest, auth: Auth):
 
 
 @router.post("/login", response_model=TokenPair)
-def login(body: LoginRequest, auth: Auth):
-    return auth.login(body.email, body.password)
+def login(body: LoginRequest, auth: Auth, request: Request):
+    """Repeated failures for one email from one address are throttled (HTTP 429)."""
+    return auth.login(body.email, body.password, client=request.client.host if request.client else None)
 
 
 @router.post("/refresh", response_model=TokenPair)
