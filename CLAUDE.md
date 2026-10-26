@@ -20,15 +20,17 @@ context only. Do not name a country; only public datasets were used and there wa
 - Every deviation must be listed with its reason in `docs/scope_table.md`.
 
 ## 3. ML models and honesty rules
-- DR: real binary MobileNetV2 classifier (0 = no DR, 1 = DR present, ICDR grades 1-4). Shipped model is a
-  2-epoch fine-tune on a 15,000-image subset of Kaggle `ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy`.
+- DR: real binary MobileNetV2 classifier (0 = no DR, 1 = DR present, ICDR grades 1-4), Kaggle
+  `ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy`. The committed notebook trained 8 epochs on a
+  StratifiedGroupKFold fold and saved the model files; whether the shipped files are that run is checked by
+  `notebooks/kaggle_holdout_eval.ipynb` (the author earlier believed it was a 2-epoch / 15k-image run).
   Input 224x224, MobileNetV2 `preprocess_input`, nearest-neighbour resize (matches training).
 - **Held-out metrics are NOT measured yet.** Until `docs/evaluation/holdout_predictions.csv` exists, every
   surface (report, model card, About screen, README) says "metrics not yet measured". When it exists, metrics
   are computed by script into `docs/metrics.json`. Row-order equivalence of the Kaggle `df` with the training
   session is unverified until Michael confirms it, so metrics are labelled an "unverified, optimistic estimate"
-  until then. SEED = 42. Never quote 0.790 / 0.542 (lost 8-epoch run) for the
-  shipped model. Never estimate numbers.
+  until then. SEED = 42. Quote the notebook's 0.790 / 0.542 for the shipped model only if the hold-out
+  notebook's reproducibility check passes. Never estimate numbers.
 - Glaucoma and cataract: no trained models. They show `model_available=false` / "Model not available yet".
 - Severity band 1-5 for a binary model is an **estimate** from a documented, configurable `RiskPolicy`,
   labelled "Estimated severity band". It is not a clinical grade. Never claim calibration not measured.
@@ -97,8 +99,14 @@ backend/tests/   backend/alembic/   scripts/   models/<condition>/
 frontend/   docs/{diagrams,evaluation,benchmarks,report}/   notebooks/
 ```
 
+## 12b. Current state (26 Oct 2026)
+Backend, frontend, E2E, docs and diagrams are done (see `docs/scope_table.md`). The Streamlit prototype was
+retired (git tag `legacy-streamlit-prototype`). Pending: Kaggle hold-out run -> `scripts/calibrate_threshold.py`,
+technical report PDF, video, usability test, merge `final-app` into `main`.
+
 ## 13. Environment
 Windows + PowerShell. Python in project `.venv` only (never global). Pinned requirements.
+Node at `C:\Program Files\nodejs`; call `npm.cmd` / `npx.cmd` (PowerShell blocks npm.ps1).
 `DATABASE_URL` setting: SQLite locally by default, PostgreSQL by config switch. Docker / docker-compose
 provided for deployment only, not required locally.
 
