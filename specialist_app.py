@@ -7,11 +7,17 @@ Run (after starting the backend):  streamlit run specialist_app.py
 """
 import os
 
+import sys
+from pathlib import Path
+
 import streamlit as st
 
-from src.api_client import SpecialistClient
-from src.domain import ReviewDecision
-from src.exceptions import RemoteAuthError, RemoteError, RemoteRejectedError
+# The ML package lives in backend/app/ml (legacy Streamlit prototype, superseded by frontend/).
+sys.path.insert(0, str(Path(__file__).resolve().parent / "backend"))
+
+from app.ml.api_client import SpecialistClient
+from app.ml.domain import ReviewDecision
+from app.ml.exceptions import RemoteAuthError, RemoteError, RemoteRejectedError
 
 st.set_page_config(page_title="Specialist Review Portal", page_icon="\U0001FA7A", layout="wide")
 

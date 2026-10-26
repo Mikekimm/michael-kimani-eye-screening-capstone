@@ -18,11 +18,11 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from src.config import THRESHOLD_PATH, TARGET_SENSITIVITY  # noqa: E402
-from src.evaluation import bootstrap_metric_ci, roc_auc, stratified_split  # noqa: E402
-from src.thresholding import metrics_at_threshold, save_threshold, select_threshold  # noqa: E402
+from app.ml.config import THRESHOLD_PATH, TARGET_SENSITIVITY  # noqa: E402
+from app.ml.evaluation import bootstrap_metric_ci, roc_auc, stratified_split  # noqa: E402
+from app.ml.thresholding import metrics_at_threshold, save_threshold, select_threshold  # noqa: E402
 
 TARGET_SPECIFICITY = 0.80  # from the proposal (Section 3.3)
 

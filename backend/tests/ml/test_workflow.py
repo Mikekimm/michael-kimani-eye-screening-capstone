@@ -2,9 +2,9 @@
 import pytest
 from PIL import Image
 
-from src.exceptions import ImageQualityError, InvalidImageError, RecordValidationError
-from src.service import ScreeningService
-from src.workflow import ScreeningWorkflow
+from app.ml.exceptions import ImageQualityError, InvalidImageError, RecordValidationError
+from app.ml.service import ScreeningService
+from app.ml.workflow import ScreeningWorkflow
 from tests.conftest import StubClassifier, encode, make_fundus_like
 
 

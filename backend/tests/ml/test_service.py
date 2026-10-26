@@ -1,9 +1,9 @@
 import pytest
 from PIL import Image
 
-from src.classifier import BaseClassifier
-from src.exceptions import ImageQualityError, InvalidImageError, ScreeningError
-from src.service import ScreeningService
+from app.ml.classifier import BaseClassifier
+from app.ml.exceptions import ImageQualityError, InvalidImageError, ScreeningError
+from app.ml.service import ScreeningService
 from tests.conftest import encode
 
 

@@ -14,11 +14,11 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from src.classifier import KerasClassifier, TFLiteClassifier  # noqa: E402
-from src.config import IMG_SIZE, KERAS_MODEL_PATH, TFLITE_MODEL_PATH  # noqa: E402
-from src.exceptions import ModelNotAvailableError  # noqa: E402
+from app.ml.classifier import KerasClassifier, TFLiteClassifier  # noqa: E402
+from app.ml.config import IMG_SIZE, KERAS_MODEL_PATH, TFLITE_MODEL_PATH  # noqa: E402
+from app.ml.exceptions import ModelNotAvailableError  # noqa: E402
 
 
 def time_backend(backend, runs):

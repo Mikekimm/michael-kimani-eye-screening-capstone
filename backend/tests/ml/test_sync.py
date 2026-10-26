@@ -1,7 +1,7 @@
 """SyncService behaviour against a fake remote (no network)."""
-from src.domain import SyncStatus
-from src.exceptions import RemoteAuthError, RemoteRejectedError, RemoteUnavailableError
-from src.sync import RemoteClient, SyncService
+from app.ml.domain import SyncStatus
+from app.ml.exceptions import RemoteAuthError, RemoteRejectedError, RemoteUnavailableError
+from app.ml.sync import RemoteClient, SyncService
 from tests.conftest import save_one
 
 

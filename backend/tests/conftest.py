@@ -2,7 +2,7 @@ import io
 import os
 import tempfile
 
-# Must run before any ``src`` import so the app under test never writes into the repo.
+# Must run before any ``app.ml`` import so the app under test never writes into the repo.
 os.environ.setdefault("SCREENING_DATA_DIR", tempfile.mkdtemp(prefix="screening-test-"))
 
 import numpy as np
@@ -41,10 +41,10 @@ def fundus_png(fundus_image):
 
 
 # ---- shared helpers for the storage / sync / API tests ---------------------------
-from src.classifier import BaseClassifier  # noqa: E402
-from src.quality import QualityReport  # noqa: E402
-from src.result import ScreeningResult  # noqa: E402
-from src.storage import ScreeningRepository  # noqa: E402
+from app.ml.classifier import BaseClassifier  # noqa: E402
+from app.ml.quality import QualityReport  # noqa: E402
+from app.ml.result import ScreeningResult  # noqa: E402
+from app.ml.storage import ScreeningRepository  # noqa: E402
 
 
 class StubClassifier(BaseClassifier):

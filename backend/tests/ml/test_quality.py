@@ -1,6 +1,6 @@
 from PIL import Image, ImageFilter
 
-from src.quality import ImageQualityChecker
+from app.ml.quality import ImageQualityChecker
 from tests.conftest import make_fundus_like
 
 

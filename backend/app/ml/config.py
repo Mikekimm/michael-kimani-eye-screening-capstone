@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[3]  # backend/app/ml/config.py -> repo root
 MODEL_DIR = PROJECT_ROOT / "models"
 
 

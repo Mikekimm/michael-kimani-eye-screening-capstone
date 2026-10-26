@@ -5,8 +5,8 @@ import uuid
 
 import pytest
 
-from src.domain import ReviewDecision, SyncStatus
-from src.exceptions import RecordNotFoundError, RecordValidationError
+from app.ml.domain import ReviewDecision, SyncStatus
+from app.ml.exceptions import RecordNotFoundError, RecordValidationError
 from tests.conftest import encode, make_fundus_like, make_result, save_one
 
 
@@ -48,7 +48,7 @@ def test_unknown_screening_raises_not_found(repo):
 
 
 def test_sync_payload_round_trips_through_server_import(repo, tmp_path):
-    from src.storage import ScreeningRepository
+    from app.ml.storage import ScreeningRepository
     record = save_one(repo, side="left")
     server_repo = ScreeningRepository(tmp_path / "srv.db", tmp_path / "srv_img")
     stored, created = server_repo.import_screening(repo.build_sync_payload(record.id))
@@ -59,7 +59,7 @@ def test_sync_payload_round_trips_through_server_import(repo, tmp_path):
 
 
 def test_import_is_idempotent(repo, tmp_path):
-    from src.storage import ScreeningRepository
+    from app.ml.storage import ScreeningRepository
     record = save_one(repo)
     server_repo = ScreeningRepository(tmp_path / "srv.db", tmp_path / "srv_img")
     payload = repo.build_sync_payload(record.id)
@@ -69,7 +69,7 @@ def test_import_is_idempotent(repo, tmp_path):
 
 
 def test_import_rejects_tampered_image(repo, tmp_path):
-    from src.storage import ScreeningRepository
+    from app.ml.storage import ScreeningRepository
     server_repo = ScreeningRepository(tmp_path / "srv.db", tmp_path / "srv_img")
     payload = repo.build_sync_payload(save_one(repo).id)
     payload["image_sha256"] = "0" * 64
@@ -82,7 +82,7 @@ def test_import_rejects_tampered_image(repo, tmp_path):
                                          ("laterality", "up"), ("patient_ref", "Jane Doe"),
                                          ("image_b64", "***not-base64***"), ("id", "nope")])
 def test_import_rejects_malformed_fields(repo, tmp_path, field, value):
-    from src.storage import ScreeningRepository
+    from app.ml.storage import ScreeningRepository
     server_repo = ScreeningRepository(tmp_path / "srv.db", tmp_path / "srv_img")
     payload = repo.build_sync_payload(save_one(repo).id)
     payload[field] = value
