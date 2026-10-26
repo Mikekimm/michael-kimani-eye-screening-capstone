@@ -1,0 +1,241 @@
+"""Pydantic v2 request/response schemas: the public API contract, separate from ORM entities."""
+from datetime import datetime
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, model_validator
+
+from ..models.enums import (
+    Eye, ReferralReason, ReviewAction, RiskLevel, Role, ScreeningStatus, Sex, SyncOutcome,
+)
+
+PatientCode = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{2,39}$")]
+Password = Annotated[str, StringConstraints(min_length=8, max_length=128)]
+Note = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
+
+
+class ORMModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ---------- auth and users ----------
+
+class RegisterRequest(BaseModel):
+    """Public sign-up. There is deliberately no ``role`` field: everyone starts as a health worker."""
+    model_config = ConfigDict(extra="forbid")
+    email: EmailStr
+    full_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)]
+    password: Password
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class TokenPair(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class UserOut(ORMModel):
+    id: str
+    email: EmailStr
+    full_name: str
+    role: Role
+    is_active: bool
+    created_at: datetime
+
+
+class UserUpdate(BaseModel):
+    """Admin-only changes to another account."""
+    model_config = ConfigDict(extra="forbid")
+    role: Role | None = None
+    is_active: bool | None = None
+
+
+class AdminUserCreate(RegisterRequest):
+    role: Role = Role.HEALTH_WORKER
+
+
+# ---------- patients ----------
+
+class PatientCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: PatientCode
+    year_of_birth: int | None = Field(default=None, ge=1900, le=2100)
+    sex: Sex = Sex.UNKNOWN
+    has_diabetes: bool | None = None
+    client_uuid: str | None = Field(default=None, max_length=36)
+
+
+class PatientOut(ORMModel):
+    id: str
+    code: str
+    year_of_birth: int | None
+    sex: Sex
+    has_diabetes: bool | None
+    created_at: datetime
+    screening_count: int = 0
+    last_screened_at: datetime | None = None
+
+
+# ---------- screenings ----------
+
+class ConditionResultOut(ORMModel):
+    condition: str
+    display_name: str = ""
+    model_available: bool
+    model_version: str | None
+    probability: float | None
+    threshold: float | None
+    positive: bool | None
+    uncertain: bool | None
+    severity_band: int | None
+    risk_level: RiskLevel | None
+    recommendation: str
+    auto_refer: bool
+
+
+class QualityOut(BaseModel):
+    usable: bool
+    warnings: list[str]
+    sharpness: float
+    brightness: float
+    contrast: float
+
+
+class ReviewEventOut(ORMModel):
+    id: int
+    action: ReviewAction
+    condition: str | None
+    override_positive: bool | None
+    note: str | None
+    reviewer_name: str
+    created_at: datetime
+
+
+class ScreeningOut(ORMModel):
+    id: str
+    client_uuid: str
+    patient_id: str
+    patient_code: str
+    eye: Eye
+    status: ScreeningStatus
+    captured_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    created_by_name: str
+    quality: QualityOut
+    results: list[ConditionResultOut]
+    referral_reason: ReferralReason | None
+    reviews: list[ReviewEventOut]
+    disclaimer: str
+
+
+class ScreeningCreated(ScreeningOut):
+    duplicate: bool = False
+
+
+# ---------- reviews ----------
+
+class ReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: ReviewAction
+    condition: str | None = None
+    override_positive: bool | None = None
+    note: Note | None = None
+
+    @model_validator(mode="after")
+    def _check_action_fields(self) -> "ReviewRequest":
+        if self.action == ReviewAction.OVERRIDE:
+            if not self.condition or self.override_positive is None:
+                raise ValueError("An override must name the condition and the corrected result.")
+            if not self.note:
+                raise ValueError("An override requires a reason.")
+        if self.action in (ReviewAction.COMMENT, ReviewAction.REQUEST_RETAKE) and not self.note:
+            raise ValueError("Please add a note explaining the comment or retake request.")
+        return self
+
+
+class QueueItemOut(BaseModel):
+    screening_id: str
+    patient_code: str
+    eye: Eye
+    referral_reason: ReferralReason
+    highest_band: int | None
+    created_at: datetime
+    created_by_name: str
+
+
+# ---------- sync ----------
+
+class SyncPushRequest(BaseModel):
+    """Batch of patients registered while offline (screenings are replayed via POST /screenings)."""
+    patients: list[PatientCreate] = Field(default_factory=list, max_length=200)
+
+
+class SyncItemResult(BaseModel):
+    client_uuid: str
+    outcome: SyncOutcome
+    server_id: str | None = None
+    error: str | None = None
+
+
+class SyncPushResponse(BaseModel):
+    results: list[SyncItemResult]
+
+
+class SyncDecision(BaseModel):
+    screening_id: str
+    client_uuid: str
+    status: ScreeningStatus
+    latest_action: ReviewAction | None
+    latest_note: str | None
+    updated_at: datetime
+
+
+class SyncPullResponse(BaseModel):
+    server_time: datetime
+    decisions: list[SyncDecision]
+
+
+# ---------- models and analytics ----------
+
+class ModelInfoOut(BaseModel):
+    condition: str
+    display_name: str
+    available: bool
+    status_reason: str
+    version: str | None = None
+    threshold: float | None = None
+    threshold_source: str | None = None
+    uncertainty_margin: float | None = None
+    input: dict | None = None
+    labels: dict[str, str] | None = None
+    architecture: str | None = None
+    training: dict | None = None
+    metrics: dict | None = None
+    metrics_status: str = "not yet measured"
+    limitations: list[str] = []
+
+
+class DailyCount(BaseModel):
+    day: str
+    count: int
+
+
+class AnalyticsOut(BaseModel):
+    total_screenings: int
+    screenings_per_day: list[DailyCount]
+    positives_per_condition: dict[str, int]
+    referral_rate: float | None
+    open_referrals: int
+    median_review_turnaround_hours: float | None
+    model_versions_in_use: dict[str, int]
+    users_by_role: dict[str, int]
