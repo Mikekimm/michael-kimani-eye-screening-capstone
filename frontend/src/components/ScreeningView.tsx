@@ -2,7 +2,7 @@ import { History } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useScreeningImage } from "@/hooks/queries";
-import type { ReviewAction, Screening } from "@/lib/api/types";
+import type { ReferralReason, ReviewAction, Screening } from "@/lib/api/types";
 import { EYE_LABEL, formatDateTime } from "@/lib/utils";
 
 import { Disclaimer, StatusPill } from "./feedback";
@@ -14,6 +14,12 @@ const ACTION_LABEL: Record<ReviewAction, string> = {
   override: "Overrode the result",
   request_retake: "Requested a new photo",
   comment: "Commented",
+};
+
+const REFERRAL_TEXT: Record<ReferralReason, string> = {
+  positive: "signs were detected",
+  uncertain: "the result was borderline",
+  manual: "the health worker referred it",
 };
 
 function FundusImage({ id }: { id: string }) {
@@ -70,7 +76,7 @@ export function ScreeningView({ screening }: { screening: Screening }) {
           <StatusPill status={screening.status} />
           <p className="text-muted-foreground">Captured {formatDateTime(screening.captured_at)} by {screening.created_by_name}</p>
           {screening.referral_reason && (
-            <p>Referred because the result was <strong>{screening.referral_reason === "uncertain" ? "borderline" : screening.referral_reason}</strong>.</p>
+            <p>Referred because <strong>{REFERRAL_TEXT[screening.referral_reason]}</strong>.</p>
           )}
           {screening.quality.warnings.length > 0 && (
             <ul className="mt-1 list-disc pl-5 text-risk-medium">{screening.quality.warnings.map((w) => <li key={w}>{w}</li>)}</ul>

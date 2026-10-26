@@ -4,6 +4,9 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+// The e2e tests point the preview server at a throwaway backend on another port.
+const apiTarget = process.env.E2E_API_TARGET ?? "http://127.0.0.1:8000";
+
 export default defineConfig({
   plugins: [
     react(),
@@ -35,11 +38,11 @@ export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
   server: {
     port: 5173,
-    proxy: { "/api": { target: "http://127.0.0.1:8000", changeOrigin: true } },
+    proxy: { "/api": { target: apiTarget, changeOrigin: true } },
   },
   preview: {
     port: 4173,
-    proxy: { "/api": { target: "http://127.0.0.1:8000", changeOrigin: true } },
+    proxy: { "/api": { target: apiTarget, changeOrigin: true } },
   },
   build: {
     rollupOptions: {
@@ -50,6 +53,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
     css: false,
   },
 });
