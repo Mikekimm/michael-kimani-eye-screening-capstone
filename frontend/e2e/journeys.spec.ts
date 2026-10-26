@@ -17,7 +17,8 @@ const shot = (page: Page, info: TestInfo, name: string) =>
   page.screenshot({ path: path.join(SHOTS, `${info.project.name}-${name}.png`), fullPage: true });
 
 const workerEmail = (info: TestInfo) => `nurse.${info.project.name}@example.org`;
-const patientCode = (info: TestInfo) => `E2E-${info.project.name === "mobile-chromium" ? "MOB" : "DSK"}-01`;
+const CODES: Record<string, string> = { "mobile-chromium": "MOB", "desktop-chromium": "DSK", "desktop-firefox": "FFX", "mobile-webkit": "WBK" };
+const patientCode = (info: TestInfo) => `E2E-${CODES[info.project.name] ?? "OTH"}-01`;
 
 async function acceptConsentIfAsked(page: Page) {
   if (page.url().endsWith("/consent")) {

@@ -51,10 +51,10 @@ def _load_interpreter_class():
 class TFLiteConditionModel(ConditionModel):
     """Runs a .tflite file. The interpreter is not thread-safe, so calls are serialised."""
 
-    def __init__(self, card: ModelCard, model_path: Path):
+    def __init__(self, card: ModelCard, model_path: Path, num_threads: int | None = None):
         super().__init__(card)
         try:
-            self._interpreter = _load_interpreter_class()(model_path=str(model_path))
+            self._interpreter = _load_interpreter_class()(model_path=str(model_path), num_threads=num_threads)
             self._interpreter.allocate_tensors()
         except ModelNotAvailableError:
             raise
