@@ -1,0 +1,7 @@
+# Test and tooling dependencies. TensorFlow is only needed for the Keras-vs-TFLite agreement test
+# and scripts/export_tflite.py; the API itself runs on ai-edge-litert.
+-r requirements.txt
+pytest==9.1.1
+httpx==0.28.1
+psutil==7.2.2
+tensorflow==2.22.0rc0
