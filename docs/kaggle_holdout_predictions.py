@@ -6,7 +6,7 @@ images drawn only from the remaining ~221,000 that it never saw.
 
 Before running:
   1. In the notebook, run the setup + dataset-loading cells so `df`, `SEED` exist.
-  2. Add dr_screening_model.h5 to the notebook: Input panel -> Upload -> new dataset.
+  2. Add the DR model (.h5, e.g. models/dr/model.h5 or dr_screening_model.h5) to the notebook: Input panel -> Upload -> new dataset.
      (A new dataset upload is fine; it is only used to load the weights.)
   3. SEED must be the same value used when the model was trained (the notebook's SEED).
 """
@@ -21,7 +21,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 HOLDOUT_SIZE = 6000
 
-model_path = glob.glob("/kaggle/input/**/dr_screening_model.h5", recursive=True)[0]
+model_path = glob.glob("/kaggle/input/**/*.h5", recursive=True)[0]
 model = tf.keras.models.load_model(model_path, compile=False)
 
 # Reproduce the exact subset the deployed model was trained/validated on...

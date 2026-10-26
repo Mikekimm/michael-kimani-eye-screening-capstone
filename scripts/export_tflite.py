@@ -2,7 +2,7 @@
 
 Usage:
     python scripts/export_tflite.py
-Reads models/dr_screening_model.h5 and writes models/dr_screening_model.tflite.
+Reads models/dr/model.h5 and writes models/dr/model.tflite.
 """
 import sys
 from pathlib import Path
@@ -19,7 +19,7 @@ def main():
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]  # dynamic-range quantisation
     tflite_bytes = converter.convert()
-    out_path = MODEL_DIR / "dr_screening_model.tflite"
+    out_path = MODEL_DIR / "dr" / "model.tflite"
     out_path.write_bytes(tflite_bytes)
     print(f"Wrote {out_path} ({out_path.stat().st_size / 1e6:.1f} MB)")
 
