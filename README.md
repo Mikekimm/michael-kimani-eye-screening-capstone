@@ -1,146 +1,221 @@
-# Retinal Screening Assistant: offline-first diabetic retinopathy screening prototype
+# Retinal Screening and Referral Support
 
-A research prototype that lets a primary health centre worker screen a retinal fundus photograph for
-**diabetic retinopathy (DR)** with **no internet connection**, keep the record safely on the device, and
-**send flagged or borderline cases to a specialist** when a connection is available. It is preliminary
-screening support, **not a diagnosis**, and it is not clinically validated.
+An offline-first progressive web app that helps primary health centre workers screen fundus (retina)
+photos for eye disease and refer uncertain or high-risk cases to a specialist.
+
+> **Screening support only. Not a diagnostic device.** This is a research prototype trained and
+> tested on public datasets. It has not been clinically validated and has no regulatory approval.
+
+ALU BSc Software Engineering capstone, Michael Kimani (supervisor: Emmanuel Adjei).
 
 | | |
 |---|---|
-| **Video walkthrough** | TODO-paste-video-link |
-| **Technical report (PDF, 5 pages)** | TODO-paste-report-link |
-| **Repository** | https://github.com/Mikekimm/michael-kimani-eye-screening-capstone |
+| Walkthrough video | **TODO: add link** |
+| Technical report (PDF) | **TODO: add link** (source in [docs/report/](docs/report/)) |
+| MVP demo (earlier milestone) | https://youtu.be/5CVl1Cbt8A0 |
 
-## Who it is for and the demonstration workflow
+---
 
-**User:** a clinical officer at a rural primary health centre with an intermittent internet connection and no
-ophthalmologist on site. **Reviewer:** an ophthalmologist at a regional hospital.
+## 1. Problem and intended users
 
-1. The clinical officer enters a **patient code** (not a name), chooses the **eye**, and uploads a fundus photo.
-2. The app checks image quality, runs the model **locally**, and shows the result and advice. The record
-   (image, eye, model version, score, threshold) is saved on the device immediately.
-3. Flagged or **borderline** scores are marked for specialist review. Nothing is lost while offline.
-4. When connected, **Sync now** uploads pending records and pulls back specialist decisions.
-5. The specialist opens the **review portal**, sees the image, eye and model version, and approves or overrides.
-   Every decision is kept in the case history; the clinic receives it at its next sync.
+Diabetic retinopathy (DR), glaucoma and cataract are leading causes of preventable blindness. Primary
+health centres in low-resource settings rarely have eye specialists or reliable internet. The intended
+context is **primary health centres in low-resource settings in Africa**. This describes the target
+setting only: no field deployment or clinical evaluation has taken place.
 
-Research evaluation (how good is the model?) is documented separately from software verification
-(does the system behave?): see [docs/DATA_AND_EVALUATION.md](docs/DATA_AND_EVALUATION.md) and [docs/TESTING.md](docs/TESTING.md).
+| Role | What they do in the app |
+|---|---|
+| **Health worker** (public sign-up) | Registers patients by clinic code, captures or uploads a fundus photo of the left or right eye, gets a screening result, refers cases, works offline and syncs later |
+| **Specialist** (granted by an admin) | Reviews referred cases: approve, override with a reason, request a retake, comment. History is append-only |
+| **Admin** | Manages users and roles, sees aggregate analytics (no images or identifiers) |
 
-## Features and scope
+## 2. Conditions and real model availability
 
-See [docs/SCOPE_TABLE.md](docs/SCOPE_TABLE.md) for the full planned-versus-delivered table. In short:
-DR classification, offline inference (Keras and TensorFlow Lite), local SQLite storage, two-way sync,
-token-authenticated REST backend, specialist review portal with history, and quality checks are implemented.
-**Glaucoma, cataract and the Android app are not implemented** (future work).
+| Condition | Model | Status |
+|---|---|---|
+| Diabetic retinopathy | MobileNetV2 transfer learning, binary (no DR / DR present), TFLite run with LiteRT | **Available.** Held-out metrics: see [docs/metrics.json](docs/metrics.json) once generated; until then the app says "metrics not yet measured" |
+| Glaucoma | none trained | **Model not available yet.** The app says so and gives no result |
+| Cataract | none trained | **Model not available yet.** The app says so and gives no result |
 
-## Architecture
+The 1-5 band shown for DR is an **estimated severity band** derived from the model score by a
+configurable policy ([docs/risk_policy.md](docs/risk_policy.md)). It is not an ICDR grade. Adding a
+trained glaucoma or cataract model needs no code change: drop `model.tflite` + `model_card.json` into
+`models/glaucoma/` or `models/cataract/` and restart (the registry verifies the SHA-256).
 
-![Architecture](docs/diagrams/architecture.png)
+## 3. Features
 
-Diagrams for the use cases and data model are in [docs/diagrams](docs/diagrams) and explained in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+* Sign-up / sign-in with Argon2-hashed passwords, JWT access + refresh tokens, role-based access enforced by the API
+* Patient registry using pseudonymous clinic codes (no names), patient screening history
+* 3-step capture: patient, eye, photo (rear camera with a circular guide, or gallery), with on-device quality hints
+* Server quality gate (blank, too small) with plain-language 422 errors; warnings for blur, darkness and non-fundus images
+* One result card per condition: classification, model score explained, borderline flag, estimated severity band, model version, recommended action
+* Automatic referral of positive and borderline results; manual "refer anyway"
+* Specialist queue and case review with an append-only, timestamped review history
+* Offline queue in IndexedDB: capture while offline, automatic sync with exponential backoff, per-item retry; specialist decisions pulled back to the device
+* Admin user management and aggregate analytics; About screen built from the model card
+* Installable PWA, mobile-first (bottom tabs) with a desktop sidebar
 
-## Repository structure
+**Not included (honest limits):** offline *inference* (photos taken offline are analysed after they
+sync), glaucoma and cataract models, a native Android app, a load balancer, field testing.
+
+## 4. Architecture
 
 ```
-app.py                     Clinic app UI (offline-first): screen, save, sync
-specialist_app.py          Specialist review portal UI
-src/
-  config.py                paths and constants
-  domain.py                records, enums, validation (laterality, patient code, review decisions)
-  preprocessing.py         ImagePreprocessor: decode, convert, resize, scale (matches training)
-  quality.py               ImageQualityChecker: blank, size, blur, brightness, fundus-likeness
-  classifier.py            BaseClassifier + KerasClassifier + TFLiteClassifier + factory
-  thresholding.py          sensitivity-targeted threshold selection
-  evaluation.py            tune/test split, AUC, bootstrap confidence intervals
-  result.py                ScreeningResult (flagged / borderline / needs_review)
-  service.py               ScreeningService: load -> quality -> predict -> decide
-  storage.py               ScreeningRepository: SQLite store, review history, sync bookkeeping
-  workflow.py              ScreeningWorkflow: screen + save in one step
-  sync.py                  SyncService + RemoteClient interface
-  api_client.py            ApiClient, ClinicClient, SpecialistClient (HTTP, error translation)
-  server.py                REST backend with token authentication and roles
-  exceptions.py            domain-specific errors
-scripts/
-  run_server.py            start the backend
-  calibrate_threshold.py   choose threshold on one half, report on the other, with intervals
-  benchmark.py             model latency, size, memory
-  benchmark_pipeline.py    preprocessing, quality, storage and sync timings
-  export_tflite.py         convert the Keras model to TensorFlow Lite
-tests/                     pytest suite (unit, integration, connectivity, UI smoke)
-notebooks/                 model_notebook.ipynb (training and evaluation, run on Kaggle)
-models/                    dr_screening_model.h5, dr_screening_model.tflite (+ threshold.json once calibrated)
-docs/                      data and evaluation, scope table, testing, architecture, diagrams, video script
+React PWA (Vite, TypeScript)            FastAPI backend (Python)
+  pages -> hooks -> typed API client  ->  api (routers) -> services -> repositories -> SQLAlchemy
+  IndexedDB offline queue (SyncQueue)      ScreeningPipeline -> ModelRegistry -> TFLiteConditionModel (LiteRT)
+                                           RiskPolicy (config/risk_policy.json)      SQLite / PostgreSQL
 ```
 
-## Installation
+Design patterns you can find in the code:
 
-Requirements: Python 3.10 or newer (TensorFlow does not yet support every newest Python; use the version in the table below).
+| Pattern | Where |
+|---|---|
+| Strategy | `RiskPolicy` per condition: [backend/app/ml/risk_policy.py](backend/app/ml/risk_policy.py) |
+| Interface + polymorphism | `ConditionModel` -> `TFLiteConditionModel`: [backend/app/ml/condition_model.py](backend/app/ml/condition_model.py) |
+| Registry with integrity check | `ModelRegistry`: [backend/app/ml/registry.py](backend/app/ml/registry.py) |
+| Repository | [backend/app/repositories/__init__.py](backend/app/repositories/__init__.py) (frontend: `QueueRepository` with IndexedDB and in-memory implementations) |
+| Dependency injection | [backend/app/api/deps.py](backend/app/api/deps.py), [frontend/src/lib/services.tsx](frontend/src/lib/services.tsx) |
+| Single access policy | `AccessPolicy`: [backend/app/services/access.py](backend/app/services/access.py) |
 
-```bash
+Algorithms: image quality gate (Laplacian variance, brightness, vignette test) in
+[quality.py](backend/app/ml/quality.py); sensitivity-targeted threshold search (O(n log n)) in
+[thresholding.py](backend/app/ml/thresholding.py); rank-sum AUC and bootstrap intervals in
+[evaluation.py](backend/app/ml/evaluation.py); threshold-anchored severity bands in
+[risk_policy.py](backend/app/ml/risk_policy.py); idempotent sync with bounded exponential backoff and
+full jitter in [syncQueue.ts](frontend/src/offline/syncQueue.ts) and [backoff.ts](frontend/src/offline/backoff.ts);
+SHA-256 model verification in [registry.py](backend/app/ml/registry.py).
+
+## 5. Repository structure
+
+```
+backend/
+  app/api/            FastAPI routers and dependency injection
+  app/services/       use cases: auth, patients, screening pipeline, reviews, sync, analytics
+  app/repositories/   database queries
+  app/models/         SQLAlchemy entities and enums
+  app/schemas/        Pydantic v2 request/response models
+  app/ml/             preprocessing, quality gate, model registry, risk policy, evaluation
+  app/core/           settings, database, security, error handling
+  alembic/            database migrations
+  config/             risk_policy.json
+  tests/              pytest (api/, ml/)
+frontend/
+  src/pages/          screens        src/components/  UI building blocks
+  src/hooks/          data hooks     src/lib/         API client, auth, utils
+  src/offline/        IndexedDB queue, backoff, sync
+  e2e/                Playwright journeys
+models/dr/            model.tflite (served), model.h5 (source), model_card.json
+notebooks/            training notebook, Kaggle hold-out evaluation notebook
+scripts/              init_env, seed, benchmark, calibrate_threshold, export_tflite, e2e_server
+docs/                 scope table, testing report, risk policy, benchmarks, diagrams, screenshots, report
+```
+
+## 6. Technical requirements (versions actually used)
+
+| Component | Version |
+|---|---|
+| OS (development and tests) | Windows 11 Pro (10.0.26200) |
+| Python | 3.14.6 (Docker image uses 3.12; not yet built) |
+| Node.js / npm | 24.22.1 / 11.19.1 |
+| Backend | FastAPI 0.162.0, Uvicorn 0.54.0, SQLAlchemy 2.1.6, Alembic 1.20.1, Pydantic 2.14.1, argon2-cffi 25.1.0, PyJWT 2.15.1, ai-edge-litert 2.3.0, NumPy 2.5.4, Pillow 13.0.0 |
+| Frontend | React 18.3.1, Vite 5.4.10, TypeScript 5.6.3 (strict), Tailwind 3.4.14, TanStack Query 5.59.20, React Hook Form 7.53.2, Zod 3.23.8, vite-plugin-pwa 0.20.5, Recharts 2.13.3 |
+| Testing | pytest 9.1.1, Vitest 2.1.4, Testing Library 16.0.1, Playwright 1.48.2, Lighthouse 12.2.1 |
+| ML (dev only) | TensorFlow 2.22.0rc0, scikit-learn 1.9.1 |
+| Database | SQLite (default); PostgreSQL 16 via `DATABASE_URL` (configured, not yet tested) |
+
+Full pinned lists: [backend/requirements.txt](backend/requirements.txt), [backend/requirements-dev.txt](backend/requirements-dev.txt), [frontend/package.json](frontend/package.json).
+
+## 7. Install and run (Windows PowerShell)
+
+Prerequisites: Python 3.12+ and Node.js 22+ (LTS). No Docker or PostgreSQL needed.
+
+```powershell
 git clone https://github.com/Mikekimm/michael-kimani-eye-screening-capstone.git
 cd michael-kimani-eye-screening-capstone
+
+# Backend
 python -m venv .venv
-.venv\Scripts\activate          # Windows
-source .venv/bin/activate       # macOS / Linux
-pip install -r requirements.txt
+.venv\Scripts\python -m pip install -r backend\requirements.txt
+.venv\Scripts\python scripts\init_env.py        # writes .env with a random JWT secret and demo passwords (printed once)
+cd backend
+..\.venv\Scripts\alembic upgrade head           # create the database (data\app.db)
+cd ..
+.venv\Scripts\python scripts\seed.py            # demo admin, specialist, health worker + 5 synthetic patients
+cd backend
+..\.venv\Scripts\python -m uvicorn app.main:app --port 8000
 ```
 
-### Run the demo (three terminals, same folder, virtual environment active)
+In a second terminal:
 
-```bash
-# 1. backend (prints access tokens; --demo-tokens uses fixed INSECURE tokens for demos only)
-python scripts/run_server.py --demo-tokens
-
-# 2. clinic app: set the token in the sidebar (demo: demo-clinician-token)
-streamlit run app.py
-
-# 3. specialist portal: token demo-specialist-token
-streamlit run specialist_app.py --server.port 8502
+```powershell
+cd frontend
+npm.cmd install
+npm.cmd run dev          # http://localhost:5173 (API calls are proxied to port 8000)
 ```
 
-To demonstrate offline use, screen a few patients **before** starting the backend, then start it and press **Sync now**.
+If PowerShell blocks `npm` scripts, use `npm.cmd` as shown. API documentation: http://localhost:8000/docs.
 
-## Technical requirements
+**Demo accounts** (synthetic data only): `admin@example.org`, `specialist@example.org`,
+`nurse@example.org`. Their passwords are generated by `scripts/init_env.py` and stored in your local
+`.env`; they are never committed. New health worker accounts can be created from the sign-up page.
 
-| Item | Version used |
+**Switching to PostgreSQL:** set `DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db` in `.env`,
+`pip install "psycopg[binary]"`, then run `alembic upgrade head`.
+
+**Docker (deployment):** `docker compose up --build` serves the app on http://localhost:8080 with
+PostgreSQL. These files have not yet been built or run, because Docker is not installed on the
+development machine.
+
+## 8. Tests
+
+```powershell
+cd backend;  ..\.venv\Scripts\python -m pip install -r requirements-dev.txt;  ..\.venv\Scripts\python -m pytest -q
+cd frontend; npm.cmd run typecheck; npm.cmd run lint; npm.cmd test
+cd frontend; npx playwright install chromium; npx playwright test     # starts its own throwaway backend
+```
+
+Latest recorded results (26 Oct 2026, development laptop):
+
+| Suite | Result |
 |---|---|
-| OS | TODO |
-| Python | TODO (`python --version`) |
-| TensorFlow / Keras | TODO (`pip show tensorflow keras`) |
-| Streamlit | TODO (`pip show streamlit`) |
-| NumPy / Pillow | TODO (`pip show numpy pillow`) |
-| Hardware | TODO (CPU, RAM) |
-| Training | Kaggle notebook, GPU T4 x2 |
+| Backend pytest (unit, API integration, real-model tests) | 165 passed, 0 skipped |
+| Frontend Vitest (algorithms, API client, components, forms, routes) | 48 passed |
+| TypeScript strict type-check / ESLint | clean / clean |
+| Playwright end-to-end (4 journeys x mobile + desktop Chromium) | 8 passed |
 
-## Testing
+Strategies, results and the improvements they led to: [docs/testing_report.md](docs/testing_report.md).
+Performance: [docs/benchmarks/](docs/benchmarks/) (model 110 ms mean, full pipeline 166 ms mean on an
+Intel 8-thread laptop CPU).
 
-```bash
-pip install -r requirements-dev.txt
-pytest                         # everything (tests needing TensorFlow skip if it is absent)
-pytest -m "not integration"    # skip the tests that load the real model
-python scripts/benchmark.py --runs 50
-python scripts/benchmark_pipeline.py --runs 30 --records 50
-```
+## 9. Model provenance and evaluation
 
-Strategy, input cases and results: [docs/TESTING.md](docs/TESTING.md).
+* Data: Kaggle `ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy` (EyePACS, APTOS 2019,
+  Messidor-2; pre-augmented; no patient identifiers). No images are stored in this repository.
+* Training: [notebooks/model_notebook.ipynb](notebooks/model_notebook.ipynb) (MobileNetV2, frozen
+  backbone, SEED 42, group-aware 5-fold split, 8 epochs).
+* Model card: [models/dr/model_card.json](models/dr/model_card.json) (verified input spec, labels,
+  checksum, threshold and its source, limitations).
+* Hold-out evaluation: [notebooks/kaggle_holdout_eval.ipynb](notebooks/kaggle_holdout_eval.ipynb)
+  reproduces the training validation fold and checks it matches before scoring;
+  `scripts/calibrate_threshold.py` then chooses a threshold for 85% sensitivity on one half and reports
+  every metric on the other half, with bootstrap intervals, into [docs/metrics.json](docs/metrics.json).
+* Known limitations: image-level splits (no patient IDs), augmented near-duplicates, no external test
+  set, no smartphone-lens images, probabilities not calibrated.
 
-## Model, data and metrics (read this)
+## 10. Security and privacy
 
-* **Model:** MobileNetV2 (ImageNet weights, frozen backbone) with a small classification head; binary output (DR present or absent).
-* **Data:** a public Kaggle collection (EyePACS + APTOS + Messidor-2). It has **no patient identifiers** and contains augmented
-  copies, so a patient-separated split was not possible and **all metrics are optimistic estimates**.
-  Full details: [docs/DATA_AND_EVALUATION.md](docs/DATA_AND_EVALUATION.md).
-* **Metrics for the deployed model:** TODO-paste-the-table-from `scripts/calibrate_threshold.py`.
-  Earlier training-run figures (0.790 accuracy, 0.542 recall) belong to a previous run whose weights were not saved, so they
-  must not be read as this model's performance.
-* **Threshold:** chosen on a tuning half of the hold-out to reach 85% sensitivity; every reported number comes from the test half.
-  A higher sensitivity means more false alarms, an accepted trade-off for a screening tool.
+Passwords hashed with Argon2id; short-lived access tokens with rotating refresh tokens revoked on
+logout; RBAC enforced on every API route (tested as a role-by-route matrix); public sign-up cannot
+choose a role; uploads checked for type, size and decodability; images stored under random names and
+served only to authorised users; analytics and audit logs hold no images or patient fields; secrets
+only in `.env`. Limits: tokens are kept in browser localStorage (readable by scripts on the page; the
+app loads no third-party scripts); no TLS in local development; no penetration testing.
 
-## Known limitations
+## 11. Known issues
 
-* DR only; no glaucoma or cataract; no Android app.
-* Not clinically validated; retrospective public data; no external evaluation set; no patient-level split.
-* Prototype security: bearer tokens without expiry, plain HTTP (use TLS in production), no user accounts.
-* The clinic app runs on a laptop; offline inference on a phone would need the TFLite model packaged in a mobile app.
-* No usability study with health workers was possible.
+* Glaucoma and cataract are not available until models are trained (e.g. on ODIR-5K).
+* Offline mode queues photos but cannot analyse them on the device.
+* The `.tflite` model is a quantized export; scores differ from the Keras model by up to about 0.03.
+* PostgreSQL and Docker configurations are written but not yet run.
+* No usability study with health workers has been completed yet.
