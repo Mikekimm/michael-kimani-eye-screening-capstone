@@ -112,6 +112,20 @@ class ScreeningService:
         reason = ReferralReason.POSITIVE if any(r.positive for r in referring) else ReferralReason.UNCERTAIN
         return Referral(reason=reason)
 
+    def refer(self, user: User, screening_id: str) -> Screening:
+        """Manual referral by the health worker for a result the policy did not refer."""
+        AccessPolicy.require_role(user, Role.HEALTH_WORKER)
+        screening = self.get(user, screening_id)
+        if screening.referral is not None or screening.status != ScreeningStatus.COMPLETED:
+            raise ConflictError("This screening has already been referred.")
+        screening.referral = Referral(reason=ReferralReason.MANUAL)
+        screening.status = ScreeningStatus.REFERRED
+        screening.updated_at = datetime.now(timezone.utc)
+        self._audit.record(user.id, "screening.referred_manually", "screening", screening.id)
+        self._session.commit()
+        self._session.expire(screening)
+        return self._screenings.get_full(screening.id)
+
     def get(self, user: User, screening_id: str) -> Screening:
         return self._access.check_screening(user, self._screenings.get_full(screening_id))
 
