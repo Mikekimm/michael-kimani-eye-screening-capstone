@@ -70,6 +70,11 @@ class TFLiteConditionModel(ConditionModel):
                 f"Model input {self._input_shape} does not match model card {tuple(card.input_shape)}.")
 
     @property
+    def runtime(self) -> str:
+        """Which interpreter is in use (ai_edge_litert or the TensorFlow fallback)."""
+        return type(self._interpreter).__module__.split(".")[0]
+
+    @property
     def input_size(self) -> tuple[int, int]:
         return self._input_shape[2], self._input_shape[1]  # (width, height) for PIL
 
