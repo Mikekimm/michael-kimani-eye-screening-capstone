@@ -1,0 +1,41 @@
+sequenceDiagram
+  autonumber
+  actor HW as Health worker
+  participant App as PWA (SyncQueue + IndexedDB)
+  participant API as FastAPI
+  participant ML as ScreeningPipeline + ModelRegistry
+  participant DB as Database
+  actor SP as Specialist
+
+  HW->>App: Choose patient and eye, take photo
+  alt online
+    App->>API: POST /api/screenings (image, patient_id, eye, client_uuid, captured_at)
+  else offline
+    App->>App: Save to IndexedDB queue (status pending)
+    Note over App,API: When the connection returns, retry with exponential backoff and jitter
+    App->>API: POST /api/screenings (same client_uuid, X-Sync-Attempt n)
+  end
+  API->>DB: client_uuid already stored?
+  alt duplicate (reply was lost earlier)
+    API-->>App: 200 original record (duplicate = true)
+  else new
+    API->>ML: validate type/size, quality gate
+    alt unusable image
+      ML-->>API: blocking issue
+      API-->>App: 422 plain-language reason
+    else usable
+      ML->>ML: score with every registered model, then RiskPolicy gives band, action, auto_refer
+      ML-->>API: one outcome per condition (unavailable models flagged)
+      API->>DB: screening + diagnosis_results (+ referral if auto_refer) + sync_log + audit
+      API-->>App: 201 result
+    end
+  end
+  App-->>HW: Result cards and recommended action
+
+  SP->>API: GET /api/reviews/queue
+  API-->>SP: Open referrals, oldest first
+  SP->>API: POST /api/reviews/{id} (approve | override + reason | request_retake | comment)
+  API->>DB: INSERT review_event (never UPDATE or DELETE), close referral
+  App->>API: GET /api/sync/pull?since=last_pull
+  API-->>App: Decisions on this worker's screenings
+  App-->>HW: Status updated (reviewed / retake requested)

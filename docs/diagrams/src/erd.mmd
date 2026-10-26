@@ -1,0 +1,102 @@
+erDiagram
+  USERS ||--o{ PATIENTS : registers
+  USERS ||--o{ SCREENINGS : captures
+  USERS ||--o{ REVIEW_EVENTS : writes
+  USERS ||--o{ REFRESH_TOKENS : holds
+  USERS ||--o{ SYNC_LOGS : syncs
+  USERS |o--o{ AUDIT_EVENTS : performs
+  PATIENTS ||--o{ SCREENINGS : has
+  SCREENINGS ||--|{ DIAGNOSIS_RESULTS : "one per condition"
+  SCREENINGS ||--o| REFERRALS : "may have"
+  SCREENINGS ||--o{ REVIEW_EVENTS : "append-only history"
+
+  USERS {
+    string id PK
+    string email UK
+    string full_name
+    string password_hash "Argon2id"
+    enum role "health_worker|specialist|admin"
+    bool is_active
+    datetime created_at
+  }
+  REFRESH_TOKENS {
+    string jti PK
+    string user_id FK
+    datetime expires_at
+    datetime revoked_at
+  }
+  PATIENTS {
+    string id PK
+    string code UK "pseudonymous clinic code"
+    int year_of_birth
+    enum sex
+    bool has_diabetes
+    string client_uuid UK "offline idempotency"
+    string created_by_id FK
+    datetime created_at
+  }
+  SCREENINGS {
+    string id PK
+    string client_uuid UK "idempotency key"
+    string patient_id FK
+    enum eye "left|right"
+    string image_path "random name"
+    string image_sha256
+    json quality
+    enum status "completed|referred|reviewed|retake_requested"
+    datetime captured_at
+    string created_by_id FK
+    datetime created_at
+    datetime updated_at
+  }
+  DIAGNOSIS_RESULTS {
+    int id PK
+    string screening_id FK
+    string condition "UK with screening_id"
+    bool model_available
+    string model_version
+    float probability "0..1"
+    float threshold
+    bool positive
+    bool uncertain
+    int severity_band "1..5"
+    enum risk_level
+    string recommendation
+    bool auto_refer
+  }
+  REFERRALS {
+    int id PK
+    string screening_id FK "UK"
+    enum reason "positive|uncertain|manual"
+    bool is_open
+    datetime created_at
+    datetime closed_at
+  }
+  REVIEW_EVENTS {
+    int id PK
+    string screening_id FK
+    string reviewer_id FK
+    enum action "approve|override|request_retake|comment"
+    string condition
+    bool override_positive
+    string note
+    datetime created_at
+  }
+  SYNC_LOGS {
+    int id PK
+    string user_id FK
+    string client_uuid
+    string entity_type
+    enum outcome "accepted|duplicate|rejected"
+    int attempt
+    string error
+    datetime created_at
+  }
+  AUDIT_EVENTS {
+    int id PK
+    string actor_id FK
+    string action
+    string entity_type
+    string entity_id
+    datetime created_at
+  }
