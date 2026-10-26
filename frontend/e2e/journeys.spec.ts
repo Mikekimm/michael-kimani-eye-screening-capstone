@@ -13,8 +13,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(here, "fixtures");
 const SHOTS = path.join(here, "..", "..", "docs", "screenshots", "e2e");
 
-const shot = (page: Page, info: TestInfo, name: string) =>
-  page.screenshot({ path: path.join(SHOTS, `${info.project.name}-${name}.png`), fullPage: true });
+// Full-page captures would also paint the fixed bottom tab bar over the middle of the page, so it is
+// un-pinned for the capture only (on a real phone it stays at the bottom of the screen).
+async function shot(page: Page, info: TestInfo, name: string) {
+  const style = await page.addStyleTag({ content: "nav.fixed { position: static !important; }" });
+  await page.screenshot({ path: path.join(SHOTS, `${info.project.name}-${name}.png`), fullPage: true });
+  await style.evaluate((node) => node.remove());
+}
 
 const workerEmail = (info: TestInfo) => `nurse.${info.project.name}@example.org`;
 const CODES: Record<string, string> = { "mobile-chromium": "MOB", "desktop-chromium": "DSK", "desktop-firefox": "FFX", "mobile-webkit": "WBK" };
@@ -73,6 +78,7 @@ test.describe.serial("clinical journeys", () => {
     await expect(page.getByTestId("result-cataract")).toContainText("Model not available yet");
     await expect(page.getByText(/not a diagnosis/i).first()).toBeVisible();
     await shot(page, info, "05-result");
+    await dr.screenshot({ path: path.join(SHOTS, `${info.project.name}-05b-dr-card.png`) });
 
     // The synthetic image may or may not be referred by the policy; make sure the specialist sees it.
     const referButton = page.getByRole("button", { name: "Refer to a specialist anyway" });
@@ -104,6 +110,8 @@ test.describe.serial("clinical journeys", () => {
     await expect(page.getByText('"E2E: follow up in 12 months."')).toBeVisible();
     await expect(page.getByText('"E2E: approved after review."')).toBeVisible(); // earlier entry still there
     await shot(page, info, "08-review-history");
+    await page.getByRole("heading", { name: "Specialist review history" }).locator("xpath=ancestor::div[contains(@class,'rounded-lg')][1]")
+      .screenshot({ path: path.join(SHOTS, `${info.project.name}-08b-history-card.png`) });
   });
 
   test("unauthorized access is blocked in the UI and by the API", async ({ page }, info) => {
