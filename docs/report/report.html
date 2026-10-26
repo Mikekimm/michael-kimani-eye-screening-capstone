@@ -60,7 +60,7 @@ into one complete, tested DR workflow, while keeping the multi-disease design re
 <tr><td>Sync tested under interruptions</td><td>Reliability (objective 4)</td><td class="ok">Completed</td><td>Lost-reply, offline-queue and backoff tests</td></tr>
 <tr><td>Usability test with health workers</td><td>Check usability</td><td class="no">Not yet</td><td>SUS study planned</td></tr>
 </table>
-<p>Added beyond the proposal: authentication with role-based access (Argon2, JWT refresh rotation), an image quality gate, a SHA-256-verified model registry with
+<p>Added beyond the proposal: authentication with role-based access (Argon2, JWT refresh rotation, login throttling), an image quality gate, a SHA-256-verified model registry with
 model cards, eye laterality and model version on every result, an append-only review log and an audit log (the last three answer the supervisor's
 data-model corrections).</p>
 
@@ -120,13 +120,15 @@ reproducible environment (pinned requirements, <code>package-lock.json</code>). 
 <tr><td>End-to-end functional</td><td>prove users can finish clinical tasks</td><td>Playwright: worker journey, specialist review, unauthorized access, invalid input</td><td class="ok">16/16 pass</td></tr>
 <tr><td>Compatibility</td><td>clinics use varied phones and browsers</td><td>same journeys on Chromium (Pixel 5, desktop), Firefox, WebKit (iPhone 13)</td><td class="ok">all engines pass</td></tr>
 <tr><td>Performance</td><td>slow hardware and networks</td><td>benchmark script; throttled browser round trip; Lighthouse</td><td class="ok">see section 5</td></tr>
+<tr><td>Accessibility</td><td>low-vision and screen-reader users</td><td>axe-core WCAG 2.1 A/AA on 15 screens, all roles, mobile and desktop</td><td class="ok">0 violations</td></tr>
+<tr><td>Security (brute force)</td><td>password guessing</td><td>sliding-window login throttle; unit tests with a fake clock and API tests</td><td class="ok">429 after 5 failures</td></tr>
 <tr><td>Model validation</td><td>RQ3, honest accuracy claims</td><td>reproduce training fold, calibrate on half, report on the other half with 95% bootstrap CIs</td><td class="pa">pending</td></tr>
 </table>
 <p><b>Different inputs:</b> scores of 0.05, 0.45 and 0.9 (negative, borderline, positive), blank, tiny, corrupt, mislabelled (BMP sent as JPEG), GIF, oversized
 and future-dated uploads, name-like patient codes, expired, replayed and wrong-type tokens, and every role against every route.
 <b>Improvements made because of testing:</b> a form test exposed that the password field dropped its form reference, so sign-in could never succeed (fixed with
 <code>forwardRef</code>); an end-to-end script test exposed that the calibration script did not write its outputs (fixed); screenshots led to listing DR first
-and to plain-language referral reasons; Lighthouse raised SEO from 91 to 100; a relative database path that created two databases was anchored.</p>
+and to plain-language referral reasons; Lighthouse raised SEO from 91 to 100; axe-core found unlabeled camera and gallery inputs (fixed); a relative database path that created two databases was anchored.</p>
 <div class="two">
 <figure><img src="../screenshots/e2e/mobile-webkit-05b-dr-card.png" style="max-height:58mm"><figcaption>Figure 2. DR result card on iPhone 13 (WebKit), from a synthetic test image: estimated band, model version, score explained, action.</figcaption></figure>
 <figure><img src="../screenshots/e2e/desktop-chromium-08b-history-card.png" style="max-height:58mm"><figcaption>Figure 3. Specialist review history (append-only), desktop Chrome.</figcaption></figure>
@@ -139,6 +141,7 @@ and to plain-language referral reasons; Lighthouse raised SEO from 91 to 100; a 
 <tr><td>Full server pipeline on a 1024 px JPEG (all cores / 1 thread)</td><td>74 / 77 ms mean (an earlier run under background load: 166 ms)</td></tr>
 <tr><td>Upload to result in the browser (median of 3)</td><td>0.50 s; 3.17 s with emulated 6x slower CPU and slow 3G</td></tr>
 <tr><td>Lighthouse, sign-in page (performance / accessibility / best practices / SEO)</td><td>mobile 96 / 100 / 100 / 100; desktop 100 / 100 / 100 / 100</td></tr>
+<tr><td>Accessibility of signed-in screens (axe-core, WCAG 2.1 AA)</td><td>0 violations on 15 screens, mobile and desktop</td></tr>
 <tr><td>Browsers and devices (Playwright)</td><td>Chromium on Pixel 5 and desktop, Firefox desktop, WebKit on iPhone 13: all journeys pass</td></tr>
 <tr><td>Bundle</td><td>route-level code splitting; core about 110 KB gzipped; charts (103 KB) load only for admins</td></tr>
 </table>
