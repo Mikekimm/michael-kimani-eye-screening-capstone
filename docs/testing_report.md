@@ -109,7 +109,7 @@ both are reported.
 | No throttling | 0.50 s |
 | Emulated low-end phone: 6x CPU slowdown + slow 3G (400 ms latency, 400 kbit/s) | 3.17 s |
 
-This is Chrome DevTools emulation, not a physical low-end device.
+A repeat run gave 0.48 s and 3.09 s (all runs: [benchmarks/browser-timings.jsonl](benchmarks/browser-timings.jsonl)). This is Chrome DevTools emulation, not a physical low-end device.
 
 **Lighthouse 12.2.1** (production build, sign-in page; protected pages need a session, which
 Lighthouse cannot create):
