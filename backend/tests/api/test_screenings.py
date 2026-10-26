@@ -136,11 +136,12 @@ def test_image_is_served_only_to_authorised_users(client):
     assert client.get(f"/api/screenings/{screening['id']}/image", headers=stranger).status_code == 404
 
 
-def test_models_endpoint_reports_availability_and_unmeasured_metrics(client):
+def test_models_endpoint_reports_availability_and_labelled_validation_metrics(client):
     _, headers = auth_headers(client, Role.HEALTH_WORKER)
     models = {m["condition"]: m for m in client.get("/api/models", headers=headers).json()}
     assert models["dr"]["available"] and models["dr"]["version"] == "mobilenetv2-dr-binary-0.3"
-    assert models["dr"]["metrics"] is None and models["dr"]["metrics_status"] == "not yet measured"
+    assert models["dr"]["metrics"]["sensitivity"] == 0.542
+    assert "not an independent hold-out" in models["dr"]["metrics_status"]
     assert models["dr"]["limitations"]
     assert not models["glaucoma"]["available"] and not models["cataract"]["available"]
 

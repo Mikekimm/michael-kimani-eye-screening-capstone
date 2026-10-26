@@ -37,11 +37,21 @@
     "licence_note": "Underlying data is for non-commercial / academic use; no images are stored in this repository.",
     "export": "model.tflite is about 2.6 MB (quantized export); its scores differ from model.h5 by up to 0.034 on test inputs"
   },
-  "metrics": null,
-  "metrics_status": "not yet measured",
+  "metrics": {
+    "accuracy": 0.79,
+    "precision": 0.92,
+    "sensitivity": 0.542,
+    "specificity": 0.97,
+    "f1": 0.682,
+    "auc": null,
+    "test_images": 47234,
+    "evaluation_set": "validation fold from the training notebook (not an independent hold-out)",
+    "source": "docs/metrics.json"
+  },
+  "metrics_status": "validation results from the training notebook, not an independent hold-out: 47,234 images, threshold 0.5; does NOT meet the 85% sensitivity target (sensitivity 0.542)",
   "limitations": [
     "Screening support only. Not a diagnosis and not clinically validated.",
-    "Held-out performance of this model has not been measured yet.",
+    "No independent hold-out evaluation: the reported figures are validation results from the training notebook, and at threshold 0.5 sensitivity (0.542) is below the 85% target, so many DR cases would be missed.",
     "The dataset has no patient identifiers, so splits are image-level and any future metric is an optimistic estimate.",
     "The dataset contains augmented near-duplicates; leakage between training and evaluation images cannot be ruled out.",
     "No external evaluation; images from low-cost smartphone fundus lenses were never tested.",

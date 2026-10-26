@@ -158,8 +158,10 @@ export interface ModelMetrics {
   precision: number;
   f1: number;
   accuracy: number;
-  auc: number;
+  auc: number | null;
   test_images: number;
+  /** What the metrics were measured on, e.g. "validation fold from the training notebook (not an independent hold-out)". */
+  evaluation_set?: string;
   confidence_intervals?: Record<string, { estimate: number; low: number; high: number }>;
 }
 
