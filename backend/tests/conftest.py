@@ -1,10 +1,4 @@
 import io
-import os
-import tempfile
-
-# Must run before any ``app.ml`` import so the app under test never writes into the repo.
-os.environ.setdefault("SCREENING_DATA_DIR", tempfile.mkdtemp(prefix="screening-test-"))
-
 import numpy as np
 import pytest
 from PIL import Image
@@ -38,40 +32,3 @@ def fundus_image():
 @pytest.fixture
 def fundus_png(fundus_image):
     return encode(fundus_image, "PNG")
-
-
-# ---- shared helpers for the storage / sync / API tests ---------------------------
-from app.ml.classifier import BaseClassifier  # noqa: E402
-from app.ml.quality import QualityReport  # noqa: E402
-from app.ml.result import ScreeningResult  # noqa: E402
-from app.ml.storage import ScreeningRepository  # noqa: E402
-
-
-class StubClassifier(BaseClassifier):
-    """Returns a fixed probability, so tests never need TensorFlow."""
-
-    def __init__(self, probability=0.8):
-        self.probability = probability
-
-    @property
-    def name(self):
-        return "stub"
-
-    def predict_proba(self, batch):
-        return self.probability
-
-
-def make_result(probability=0.8, threshold=0.5, model_version="test-model-1"):
-    quality = QualityReport((), ("Image looks blurry; retake the photo if possible.",), 42.0, 110.0, 35.0)
-    return ScreeningResult(probability, threshold, model_version, quality)
-
-
-@pytest.fixture
-def repo(tmp_path):
-    return ScreeningRepository(tmp_path / "local.db", tmp_path / "images")
-
-
-def save_one(repo, probability=0.8, patient="PT-001", side="left", image=None):
-    return repo.add_screening(
-        make_result(probability), image or encode(make_fundus_like(seed=3)),
-        patient, side, "nurse-1", "stub")

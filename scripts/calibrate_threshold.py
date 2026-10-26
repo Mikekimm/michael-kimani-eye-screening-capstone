@@ -26,10 +26,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from app.ml.config import THRESHOLD_PATH, TARGET_SENSITIVITY  # noqa: E402
+from app.ml.config import TARGET_SENSITIVITY  # noqa: E402
 from app.ml.evaluation import bootstrap_metric_ci, roc_auc, stratified_split  # noqa: E402
 from app.ml.metrics_report import apply_to_model_card, build_report  # noqa: E402
-from app.ml.thresholding import metrics_at_threshold, save_threshold, select_threshold  # noqa: E402
+from app.ml.thresholding import metrics_at_threshold, select_threshold  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 METRICS_PATH = REPO_ROOT / "docs" / "metrics.json"
@@ -68,9 +68,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--predictions", required=True)
     parser.add_argument("--target", type=float, default=TARGET_SENSITIVITY)
-    parser.add_argument("--out", default=str(THRESHOLD_PATH))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--no-save", action="store_true", help="print only; write no files")
+    parser.add_argument("--metrics-out", type=Path, default=METRICS_PATH)
+    parser.add_argument("--model-card", type=Path, default=MODEL_CARD_PATH)
     parser.add_argument("--row-order-verified", action="store_true",
                         help="the Kaggle df was confirmed identical to the training session")
     args = parser.parse_args()
@@ -106,12 +107,15 @@ def main():
           "Gulshan et al. 2016 reported 90.3% sensitivity / 98.1% specificity.")
 
     if not args.no_save:
-        save_threshold(tuned, args.target, Path(args.out), extra={
-            "tuning_images": int(len(y_tune)), "test_images": int(len(y_test)),
-            "seed": args.seed,
-            "test_metrics": {"sensitivity": sens.estimate, "specificity": spec.estimate,
-                             "auc": auc, "targets_met": bool(meets)}})
-        print(f"\nSaved tuned threshold to {args.out}")
+        report = build_report(y, p, target_sensitivity=args.target, target_specificity=TARGET_SPECIFICITY,
+                              seed=args.seed, source_file=Path(args.predictions),
+                              row_order_verified=args.row_order_verified)
+        args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
+        args.metrics_out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        apply_to_model_card(args.model_card, report)
+        print(f"\nWrote {args.metrics_out} and updated {args.model_card}")
+        print(f"Status: {report['status']}")
+        print("The model file and its checksum are unchanged; restart the API to serve the new threshold.")
 
 
 if __name__ == "__main__":

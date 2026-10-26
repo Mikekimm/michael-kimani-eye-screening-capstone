@@ -5,14 +5,10 @@ false alarm). Given validation labels and model scores, ``select_threshold``
 finds the *highest* threshold that still reaches the target sensitivity, which
 keeps specificity as high as possible for that sensitivity.
 """
-import json
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Optional
+from dataclasses import dataclass
 
 import numpy as np
 
-from .config import DEFAULT_THRESHOLD, THRESHOLD_PATH
 
 
 @dataclass(frozen=True)
@@ -86,23 +82,3 @@ def select_threshold(y_true, y_prob, target_sensitivity: float = 0.85) -> Operat
     eligible = np.flatnonzero(sensitivity >= target_sensitivity)
     chosen = candidates[eligible[0]]  # eligible is never empty: the lowest score catches all
     return metrics_at_threshold(y_true, y_prob, float(chosen))
-
-
-def save_threshold(point: OperatingPoint, target: float, path: Path = THRESHOLD_PATH,
-                   extra: Optional[dict] = None) -> None:
-    """Persist the threshold plus provenance (``extra``: split sizes, test metrics...)."""
-    payload = {"threshold": point.threshold, "target_sensitivity": target,
-               "tuning_set": asdict(point)}
-    if extra:
-        payload.update(extra)
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-def load_threshold(path: Path = THRESHOLD_PATH, default: float = DEFAULT_THRESHOLD) -> float:
-    """Read the calibrated threshold, falling back to ``default`` if unusable."""
-    try:
-        value = float(json.loads(Path(path).read_text(encoding="utf-8"))["threshold"])
-    except (OSError, ValueError, KeyError, TypeError):
-        return default
-    return value if 0.0 < value < 1.0 else default
