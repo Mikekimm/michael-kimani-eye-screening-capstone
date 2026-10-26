@@ -1,0 +1,184 @@
+// Types mirroring backend/app/schemas. Keep in sync with the Pydantic models.
+
+export type Role = "health_worker" | "specialist" | "admin";
+export type Eye = "left" | "right";
+export type Sex = "female" | "male" | "other" | "unknown";
+export type RiskLevel = "low" | "medium" | "high";
+export type ScreeningStatus = "completed" | "referred" | "reviewed" | "retake_requested";
+export type ReviewAction = "approve" | "override" | "request_retake" | "comment";
+export type ReferralReason = "positive" | "uncertain" | "manual";
+export type SyncOutcome = "accepted" | "duplicate" | "rejected";
+
+export interface TokenPair {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Patient {
+  id: string;
+  code: string;
+  year_of_birth: number | null;
+  sex: Sex;
+  has_diabetes: boolean | null;
+  created_at: string;
+  screening_count: number;
+  last_screened_at: string | null;
+}
+
+export interface PatientInput {
+  code: string;
+  year_of_birth?: number | null;
+  sex?: Sex;
+  has_diabetes?: boolean | null;
+  client_uuid?: string;
+}
+
+export interface ConditionResult {
+  condition: string;
+  display_name: string;
+  model_available: boolean;
+  model_version: string | null;
+  probability: number | null;
+  threshold: number | null;
+  positive: boolean | null;
+  uncertain: boolean | null;
+  severity_band: number | null;
+  risk_level: RiskLevel | null;
+  recommendation: string;
+  auto_refer: boolean;
+}
+
+export interface Quality {
+  usable: boolean;
+  warnings: string[];
+  sharpness: number;
+  brightness: number;
+  contrast: number;
+}
+
+export interface ReviewEvent {
+  id: number;
+  action: ReviewAction;
+  condition: string | null;
+  override_positive: boolean | null;
+  note: string | null;
+  reviewer_name: string;
+  created_at: string;
+}
+
+export interface Screening {
+  id: string;
+  client_uuid: string;
+  patient_id: string;
+  patient_code: string;
+  eye: Eye;
+  status: ScreeningStatus;
+  captured_at: string;
+  created_at: string;
+  updated_at: string;
+  created_by_name: string;
+  quality: Quality;
+  results: ConditionResult[];
+  referral_reason: ReferralReason | null;
+  reviews: ReviewEvent[];
+  disclaimer: string;
+  duplicate?: boolean;
+}
+
+export interface QueueItem {
+  screening_id: string;
+  patient_code: string;
+  eye: Eye;
+  referral_reason: ReferralReason;
+  highest_band: number | null;
+  created_at: string;
+  created_by_name: string;
+}
+
+export interface ReviewInput {
+  action: ReviewAction;
+  condition?: string;
+  override_positive?: boolean;
+  note?: string;
+}
+
+export interface SyncItemResult {
+  client_uuid: string;
+  outcome: SyncOutcome;
+  server_id: string | null;
+  error: string | null;
+}
+
+export interface SyncDecision {
+  screening_id: string;
+  client_uuid: string;
+  status: ScreeningStatus;
+  latest_action: ReviewAction | null;
+  latest_note: string | null;
+  updated_at: string;
+}
+
+export interface SyncPullResponse {
+  server_time: string;
+  decisions: SyncDecision[];
+}
+
+export interface ModelInfo {
+  condition: string;
+  display_name: string;
+  available: boolean;
+  status_reason: string;
+  version: string | null;
+  threshold: number | null;
+  threshold_source: string | null;
+  uncertainty_margin: number | null;
+  input: Record<string, unknown> | null;
+  labels: Record<string, string> | null;
+  architecture: string | null;
+  training: Record<string, string> | null;
+  metrics: ModelMetrics | null;
+  metrics_status: string;
+  limitations: string[];
+}
+
+export interface ModelMetrics {
+  sensitivity: number;
+  specificity: number;
+  precision: number;
+  f1: number;
+  accuracy: number;
+  auc: number | null;
+  test_images: number;
+  /** What the metrics were measured on, e.g. "validation fold from the training notebook (not an independent hold-out)". */
+  evaluation_set?: string;
+  confidence_intervals?: Record<string, { estimate: number; low: number; high: number }>;
+}
+
+export interface Analytics {
+  total_screenings: number;
+  screenings_per_day: { day: string; count: number }[];
+  positives_per_condition: Record<string, number>;
+  referral_rate: number | null;
+  open_referrals: number;
+  median_review_turnaround_hours: number | null;
+  model_versions_in_use: Record<string, number>;
+  users_by_role: Record<string, number>;
+}
+
+export interface ApiErrorBody {
+  error?: string;
+  message?: string;
+  detail?: unknown;
+  details?: Record<string, unknown>;
+}

@@ -1,0 +1,77 @@
+import type { HttpClient } from "./http";
+import type {
+  Analytics, Eye, ModelInfo, Patient, PatientInput, QueueItem, ReviewInput, Role, Screening, SyncItemResult,
+  SyncPullResponse, TokenPair, User,
+} from "./types";
+
+export interface NewScreening {
+  patientId: string;
+  eye: Eye;
+  clientUuid: string;
+  capturedAt: string;
+  image: Blob;
+  fileName?: string;
+}
+
+/** Typed wrappers for every backend endpoint, grouped by feature. Components use these via hooks. */
+export function createApi(http: HttpClient) {
+  return {
+    auth: {
+      register: (body: { email: string; full_name: string; password: string }) =>
+        http.request<User>("/auth/register", { method: "POST", json: body, anonymous: true }),
+      login: (email: string, password: string) =>
+        http.request<TokenPair>("/auth/login", { method: "POST", json: { email, password }, anonymous: true }),
+      logout: (refreshToken: string) =>
+        http.request<void>("/auth/logout", { method: "POST", json: { refresh_token: refreshToken }, anonymous: true }),
+      me: () => http.request<User>("/auth/me"),
+    },
+    patients: {
+      search: (q?: string) => http.request<Patient[]>("/patients", { query: { q } }),
+      get: (id: string) => http.request<Patient>(`/patients/${id}`),
+      create: (body: PatientInput) => http.request<Patient>("/patients", { method: "POST", json: body }),
+      screenings: (id: string) => http.request<Screening[]>(`/patients/${id}/screenings`),
+    },
+    screenings: {
+      list: (limit = 50) => http.request<Screening[]>("/screenings", { query: { limit } }),
+      get: (id: string) => http.request<Screening>(`/screenings/${id}`),
+      refer: (id: string) => http.request<Screening>(`/screenings/${id}/refer`, { method: "POST" }),
+      image: (id: string) => http.request<Blob>(`/screenings/${id}/image`, { responseType: "blob" }),
+      create: (input: NewScreening, attempt = 1) => {
+        const form = new FormData();
+        form.append("image", input.image, input.fileName ?? "fundus.jpg");
+        form.append("patient_id", input.patientId);
+        form.append("eye", input.eye);
+        form.append("client_uuid", input.clientUuid);
+        form.append("captured_at", input.capturedAt);
+        return http.request<Screening>("/screenings", {
+          method: "POST", form, headers: { "X-Sync-Attempt": String(attempt) },
+        });
+      },
+    },
+    reviews: {
+      queue: () => http.request<QueueItem[]>("/reviews/queue"),
+      submit: (screeningId: string, body: ReviewInput) =>
+        http.request<Screening>(`/reviews/${screeningId}`, { method: "POST", json: body }),
+    },
+    sync: {
+      pushPatients: (patients: PatientInput[], attempt = 1) =>
+        http.request<{ results: SyncItemResult[] }>("/sync/push", {
+          method: "POST", json: { patients }, headers: { "X-Sync-Attempt": String(attempt) },
+        }),
+      pull: (since?: string) => http.request<SyncPullResponse>("/sync/pull", { query: { since } }),
+    },
+    admin: {
+      users: () => http.request<User[]>("/admin/users"),
+      createUser: (body: { email: string; full_name: string; password: string; role: Role }) =>
+        http.request<User>("/admin/users", { method: "POST", json: body }),
+      updateUser: (id: string, body: { role?: Role; is_active?: boolean }) =>
+        http.request<User>(`/admin/users/${id}`, { method: "PATCH", json: body }),
+      analytics: () => http.request<Analytics>("/admin/analytics"),
+    },
+    models: {
+      list: () => http.request<ModelInfo[]>("/models"),
+    },
+  };
+}
+
+export type Api = ReturnType<typeof createApi>;

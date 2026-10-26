@@ -1,0 +1,40 @@
+flowchart LR
+  HW(["Health worker"])
+  SP(["Specialist"])
+  AD(["Admin"])
+
+  subgraph HWU["Health worker use cases"]
+    direction TB
+    UC2["Register patient (clinic code)"]
+    UC3["Capture or upload fundus photo<br/>(left or right eye)"]
+    UC4["Run screening<br/>(quality gate + every available model)"]
+    UC5["View result per condition<br/>(estimated band, action, model version)"]
+    UC6["Refer case (automatic or manual)"]
+    UC7["Queue offline, sync later"]
+    UC8["View patient history and decisions"]
+    UC3 -. include .-> UC4 -. include .-> UC5
+  end
+
+  subgraph SPU["Specialist use cases"]
+    direction TB
+    UC9["Review referred case"]
+    UC10["Approve / override with reason /<br/>request retake / comment"]
+    UC9 -. include .-> UC10
+  end
+
+  subgraph ADU["Admin use cases"]
+    direction TB
+    UC11["Manage users and roles"]
+    UC12["View aggregate analytics"]
+  end
+
+  subgraph ALL["Every role"]
+    direction TB
+    UC1["Sign up (health worker) / sign in"]
+    UC13["View model information and limits"]
+  end
+
+  HW --> HWU
+  SP --> SPU
+  AD --> ADU
+  HW & SP & AD --> ALL

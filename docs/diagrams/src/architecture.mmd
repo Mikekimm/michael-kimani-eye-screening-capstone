@@ -1,0 +1,33 @@
+flowchart LR
+  subgraph Device["Browser PWA (all roles)"]
+    UI["React pages + components"]
+    Hooks["Data hooks (TanStack Query)"]
+    Client["Typed API client<br/>token refresh, errors"]
+    Queue["SyncQueue<br/>backoff + jitter"]
+    IDB[("IndexedDB<br/>offline queue")]
+    UI --> Hooks --> Client
+    UI --> Queue --> IDB
+    Queue --> Client
+  end
+
+  subgraph Server["FastAPI backend"]
+    Routers["API routers<br/>RBAC guards"]
+    Services["Services<br/>auth, patients, screenings,<br/>reviews, sync, analytics"]
+    Repos["Repositories"]
+    Pipeline["ScreeningPipeline<br/>validate -> quality gate"]
+    Registry["ModelRegistry<br/>SHA-256 verified"]
+    Model["TFLiteConditionModel<br/>(LiteRT)"]
+    Policy["RiskPolicy<br/>config/risk_policy.json"]
+    Routers --> Services --> Repos
+    Services --> Pipeline --> Registry --> Model
+    Pipeline --> Policy
+  end
+
+  DB[("SQLite (default)<br/>PostgreSQL (DATABASE_URL)")]
+  Files[("Image store<br/>random file names")]
+  Models[("models/&lt;condition&gt;/<br/>model.tflite + model_card.json")]
+
+  Client -- "HTTPS JSON / multipart<br/>Bearer JWT" --> Routers
+  Repos --> DB
+  Services --> Files
+  Registry --> Models
