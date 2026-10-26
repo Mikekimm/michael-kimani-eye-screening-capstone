@@ -16,6 +16,7 @@ from ..core.config import Settings
 from ..core.database import Database
 from ..core.errors import AuthenticationError, PermissionDeniedError
 from ..core.security import PasswordHasher, TokenService
+from ..core.throttle import LoginThrottle
 from ..ml.registry import ModelRegistry
 from ..ml.risk_policy import RiskPolicyFactory
 from ..models import User
@@ -47,6 +48,7 @@ class AppContainer:
     images: ImageStore
     hasher: PasswordHasher
     tokens: TokenService
+    login_throttle: LoginThrottle
 
 
 def get_container(request: Request) -> AppContainer:
@@ -73,7 +75,8 @@ def _access(session: Session) -> AccessPolicy:
 
 def get_auth_service(session: DbSession, container: Container) -> AuthService:
     return AuthService(session, UserRepository(session), RefreshTokenRepository(session), container.hasher,
-                       container.tokens, _audit(session), container.settings.access_token_minutes * 60)
+                       container.tokens, _audit(session), container.settings.access_token_minutes * 60,
+                       container.login_throttle)
 
 
 def get_user_service(session: DbSession, container: Container) -> UserService:
