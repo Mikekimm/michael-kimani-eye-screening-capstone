@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Final Version of the Product - Technical Report</title>
+<style>
+@page { size: A4; margin: 13mm 14mm 13mm 14mm; }
+body { font-family: "Liberation Sans", Arial, Helvetica, sans-serif; font-size: 9.4pt; line-height: 1.34; color: #1d2625; margin: 0; }
+h1 { font-size: 15pt; margin: 0 0 1mm; color: #133C36; }
+h2 { break-after: avoid; page-break-after: avoid; font-size: 10.6pt; margin: 3.2mm 0 1.2mm; color: #133C36; border-bottom: 0.6pt solid #9bb0aa; padding-bottom: 0.6mm; }
+h3 { font-size: 9pt; margin: 2mm 0 0.6mm; color: #133C36; }
+p { margin: 0 0 1.4mm; text-align: justify; }
+.meta { color: #4A5A57; font-size: 8.2pt; margin-bottom: 1.5mm; }
+table { border-collapse: collapse; width: 100%; margin: 0.8mm 0 1.6mm; page-break-inside: auto; }
+th, td { border: 0.5pt solid #a9b7b3; padding: 0.8mm 1.4mm; vertical-align: top; text-align: left; }
+th { background: #e6efec; font-weight: 700; }
+tr { page-break-inside: avoid; }
+td.s { white-space: nowrap; font-weight: 600; }
+.ok { color: #1f6b47; } .pa { color: #9a6215; } .no { color: #a33a2b; }
+.fill { background: #fff176; padding: 0 1mm; font-weight: 600; }
+code { font-family: "Liberation Mono", monospace; font-size: 8.4pt; }
+img { max-width: 100%; display: block; margin: 0.8mm auto; }
+figcaption, .cap { font-size: 7.8pt; color: #4A5A57; text-align: center; margin-bottom: 1.2mm; }
+ul { margin: 0 0 1.4mm 4.5mm; padding: 0; } li { margin: 0 0 0.5mm; }
+</style></head><body>
+
+<h1>Final Version of the Product: Technical Report</h1>
+<div class="meta"><b>An Offline-First Retinal Screening Prototype for Diabetic Retinopathy</b> &middot; Michael Kimani &middot; BSc Software Engineering, African Leadership University &middot; Supervisor: Emmanuel Adjei &middot; <span class="fill">FILL: submission date</span><br>
+Repository: github.com/Mikekimm/michael-kimani-eye-screening-capstone &middot; Video: <span class="fill">FILL: link</span></div>
+
+<h2>1. Scope alignment and feature validation</h2>
+<p>After the supervisor's review, the project was re-scoped from a three-disease Android system to a <b>feasible offline research prototype</b>: one user (a clinical officer at a rural primary health centre with intermittent connectivity), one condition (diabetic retinopathy, DR) and one complete demonstrable workflow (screen &rarr; save locally &rarr; sync &rarr; specialist review &rarr; decision returned). Depth on the offline architecture and an honest evaluation was preferred over breadth. Status of each planned feature:</p>
+<table>
+<tr><th style="width:21%">Planned feature</th><th style="width:21%">Intended purpose</th><th style="width:10%">Status</th><th>Evidence / justification</th></tr>
+<tr><td>DR classifier (MobileNetV2 transfer learning)</td><td>Detect DR from a fundus photo</td><td class="s ok">Completed</td><td><code>models/dr_screening_model.h5</code>, <code>notebooks/model_notebook.ipynb</code></td></tr>
+<tr><td>85% sensitivity / 80% specificity targets</td><td>Safe screening trade-off</td><td class="s pa">Partial</td><td>Threshold algorithm built and tested (<code>src/thresholding.py</code>); outcome in section 4: <span class="fill">FILL: MET / NOT MET</span></td></tr>
+<tr><td>On-device inference (TensorFlow Lite)</td><td>Screen with no internet</td><td class="s pa">Partial</td><td>TFLite and Keras back-ends agree within 0.05; runs on a laptop, not yet packaged for Android</td></tr>
+<tr><td>Local offline storage</td><td>Keep records with no connection</td><td class="s ok">Completed</td><td><code>src/storage.py</code>: image, eye, model version, threshold, score, review history</td></tr>
+<tr><td>Two-way offline&rarr;online sync</td><td>Upload queue; pull specialist decisions</td><td class="s ok">Completed</td><td><code>src/sync.py</code>; tested with connection drops</td></tr>
+<tr><td>Flag uncertain / high-risk cases</td><td>Structured referral</td><td class="s ok">Completed</td><td><code>ScreeningResult.needs_review</code> (flagged or within 0.10 of threshold)</td></tr>
+<tr><td>Specialist dashboard (approve / override)</td><td>Close the referral loop</td><td class="s ok">Completed*</td><td><code>specialist_app.py</code>; append-only history. *Streamlit instead of React</td></tr>
+<tr><td>Cloud backend (FastAPI + PostgreSQL)</td><td>Central store and API</td><td class="s pa">Partial</td><td><code>src/server.py</code>: same REST contract on the standard library + SQLite; no extra services needed</td></tr>
+<tr><td>Authentication and roles</td><td>Protect patient data</td><td class="s pa">Partial</td><td>Bearer tokens, three roles, identity from token; no accounts, expiry or TLS</td></tr>
+<tr><td>Admin analytics / account management</td><td>Observe referral patterns</td><td class="s pa">Partial</td><td>Statistics endpoint only</td></tr>
+<tr><td>Android app (React Native)</td><td>Mobile client</td><td class="s no">Not implemented</td><td>Replaced by Streamlit clinic app (<code>app.py</code>); logic lives in <code>src/</code> so a mobile front end can reuse it</td></tr>
+<tr><td>Glaucoma and cataract classifiers</td><td>Multi-disease screening</td><td class="s no">Not implemented</td><td>Out of reach in the time available; <code>BaseClassifier</code> allows adding them. Future work</td></tr>
+<tr><td>Load balancer; usability study</td><td>Scale; test usability</td><td class="s no">Not done</td><td>Single-process prototype; no participants available</td></tr>
+<tr><td>Image-quality check; tune/test evaluation <i>(added)</i></td><td>Reject bad inputs; honest metrics</td><td class="s ok">Added</td><td><code>src/quality.py</code>, <code>src/evaluation.py</code></td></tr>
+</table>
+
+<h2>2. Technical functionality</h2>
+<figure style="margin:0"><img src="architecture.png" style="width:92%"><figcaption>Figure 1. Local-first architecture: screening and storage work offline; the cloud is needed only to sync and review.</figcaption></figure>
+<figure style="margin:0"><img src="data_model.png" style="width:62%"><figcaption>Figure 2. Data model: every screening keeps the eye, model version and threshold; reviews are an append-only history.</figcaption></figure>
+<p><b>Workflow.</b> The clinic app (<code>app.py</code>) takes a pseudonymous patient code, the eye and a fundus image. <code>ScreeningWorkflow</code> runs <code>ScreeningService</code> (decode &rarr; quality check &rarr; model &rarr; decision) and saves the result in SQLite <i>before anything else</i>. <code>SyncService</code> later pushes pending records to the REST backend and pulls specialist reviews. The specialist portal (<code>specialist_app.py</code>) lists flagged and borderline cases with the image, eye and model version, and records approve / override / ungradable decisions as an append-only history.</p>
+<h3>Key algorithms and technical solutions</h3>
+<ul>
+<li><b>Train/serve parity.</b> Training resized with nearest-neighbour; the first app used PIL's default. <code>ImagePreprocessor</code> now matches training (a silent source of error found by review).</li>
+<li><b>Quality check.</b> Variance of the 4-neighbour Laplacian (sharpness), mean brightness, contrast, and a centre-versus-corner "vignette gap" (fundus photos are circular). Blank or tiny images block screening; blur, darkness or non-fundus appearance only warn, because these heuristics can be wrong.</li>
+<li><b>Sensitivity-targeted threshold, O(n log n).</b> Sort positive scores, count positives above each candidate with a binary search, and take the <i>highest</i> threshold whose sensitivity meets the target (keeps specificity as high as possible). Verified against brute force.</li>
+<li><b>Borderline band.</b> Scores within 0.10 below the threshold are queued for a specialist instead of cleared.</li>
+<li><b>Honest evaluation.</b> Stratified tune/test split (threshold chosen on one half, metrics reported on the other), rank-based AUC with average ranks for ties (matches scikit-learn), and percentile bootstrap 95% intervals.</li>
+<li><b>Reliable sync.</b> Idempotent upload by UUID with an image SHA-256; idempotent review import by remote id and a cursor; an unreachable server or a bad token stops the cycle after one attempt; a rejected record is marked failed without blocking the queue.</li>
+<li><b>Security basics.</b> Constant-time token comparison, role checks per endpoint, reviewer identity taken from the token, request-size limit (413), strict input validation, errors that do not leak internals.</li>
+</ul>
+
+<h2>3. Code quality and OOP</h2>
+<p>The original 180-line <code>app.py</code> (UI, model loading, preprocessing and inference in one script) was refactored into a package of 15 modules (about 1,570 lines in <code>src/</code>) plus two thin UI files. Principles applied:</p>
+<table>
+<tr><th style="width:20%">Principle</th><th>Where</th></tr>
+<tr><td>Single responsibility / separation of concerns</td><td>One class per job: <code>ImagePreprocessor</code>, <code>ImageQualityChecker</code>, <code>ScreeningService</code>, <code>ScreeningRepository</code>, <code>SyncService</code>; UI files contain presentation only</td></tr>
+<tr><td>Abstraction, polymorphism, open/closed</td><td><code>BaseClassifier</code> with <code>KerasClassifier</code> and <code>TFLiteClassifier</code>; <code>RemoteClient</code> with <code>ClinicClient</code>; a new disease or back-end is added without changing callers</td></tr>
+<tr><td>Dependency inversion / testability</td><td><code>ScreeningService</code> and <code>SyncService</code> receive abstractions, so tests inject a stub classifier and a fake remote</td></tr>
+<tr><td>Inheritance and reuse</td><td><code>ApiClient</code> (transport, auth, error translation) &rarr; <code>ClinicClient</code>, <code>SpecialistClient</code>; the same repository class serves the device and the server</td></tr>
+<tr><td>Encapsulation, immutability</td><td>Frozen dataclasses for results and records; private connection handling in the repository; enums for laterality, decisions and roles</td></tr>
+<tr><td>Error handling</td><td>Domain exceptions (<code>InvalidImageError</code>, <code>ImageQualityError</code>, <code>RemoteUnavailableError</code>, ...) so each caller reacts precisely; TensorFlow imported lazily so most code runs without it</td></tr>
+</table>
+
+<h2>4. Testing, validation and model evaluation</h2>
+<p><b>Strategies.</b> (1) <b>Unit tests</b> for each class using a stub model. (2) <b>Integration tests</b> that start a real backend on a free port and exercise authentication, roles, validation, request limits and the whole screen&rarr;sync&rarr;review loop. (3) <b>Connectivity/failure tests</b> (dead server, connection dropped mid-sync, wrong token, rejected record). (4) <b>UI smoke tests</b> for both pages. Suite: <span class="fill">FILL: N tests, all passing</span> (<code>pytest</code>). I also ran <b>mutation checks</b>: deliberately breaking four behaviours; three were caught immediately, and the fourth (sync hammering a dead connection) exposed a missing test, which I added.</p>
+<table>
+<tr><th style="width:30%">Input / situation</th><th>Result</th></tr>
+<tr><td>Corrupt file; blank or tiny image</td><td>Rejected with a clear message; nothing saved</td></tr>
+<tr><td>Blurry, dark or non-fundus image</td><td>Screened with a warning</td></tr>
+<tr><td>Patient code that looks like a name</td><td>Rejected (data minimisation)</td></tr>
+<tr><td>Server unreachable / wrong token / wrong role</td><td>Records stay pending, one attempt per cycle; 401 / 403</td></tr>
+<tr><td>Tampered checksum, bad JSON, oversized body, duplicate upload</td><td>400 / 400 / 413 / stored once</td></tr>
+</table>
+<p><b>Bugs found and fixed:</b> preprocessing mismatch with training; a race in which a duplicate-id upload could delete an existing image (images now move into place only after the database insert succeeds); sync retrying a dead connection once per queued record.</p>
+<h3>Model evaluation (research, separate from software tests)</h3>
+<p>Data: public EyePACS + APTOS + Messidor-2 collection, binary label (DR grades 1&ndash;4 vs 0). It has <b>no patient identifiers and contains augmented copies</b>, so a patient-separated split was impossible and all figures are optimistic. Threshold tuned on one stratified half of a held-out set of images the model never trained on; metrics below are from the other half, with 95% bootstrap intervals.</p>
+<table>
+<tr><th>Operating point</th><th>Threshold</th><th>Sensitivity</th><th>Specificity</th><th>Precision</th><th>AUC</th></tr>
+<tr><td>Default 0.5</td><td colspan="5"><span class="fill">FILL from scripts/calibrate_threshold.py</span></td></tr>
+<tr><td>Tuned for 85% sensitivity</td><td colspan="5"><span class="fill">FILL (with 95% CI); targets MET / NOT MET</span></td></tr>
+<tr><td>Flag everyone / flag no one</td><td colspan="5"><span class="fill">FILL (baselines)</span></td></tr>
+</table>
+<p>Reference only: Gulshan et al. (2016) reported 90.3% sensitivity and 98.1% specificity with a far larger model and different data and operating point, so the comparison is not like-for-like. Raising sensitivity lowers specificity, producing more referrals; this is the accepted screening trade-off.</p>
+
+<h2>5. Performance and compatibility</h2>
+<table>
+<tr><th>Device (CPU / RAM / OS)</th><th>Keras model (ms)</th><th>TFLite model (ms)</th><th>Model size H5 / TFLite</th><th>Preprocess + quality + save (ms)</th><th>Sync, 50 records</th></tr>
+<tr><td><span class="fill">FILL: high-end laptop</span></td><td><span class="fill">FILL</span></td><td><span class="fill">FILL</span></td><td>9.9 MB / 2.6 MB</td><td><span class="fill">FILL</span></td><td><span class="fill">FILL</span></td></tr>
+<tr><td><span class="fill">FILL: lower-spec device</span></td><td><span class="fill">FILL</span></td><td><span class="fill">FILL</span></td><td>9.9 MB / 2.6 MB</td><td><span class="fill">FILL</span></td><td><span class="fill">FILL</span></td></tr>
+</table>
+<p>Compatibility: the same workflow was run in <span class="fill">FILL: Chrome / Edge / Firefox versions</span> and on a phone browser via the local network URL; <span class="fill">FILL: result</span>. Improvements made after testing: <span class="fill">FILL: what you changed</span>.</p>
+
+<h2>6. Limitations and conclusion</h2>
+<p>The prototype is preliminary screening support, not a diagnosis, and is not clinically validated. Data are retrospective and public, with no patient identifiers, so reported performance is an optimistic in-distribution estimate; no external evaluation or usability study was done; security is prototype-grade; only DR is covered and the client is not an Android app. What the project does show is a tested, offline-first architecture in which screening never depends on the network, no data is lost when connectivity fails, specialist decisions return with a full history, and every claim about the model is separated from the software tests and qualified by its limits. Future work: glaucoma and cataract, packaging the TFLite model in an Android app, an external dataset, and a usability study.</p>
+<p class="cap">Reference: Gulshan, V. et al. (2016). Development and validation of a deep learning algorithm for detection of diabetic retinopathy in retinal fundus photographs. <i>JAMA</i>, 316(22), 2402&ndash;2410. https://doi.org/10.1001/jama.2016.17216</p>
+</body></html>
