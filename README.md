@@ -184,6 +184,7 @@ Latest recorded results (26 Oct 2026, development laptop):
 | TypeScript strict type-check / ESLint | clean / clean |
 | Playwright end-to-end (4 journeys x Chromium mobile + desktop, Firefox desktop, WebKit/iPhone) | 16 passed |
 | Browser performance (upload to result, Chromium) | median 0.50 s; 3.17 s with emulated 6x slower CPU + slow 3G |
+| Accessibility, axe-core WCAG 2.1 A/AA (15 screens, all roles, mobile + desktop) | 0 violations |
 | Lighthouse, sign-in page (mobile / desktop) | 96/100/100/100 and 100/100/100/100 (performance/accessibility/best practices/SEO) |
 
 Strategies, results and the improvements they led to: [docs/testing_report.md](docs/testing_report.md).
