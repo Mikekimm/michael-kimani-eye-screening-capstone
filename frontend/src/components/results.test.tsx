@@ -54,4 +54,12 @@ describe("ScreeningResultCard", () => {
     expect(screen.queryByText(/Model score/)).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: /unavailable/ })).toBeInTheDocument();
   });
+
+  it("shows a binary-only result without inventing a severity band", () => {
+    render(<ScreeningResultCard result={dr({ condition: "cataract", display_name: "Cataract", severity_band: null,
+      probability: 0.8, threshold: 0.4, positive: true, uncertain: false, risk_level: "high", recommendation: "Refer." })} />);
+    expect(screen.getByText("Signs detected: refer")).toBeInTheDocument();
+    expect(screen.getByText(/Binary result only/)).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /severity band/ })).not.toBeInTheDocument();
+  });
 });

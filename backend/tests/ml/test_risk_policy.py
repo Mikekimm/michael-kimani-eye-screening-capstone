@@ -74,8 +74,24 @@ def test_rejects_invalid_configuration(threshold, margin):
 def test_factory_reads_the_shipped_config_and_merges_condition_overrides():
     factory = RiskPolicyFactory.from_file(BACKEND_ROOT / "config" / "risk_policy.json")
     dr = factory.for_condition("dr", threshold=0.5)
-    other = factory.for_condition("glaucoma", threshold=0.5)
+    other = factory.for_condition("unconfigured-condition", threshold=0.5)
     config = json.loads((BACKEND_ROOT / "config" / "risk_policy.json").read_text(encoding="utf-8"))
     assert dr.uncertainty_margin == config["default"]["uncertainty_margin"]
     assert "diabetic retinopathy" in dr.recommendations["high"]
     assert other.recommendations["high"] == config["default"]["recommendations"]["high"]
+
+
+@pytest.mark.parametrize("probability, positive, uncertain, risk", [
+    (0.10, False, False, RiskLevel.LOW), (0.45, False, True, RiskLevel.MEDIUM), (0.95, True, False, RiskLevel.HIGH)])
+def test_binary_only_conditions_get_no_band(probability, positive, uncertain, risk):
+    binary = RiskPolicy(threshold=0.5, uncertainty_margin=0.1, severity_bands=False)
+    result = binary.assess(probability)
+    assert result.severity_band is None
+    assert (result.positive, result.uncertain, result.risk_level) == (positive, uncertain, risk)
+
+
+def test_shipped_config_disables_bands_for_glaucoma_and_cataract_only():
+    factory = RiskPolicyFactory.from_file(BACKEND_ROOT / "config" / "risk_policy.json")
+    assert factory.for_condition("dr", 0.5).severity_bands is True
+    assert factory.for_condition("glaucoma", 0.5).severity_bands is False
+    assert factory.for_condition("cataract", 0.5).severity_bands is False

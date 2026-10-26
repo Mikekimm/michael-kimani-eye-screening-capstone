@@ -1,7 +1,7 @@
 {
-  "_comment": "Every number that turns a model score into a screening decision lives here. Reasoning: docs/risk_policy.md. The decision threshold itself comes from each model's model_card.json.",
+  "_comment": "Every number that turns a model score into a screening decision lives here. Reasoning: docs/risk_policy.md. The decision threshold itself comes from each model's model_card.json. severity_bands=false gives a binary result with no 1-5 band (used where the training data has no severity grades).",
   "default": {
-    "uncertainty_margin": 0.10,
+    "uncertainty_margin": 0.1,
     "refer_when_positive": true,
     "refer_when_uncertain": true,
     "recommendations": {
@@ -16,6 +16,22 @@
         "low": "No signs of diabetic retinopathy detected. Recommend routine annual diabetic eye screening.",
         "medium": "Borderline diabetic retinopathy score. Sent for specialist review.",
         "high": "Signs of diabetic retinopathy detected. Refer to an eye specialist."
+      }
+    },
+    "glaucoma": {
+      "severity_bands": false,
+      "recommendations": {
+        "low": "No signs of glaucoma detected. Continue routine eye checks.",
+        "medium": "Borderline glaucoma result. Sent for specialist review.",
+        "high": "Signs suggestive of glaucoma detected. Refer to an eye specialist for assessment."
+      }
+    },
+    "cataract": {
+      "severity_bands": false,
+      "recommendations": {
+        "low": "No signs of cataract detected.",
+        "medium": "Borderline cataract result. Sent for specialist review.",
+        "high": "Signs suggestive of cataract detected. Refer to an eye specialist for assessment."
       }
     }
   }

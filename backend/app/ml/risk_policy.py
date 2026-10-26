@@ -8,6 +8,9 @@ the positive/negative call:
     band:         1              2           3 (uncertain)          4                5
     risk:        low            low        medium                 high             high
 
+Conditions whose training data has no severity grades (glaucoma and cataract from ODIR-5K) set
+``severity_bands: false``: they get a binary result (positive / borderline / negative) and no band.
+
 Every number comes from ``config/risk_policy.json`` and the model card; see docs/risk_policy.md.
 """
 import json
@@ -21,7 +24,7 @@ from ..models.enums import RiskLevel
 class RiskAssessment:
     positive: bool
     uncertain: bool
-    severity_band: int
+    severity_band: int | None   # None when the condition has no severity banding
     risk_level: RiskLevel
     recommendation: str
     auto_refer: bool
@@ -33,6 +36,7 @@ class RiskPolicy:
     uncertainty_margin: float = 0.10
     refer_when_positive: bool = True
     refer_when_uncertain: bool = True
+    severity_bands: bool = True
     recommendations: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -48,6 +52,8 @@ class RiskPolicy:
         uncertain = abs(probability - self.threshold) <= self.uncertainty_margin
         band = self._band(probability, uncertain)
         risk = RiskLevel.LOW if band <= 2 else RiskLevel.MEDIUM if band == 3 else RiskLevel.HIGH
+        if not self.severity_bands:
+            band = None  # the risk level still follows the same positive / borderline / negative rule
         auto_refer = (positive and self.refer_when_positive) or (uncertain and self.refer_when_uncertain)
         return RiskAssessment(positive, uncertain, band, risk,
                               self.recommendations.get(risk.value, ""), auto_refer)
@@ -81,5 +87,6 @@ class RiskPolicyFactory:
             uncertainty_margin=float(merged.get("uncertainty_margin", 0.10)),
             refer_when_positive=bool(merged.get("refer_when_positive", True)),
             refer_when_uncertain=bool(merged.get("refer_when_uncertain", True)),
+            severity_bands=bool(merged.get("severity_bands", True)),
             recommendations=recommendations,
         )
