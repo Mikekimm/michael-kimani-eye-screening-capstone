@@ -1,6 +1,6 @@
 {
   "label": "dev-laptop-hp",
-  "measured_at": "2026-10-26T09:09:57+00:00",
+  "measured_at": "2026-10-26T10:45:34+00:00",
   "machine": {
     "os": "Windows-11-10.0.26200-SP0",
     "processor": "Intel64 Family 6 Model 142 Stepping 12, GenuineIntel",
@@ -12,22 +12,23 @@
     "file_mb": 2.6,
     "runtime": "ai_edge_litert"
   },
-  "runs": 50,
-  "registry_load_s": 0.066,
+  "interpreter_threads": "default (all cores)",
+  "runs": 200,
+  "registry_load_s": 0.033,
   "model_only": {
-    "mean_ms": 110.43,
-    "p50_ms": 107.06,
-    "p95_ms": 141.75,
-    "max_ms": 155.97
+    "mean_ms": 55.03,
+    "p50_ms": 52.55,
+    "p95_ms": 67.77,
+    "max_ms": 101.9
   },
   "full_pipeline_1024px_jpeg": {
-    "mean_ms": 165.72,
-    "p50_ms": 156.55,
-    "p95_ms": 231.78,
-    "max_ms": 247.99
+    "mean_ms": 73.54,
+    "p50_ms": 69.84,
+    "p95_ms": 89.99,
+    "max_ms": 148.31
   },
   "rss_mb": {
-    "before_load": 89.4,
-    "after_runs": 116.8
+    "before_load": 89.6,
+    "after_runs": 117.3
   }
 }

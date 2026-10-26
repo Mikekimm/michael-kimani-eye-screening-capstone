@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
 from app.core.config import BACKEND_ROOT  # noqa: E402
+from app.ml.condition_model import TFLiteConditionModel  # noqa: E402
 from app.ml.preprocessing import ImagePreprocessor  # noqa: E402
 from app.ml.registry import ModelRegistry  # noqa: E402
 from app.ml.risk_policy import RiskPolicyFactory  # noqa: E402
@@ -73,11 +74,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--runs", type=int, default=50)
     parser.add_argument("--label", default=platform.node() or "machine")
+    parser.add_argument("--threads", type=int, default=None,
+                        help="limit the interpreter to N CPU threads (1 approximates a low-end CPU)")
     args = parser.parse_args()
 
     rss_before = rss_mb()
     start = time.perf_counter()
-    registry = ModelRegistry(("dr", "glaucoma", "cataract")).discover(ROOT / "models")
+    loader = lambda card, path: TFLiteConditionModel(card, path, num_threads=args.threads)  # noqa: E731
+    registry = ModelRegistry(("dr", "glaucoma", "cataract"), loader=loader).discover(ROOT / "models")
     load_s = time.perf_counter() - start
     model = registry.get("dr")
     if model is None:
@@ -95,6 +99,7 @@ def main() -> int:
                     "cpu_count": os.cpu_count(), "python": platform.python_version()},
         "model": {"version": model.version, "file_mb": round((ROOT / "models" / "dr" / "model.tflite").stat().st_size / 1e6, 2),
                   "runtime": model.runtime},
+        "interpreter_threads": args.threads or "default (all cores)",
         "runs": args.runs,
         "registry_load_s": round(load_s, 3),
         "model_only": time_ms(lambda: model.predict_proba(batch), args.runs),

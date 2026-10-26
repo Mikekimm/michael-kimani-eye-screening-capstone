@@ -172,7 +172,7 @@ development machine.
 ```powershell
 cd backend;  ..\.venv\Scripts\python -m pip install -r requirements-dev.txt;  ..\.venv\Scripts\python -m pytest -q
 cd frontend; npm.cmd run typecheck; npm.cmd run lint; npm.cmd test
-cd frontend; npx playwright install chromium; npx playwright test     # starts its own throwaway backend
+cd frontend; npx playwright install chromium firefox webkit; npx playwright test     # starts its own throwaway backend
 ```
 
 Latest recorded results (26 Oct 2026, development laptop):
@@ -182,11 +182,15 @@ Latest recorded results (26 Oct 2026, development laptop):
 | Backend pytest (unit, API integration, real-model tests) | 165 passed, 0 skipped |
 | Frontend Vitest (algorithms, API client, components, forms, routes) | 48 passed |
 | TypeScript strict type-check / ESLint | clean / clean |
-| Playwright end-to-end (4 journeys x mobile + desktop Chromium) | 8 passed |
+| Playwright end-to-end (4 journeys x Chromium mobile + desktop, Firefox desktop, WebKit/iPhone) | 16 passed |
+| Browser performance (upload to result, Chromium) | median 0.50 s; 3.17 s with emulated 6x slower CPU + slow 3G |
+| Lighthouse, sign-in page (mobile / desktop) | 96/100/100/100 and 100/100/100/100 (performance/accessibility/best practices/SEO) |
 
 Strategies, results and the improvements they led to: [docs/testing_report.md](docs/testing_report.md).
-Performance: [docs/benchmarks/](docs/benchmarks/) (model 110 ms mean, full pipeline 166 ms mean on an
-Intel 8-thread laptop CPU).
+Server performance: [docs/benchmarks/](docs/benchmarks/) (200 runs on an Intel laptop CPU with 8 logical
+cores: model 55 ms mean, full pipeline on a 1024px photo 74 ms mean; restricted to 1 thread: 60 ms and
+77 ms; about 117 MB process memory). An earlier run on the same laptop under background load measured
+110 ms / 166 ms, so timings vary with machine load.
 
 ## 9. Model provenance and evaluation
 

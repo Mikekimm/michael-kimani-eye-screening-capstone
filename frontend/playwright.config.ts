@@ -26,6 +26,9 @@ export default defineConfig({
   projects: [
     { name: "mobile-chromium", use: { ...devices["Pixel 5"] } },
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
+    // Compatibility: the same journeys on the Firefox and Safari (WebKit) engines.
+    { name: "desktop-firefox", use: { ...devices["Desktop Firefox"] }, testIgnore: /performance/ },
+    { name: "mobile-webkit", use: { ...devices["iPhone 13"] }, testIgnore: /performance/ },
   ],
   webServer: [
     {
