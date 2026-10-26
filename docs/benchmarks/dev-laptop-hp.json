@@ -1,0 +1,33 @@
+{
+  "label": "dev-laptop-hp",
+  "measured_at": "2026-10-26T09:09:57+00:00",
+  "machine": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 142 Stepping 12, GenuineIntel",
+    "cpu_count": 8,
+    "python": "3.14.6"
+  },
+  "model": {
+    "version": "mobilenetv2-dr-binary-0.3",
+    "file_mb": 2.6,
+    "runtime": "ai_edge_litert"
+  },
+  "runs": 50,
+  "registry_load_s": 0.066,
+  "model_only": {
+    "mean_ms": 110.43,
+    "p50_ms": 107.06,
+    "p95_ms": 141.75,
+    "max_ms": 155.97
+  },
+  "full_pipeline_1024px_jpeg": {
+    "mean_ms": 165.72,
+    "p50_ms": 156.55,
+    "p95_ms": 231.78,
+    "max_ms": 247.99
+  },
+  "rss_mb": {
+    "before_load": 89.4,
+    "after_runs": 116.8
+  }
+}
