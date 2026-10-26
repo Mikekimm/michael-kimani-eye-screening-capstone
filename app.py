@@ -6,23 +6,29 @@ Run:  streamlit run app.py
 """
 import os
 
+import sys
+from pathlib import Path
+
 import streamlit as st
 
-from src.api_client import ClinicClient
-from src.classifier import load_classifier
-from src.config import LOCAL_DB_PATH, LOCAL_IMAGE_DIR
-from src.exceptions import (
+# The ML package lives in backend/app/ml (legacy Streamlit prototype, superseded by frontend/).
+sys.path.insert(0, str(Path(__file__).resolve().parent / "backend"))
+
+from app.ml.api_client import ClinicClient
+from app.ml.classifier import load_classifier
+from app.ml.config import LOCAL_DB_PATH, LOCAL_IMAGE_DIR
+from app.ml.exceptions import (
     ImageQualityError,
     InvalidImageError,
     ModelNotAvailableError,
     RecordValidationError,
     ScreeningError,
 )
-from src.service import ScreeningService
-from src.storage import ScreeningRepository
-from src.sync import SyncService
-from src.thresholding import load_threshold
-from src.workflow import ScreeningWorkflow
+from app.ml.service import ScreeningService
+from app.ml.storage import ScreeningRepository
+from app.ml.sync import SyncService
+from app.ml.thresholding import load_threshold
+from app.ml.workflow import ScreeningWorkflow
 
 st.set_page_config(page_title="Retinal Screening Assistant", page_icon="\U0001F441", layout="centered")
 

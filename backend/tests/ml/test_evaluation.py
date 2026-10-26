@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.evaluation import bootstrap_metric_ci, roc_auc, stratified_split
+from app.ml.evaluation import bootstrap_metric_ci, roc_auc, stratified_split
 
 
 def test_auc_known_values():

@@ -9,12 +9,12 @@ import secrets
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from src.config import DATA_DIR  # noqa: E402
-from src.domain import Role  # noqa: E402
-from src.server import Principal, make_server  # noqa: E402
-from src.storage import ScreeningRepository  # noqa: E402
+from app.ml.config import DATA_DIR  # noqa: E402
+from app.ml.domain import Role  # noqa: E402
+from app.ml.server import Principal, make_server  # noqa: E402
+from app.ml.storage import ScreeningRepository  # noqa: E402
 
 DEMO_TOKENS = {
     "demo-clinician-token": Principal("clinic-nurse", Role.CLINICIAN),

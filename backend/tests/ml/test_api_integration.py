@@ -9,12 +9,12 @@ import threading
 
 import pytest
 
-from src.api_client import ClinicClient, SpecialistClient
-from src.domain import Role, SyncStatus
-from src.exceptions import RemoteAuthError, RemoteRejectedError
-from src.server import MAX_BODY_BYTES, Principal, TokenAuthenticator, make_server
-from src.storage import ScreeningRepository
-from src.sync import SyncService
+from app.ml.api_client import ClinicClient, SpecialistClient
+from app.ml.domain import Role, SyncStatus
+from app.ml.exceptions import RemoteAuthError, RemoteRejectedError
+from app.ml.server import MAX_BODY_BYTES, Principal, TokenAuthenticator, make_server
+from app.ml.storage import ScreeningRepository
+from app.ml.sync import SyncService
 from tests.conftest import save_one
 
 pytestmark = pytest.mark.integration_api

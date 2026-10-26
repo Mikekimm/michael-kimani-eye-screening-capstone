@@ -22,16 +22,16 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from src.api_client import ClinicClient  # noqa: E402
-from src.domain import Role  # noqa: E402
-from src.preprocessing import ImagePreprocessor  # noqa: E402
-from src.quality import ImageQualityChecker  # noqa: E402
-from src.result import ScreeningResult  # noqa: E402
-from src.server import Principal, make_server  # noqa: E402
-from src.storage import ScreeningRepository  # noqa: E402
-from src.sync import SyncService  # noqa: E402
+from app.ml.api_client import ClinicClient  # noqa: E402
+from app.ml.domain import Role  # noqa: E402
+from app.ml.preprocessing import ImagePreprocessor  # noqa: E402
+from app.ml.quality import ImageQualityChecker  # noqa: E402
+from app.ml.result import ScreeningResult  # noqa: E402
+from app.ml.server import Principal, make_server  # noqa: E402
+from app.ml.storage import ScreeningRepository  # noqa: E402
+from app.ml.sync import SyncService  # noqa: E402
 
 
 def synthetic_fundus(size=1024, seed=0) -> bytes:

@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from src.exceptions import InvalidImageError
-from src.preprocessing import ImagePreprocessor
+from app.ml.exceptions import InvalidImageError
+from app.ml.preprocessing import ImagePreprocessor
 from tests.conftest import encode
 
 

@@ -7,11 +7,11 @@ Reads models/dr_screening_model.h5 and writes models/dr_screening_model.tflite.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 import tensorflow as tf  # noqa: E402
 
-from src.config import KERAS_MODEL_PATH, MODEL_DIR  # noqa: E402
+from app.ml.config import KERAS_MODEL_PATH, MODEL_DIR  # noqa: E402
 
 
 def main():

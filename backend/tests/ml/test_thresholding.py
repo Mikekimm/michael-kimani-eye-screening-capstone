@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.thresholding import load_threshold, metrics_at_threshold, save_threshold, select_threshold
+from app.ml.thresholding import load_threshold, metrics_at_threshold, save_threshold, select_threshold
 
 
 def test_perfect_separation_picks_highest_threshold_with_full_recall():
