@@ -13,6 +13,7 @@ Six strategies were used, each chosen for a specific risk in a screening-and-ref
 | 3 | End-to-end functional testing | the user cannot complete a clinical task | Playwright | 16/16 journeys pass on 4 browser/device profiles |
 | 4 | Compatibility testing | works in one browser only | Playwright: Chromium, Firefox, WebKit | all journeys pass on all three engines |
 | 5 | Performance testing | too slow on clinic hardware or networks | benchmark script, Playwright + CDP throttling, Lighthouse | 74 ms server pipeline; 0.5 s / 3.2 s round trip; Lighthouse 96-100 |
+| 5b | Accessibility testing | health workers with low vision or screen readers cannot use it | axe-core (WCAG 2.1 A/AA) on every screen, Lighthouse | 0 violations on 15 screens, mobile and desktop |
 | 6 | Model validation | the model is worse than claimed | Kaggle hold-out notebook, threshold calibration, bootstrap CIs | **pending**: hold-out run not yet completed |
 
 Usability testing with health workers (SUS questionnaire) is planned but **has not been run**.
@@ -122,6 +123,15 @@ Lighthouse cannot create):
 Bundle: route-level code splitting; core JS about 110 KB gzipped; the charts library (103 KB
 gzipped) loads only on the admin analytics page.
 
+## 5b. Accessibility (axe-core, WCAG 2.1 A and AA)
+
+**Why:** Lighthouse can only reach the public sign-in page; clinical screens need checking too.
+**How:** `frontend/e2e/accessibility.spec.ts` signs in as each role, creates a patient, a screening and a
+referral, and runs axe-core on 15 screens (public, health worker incl. the capture step, specialist,
+admin) on Chromium mobile and desktop. Results: [accessibility/](accessibility/).
+**Result:** first run found 2 critical issues (the hidden camera and gallery file inputs had no labels);
+after fixing, **0 violations of any severity** on all 15 screens in both profiles.
+
 ## 6. Model validation
 
 The model's held-out performance has **not yet been measured**, so no accuracy, sensitivity or
@@ -144,6 +154,7 @@ is an optimistic estimate.
 | E2E screenshots | results listed alphabetically, so cataract (no model) appeared above DR | product order: DR, glaucoma, cataract |
 | E2E screenshots | "referred because the result was manual" | plain-language referral reasons |
 | Lighthouse | SEO 91: no `robots.txt` | added; SEO 100 |
+| axe-core | camera and gallery file inputs had no accessible name (critical) | labelled and removed from tab order |
 | Agreement test | `.tflite` differs from `.h5` by up to 0.034 (quantized export) | tolerance documented; full-fold difference recorded by the Kaggle run |
 | Manual review | relative SQLite path created two databases depending on the folder | paths anchored to the repository root |
 | Manual review | `.local` demo emails rejected by email validation | demo accounts use `example.org` |

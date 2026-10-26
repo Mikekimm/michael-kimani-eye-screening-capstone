@@ -56,9 +56,11 @@ export function ImageCaptureGuide({ onImage }: { onImage: (file: File | null) =>
 
       <div className="grid grid-cols-2 gap-2">
         <input ref={cameraRef} id={cameraId} type="file" accept="image/*" capture="environment" className="sr-only"
+          aria-label="Take a fundus photo with the camera" tabIndex={-1}
           onChange={(e) => void handle(e.target.files?.[0])} />
         <Button type="button" onClick={() => cameraRef.current?.click()}><Camera aria-hidden className="h-4 w-4" />{preview ? "Retake" : "Take photo"}</Button>
         <input ref={galleryRef} id={galleryId} type="file" accept="image/jpeg,image/png" className="sr-only"
+          aria-label="Choose a fundus photo from the gallery" tabIndex={-1}
           onChange={(e) => void handle(e.target.files?.[0])} />
         <Button type="button" variant="outline" onClick={() => galleryRef.current?.click()}><ImageUp aria-hidden className="h-4 w-4" />From gallery</Button>
       </div>

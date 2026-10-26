@@ -1,0 +1,89 @@
+{
+  "measured_at": "2026-10-26T12:26:05.677Z",
+  "tool": "axe-core via @axe-core/playwright 4.10.1",
+  "tags": [
+    "wcag2a",
+    "wcag2aa",
+    "wcag21a",
+    "wcag21aa"
+  ],
+  "pages": 15,
+  "total_violations": 0,
+  "results": [
+    {
+      "role": "public",
+      "route": "/login",
+      "violations": []
+    },
+    {
+      "role": "public",
+      "route": "/signup",
+      "violations": []
+    },
+    {
+      "role": "health_worker",
+      "route": "/consent",
+      "violations": []
+    },
+    {
+      "role": "health_worker",
+      "route": "(screen: capture step with preview)",
+      "violations": []
+    },
+    {
+      "role": "health_worker",
+      "route": "/",
+      "violations": []
+    },
+    {
+      "role": "health_worker",
+      "route": "/patients",
+      "violations": []
+    },
+    {
+      "role": "health_worker",
+      "route": "/patients/new",
+      "violations": []
+    },
+    {
+      "role": "health_worker",
+      "route": "/patients/fa4f85b7c45d4fec885c9bf0d804d405",
+      "violations": []
+    },
+    {
+      "role": "health_worker",
+      "route": "/screenings/61eabb63930e40178751d41736310e1b",
+      "violations": []
+    },
+    {
+      "role": "health_worker",
+      "route": "/history",
+      "violations": []
+    },
+    {
+      "role": "health_worker",
+      "route": "/about",
+      "violations": []
+    },
+    {
+      "role": "specialist",
+      "route": "/reviews",
+      "violations": []
+    },
+    {
+      "role": "specialist",
+      "route": "/reviews/61eabb63930e40178751d41736310e1b",
+      "violations": []
+    },
+    {
+      "role": "admin",
+      "route": "/admin/analytics",
+      "violations": []
+    },
+    {
+      "role": "admin",
+      "route": "/admin/users",
+      "violations": []
+    }
+  ]
+}
