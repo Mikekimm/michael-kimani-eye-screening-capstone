@@ -8,8 +8,8 @@ Michael Kimani, supervisor Emmanuel Adjei). A health worker uploads/captures a f
 left or right eye; the system checks image quality, runs every available trained model, and returns a
 structured screening result with a recommended action and, when needed, a referral to a specialist.
 **Screening and referral support only. Not a diagnostic device. Never present it as one.**
-Intended deployment context: TBC by Michael (intended context only; no real deployment or clinical validation
-is claimed).
+Intended deployment context: primary health centres in low-resource settings in Africa. This is the intended
+context only. Do not name a country; only public datasets were used and there was no field validation.
 
 ## 2. Scope (from the approved proposal)
 - Conditions: diabetic retinopathy (DR), glaucoma, cataract.
@@ -25,7 +25,9 @@ is claimed).
   Input 224x224, MobileNetV2 `preprocess_input`, nearest-neighbour resize (matches training).
 - **Held-out metrics are NOT measured yet.** Until `docs/evaluation/holdout_predictions.csv` exists, every
   surface (report, model card, About screen, README) says "metrics not yet measured". When it exists, metrics
-  are computed by script into `docs/metrics.json`. Never quote 0.790 / 0.542 (lost 8-epoch run) for the
+  are computed by script into `docs/metrics.json`. Row-order equivalence of the Kaggle `df` with the training
+  session is unverified until Michael confirms it, so metrics are labelled an "unverified, optimistic estimate"
+  until then. SEED = 42. Never quote 0.790 / 0.542 (lost 8-epoch run) for the
   shipped model. Never estimate numbers.
 - Glaucoma and cataract: no trained models. They show `model_available=false` / "Model not available yet".
 - Severity band 1-5 for a binary model is an **estimate** from a documented, configurable `RiskPolicy`,
@@ -63,8 +65,8 @@ uploads validated (content type, max size, decodable image); no images or identi
 - `POST /screenings` (multipart: image, patient_id, eye, client_uuid, captured_at): run every available
   condition, store one diagnosis_result per condition, idempotent on client_uuid.
 - `GET /models`: versions, availability, thresholds, limitations, metrics (or "not yet measured").
-- Runtime: `ai-edge-litert` if it installs on this Python; otherwise `tf.lite.Interpreter`, behind the
-  same interface. Validate equivalence before switching runtimes.
+- Runtime: `ai-edge-litert` (installed, v2.3.0 on Python 3.14). TensorFlow stays a dev-only dependency for the
+  Keras-vs-TFLite agreement test. Validate equivalence before switching runtimes.
 
 ## 8. Review, sync, analytics
 - `GET /reviews/queue`, `POST /reviews/{screening_id}` (appends review_event).
