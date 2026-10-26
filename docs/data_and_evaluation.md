@@ -59,7 +59,7 @@ It writes [metrics.json](metrics.json) and updates the model card the API serves
 |---|---|
 | RQ1 gaps in existing tools | literature review (proposal ch. 2); this prototype combines offline capture, multi-condition design and referral |
 | RQ2 architecture and sync for intermittent connectivity | idempotent sync with backoff; tests of lost replies and offline queues ([testing_report.md](testing_report.md)) |
-| RQ3 how accurately the model classifies DR | hold-out metrics in [metrics.json](metrics.json), **pending** |
+| RQ3 how accurately the model classifies DR | validation results from the training notebook, not an independent hold-out in [metrics.json](metrics.json): sensitivity 0.542, specificity 0.97 at 0.5; target not met; hold-out not completed |
 | RQ4 how the referral workflow connects workers to specialists | end-to-end journeys: referral, review, decision pulled back; no clinical outcome study |
 
 ## 6. Glaucoma and cataract (ODIR-5K)

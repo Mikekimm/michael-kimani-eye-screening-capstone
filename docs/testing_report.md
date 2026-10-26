@@ -14,7 +14,7 @@ Six strategies were used, each chosen for a specific risk in a screening-and-ref
 | 4 | Compatibility testing | works in one browser only | Playwright: Chromium, Firefox, WebKit | all journeys pass on all three engines |
 | 5 | Performance testing | too slow on clinic hardware or networks | benchmark script, Playwright + CDP throttling, Lighthouse | 74 ms server pipeline; 0.5 s / 3.2 s round trip; Lighthouse 96-100 |
 | 5b | Accessibility testing | health workers with low vision or screen readers cannot use it | axe-core (WCAG 2.1 A/AA) on every screen, Lighthouse | 0 violations on 15 screens, mobile and desktop |
-| 6 | Model validation | the model is worse than claimed | Kaggle hold-out notebook, threshold calibration, bootstrap CIs | **pending**: hold-out run not yet completed |
+| 6 | Model validation | the model is worse than claimed | training-notebook validation fold; hold-out notebook prepared | sensitivity 0.542, specificity 0.97 at 0.5 (validation, not hold-out): **target not met** |
 
 Usability testing with health workers (SUS questionnaire) is planned but **has not been run**.
 
@@ -134,8 +134,11 @@ after fixing, **0 violations of any severity** on all 15 screens in both profile
 
 ## 6. Model validation
 
-The model's held-out performance has **not yet been measured**, so no accuracy, sensitivity or
-specificity is claimed for the shipped model. The protocol is ready:
+**Reported result (validation results from the training notebook, not an independent hold-out):** on the 47,234-image validation fold at threshold
+0.5, accuracy 0.790, precision 0.920, sensitivity 0.542, specificity 0.97, F1 0.682 (AUC not computed).
+The **85% sensitivity target is not met**: about 46% of DR images in that fold were missed. Values are
+parsed from the notebook by `scripts/extract_notebook_metrics.py`. The independent hold-out run did
+not finish. The protocol that was prepared for it:
 [notebooks/kaggle_holdout_eval.ipynb](../notebooks/kaggle_holdout_eval.ipynb) rebuilds the
 training run's validation fold and first checks it matches the training notebook's own record
 (fold size 47,234, class counts, row order, and the `.h5`'s metrics at 0.5). Then

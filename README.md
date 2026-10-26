@@ -33,7 +33,7 @@ setting only: no field deployment or clinical evaluation has taken place.
 
 | Condition | Model | Status |
 |---|---|---|
-| Diabetic retinopathy | MobileNetV2 transfer learning, binary (no DR / DR present), TFLite run with LiteRT | **Available.** Held-out metrics: see [docs/metrics.json](docs/metrics.json) once generated; until then the app says "metrics not yet measured" |
+| Diabetic retinopathy | MobileNetV2 transfer learning, binary (no DR / DR present), TFLite run with LiteRT | **Available.** At threshold 0.5 on 47,234 validation images: accuracy 0.790, precision 0.920, sensitivity 0.542, specificity 0.97, F1 0.682 ([docs/metrics.json](docs/metrics.json)). These are validation results from the training notebook, not an independent hold-out; **the 85% sensitivity target is not met** |
 | Glaucoma | MobileNetV2, binary, ODIR-5K, patient-separated split: [notebooks/odir_glaucoma_cataract.ipynb](notebooks/odir_glaucoma_cataract.ipynb) | **Model not available yet** until the notebook's output is added; the app then loads it with no code change. Binary result only |
 | Cataract | as glaucoma | as glaucoma. **No 1-5 cataract grading**: ODIR-5K has no severity labels |
 
@@ -201,10 +201,12 @@ cores: model 55 ms mean, full pipeline on a 1024px photo 74 ms mean; restricted 
   backbone, SEED 42, group-aware 5-fold split, 8 epochs).
 * Model card: [models/dr/model_card.json](models/dr/model_card.json) (verified input spec, labels,
   checksum, threshold and its source, limitations).
-* Hold-out evaluation: [notebooks/kaggle_holdout_eval.ipynb](notebooks/kaggle_holdout_eval.ipynb)
-  reproduces the training validation fold and checks it matches before scoring;
-  `scripts/calibrate_threshold.py` then chooses a threshold for 85% sensitivity on one half and reports
-  every metric on the other half, with bootstrap intervals, into [docs/metrics.json](docs/metrics.json).
+* Reported metrics: validation results from the training notebook, not an independent hold-out, parsed from the notebook's saved outputs by
+  `scripts/extract_notebook_metrics.py` into [docs/metrics.json](docs/metrics.json) and the model card.
+  At 0.5 the model misses about 46% of DR cases in that fold (sensitivity 0.542), below the 85% target.
+* Not completed: the independent hold-out run
+  ([notebooks/kaggle_holdout_eval.ipynb](notebooks/kaggle_holdout_eval.ipynb)) and threshold calibration
+  (`scripts/calibrate_threshold.py`), which would raise sensitivity at the cost of more referrals.
 * Known limitations: image-level splits (no patient IDs), augmented near-duplicates, no external test
   set, no smartphone-lens images, probabilities not calibrated.
 

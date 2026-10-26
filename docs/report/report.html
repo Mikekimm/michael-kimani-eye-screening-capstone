@@ -48,7 +48,7 @@ into one complete, tested DR workflow, while keeping the multi-disease design re
 <tr><td>Glaucoma and cataract classifiers</td><td>Multi-disease screening</td><td class="pa">Partial</td><td>Patient-separated ODIR-5K training notebook ready and smoke-tested; run pending. App shows "not available" until a model is added (no code change)</td></tr>
 <tr><td>Five-band cataract grading</td><td>Grade cataract severity</td><td class="no">Not implemented</td><td>ODIR-5K has no severity labels; glaucoma and cataract are binary only rather than showing invented bands</td></tr>
 <tr><td>Risk / severity output</td><td>Show urgency</td><td class="ch">Changed</td><td>DR: five-band <i>estimated</i> band from the binary score (<code>RiskPolicy</code>, boundary tests); others binary</td></tr>
-<tr><td>Sensitivity &ge; 85%, specificity &ge; 80%</td><td>Safe screening trade-off (RQ3)</td><td class="pa">Partial</td><td>Calibration and reporting pipeline built and tested; hold-out run pending</td></tr>
+<tr><td>Sensitivity &ge; 85%, specificity &ge; 80%</td><td>Safe screening trade-off (RQ3)</td><td class="no">Not met</td><td>Validation fold: sensitivity 0.542, specificity 0.97 at threshold 0.5; hold-out and calibration not completed</td></tr>
 <tr><td>On-device inference</td><td>Screen without internet</td><td class="ch">Changed</td><td>Server-side LiteRT; offline photos queued and analysed after sync</td></tr>
 <tr><td>Android app (React Native)</td><td>Mobile client</td><td class="ch">Changed</td><td>Installable PWA; E2E on Android and iPhone emulation</td></tr>
 <tr><td>Register patient, capture image, view result</td><td>Core health-worker workflow</td><td class="ok">Completed</td><td>E2E journey 1, screenshots</td></tr>
@@ -123,7 +123,7 @@ reproducible environment (pinned requirements, <code>package-lock.json</code>). 
 <tr><td>Performance</td><td>slow hardware and networks</td><td>benchmark script; throttled browser round trip; Lighthouse</td><td class="ok">see section 5</td></tr>
 <tr><td>Accessibility</td><td>low-vision and screen-reader users</td><td>axe-core WCAG 2.1 A/AA on 15 screens, all roles, mobile and desktop</td><td class="ok">0 violations</td></tr>
 <tr><td>Security (brute force)</td><td>password guessing</td><td>sliding-window login throttle; unit tests with a fake clock and API tests</td><td class="ok">429 after 5 failures</td></tr>
-<tr><td>Model validation</td><td>RQ3, honest accuracy claims</td><td>reproduce training fold, calibrate on half, report on the other half with 95% bootstrap CIs</td><td class="pa">pending</td></tr>
+<tr><td>Model validation</td><td>RQ3, honest accuracy claims</td><td>validation fold of the training notebook (hold-out notebook prepared, run not finished)</td><td class="no">target not met</td></tr>
 </table>
 <p><b>Different inputs:</b> scores of 0.05, 0.45 and 0.9 (negative, borderline, positive), blank, tiny, corrupt, mislabelled (BMP sent as JPEG), GIF, oversized
 and future-dated uploads, name-like patient codes, expired, replayed and wrong-type tokens, and every role against every route.
@@ -153,10 +153,11 @@ Low-end figures are emulated (Chrome DevTools); physical low-end devices and rea
 <h2>6. Model evaluation, limitations and next steps</h2>
 <p>The DR model is MobileNetV2 (frozen ImageNet backbone, small head) trained for 8 epochs on the Kaggle EyePACS + APTOS + Messidor redistribution with a
 group-aware 5-fold split. The training notebook reported, on its 47,234-image validation fold at threshold 0.5: accuracy 0.790, precision 0.920, recall 0.542,
-F1 0.682. A hold-out notebook re-creates that fold, verifies it, and checks that the shipped files reproduce those numbers before any metric is attributed
-to the deployed model. <b>Held-out results for the shipped model: pending</b>; until then the app, model card and README state "metrics not yet measured".
-At threshold 0.5 the notebook's recall (0.542) is well below the 85% sensitivity target, which is why the threshold is recalibrated for sensitivity, at the
-cost of more referrals.</p>
+F1 0.682. These are <b>validation results from the training notebook, not an independent hold-out</b>: the same fold guided early stopping, and the
+independent hold-out run did not finish. Specificity from the same report is 0.97. The <b>85% sensitivity target was not met</b> at threshold 0.5: about
+46% of DR images in that fold were missed, which is unacceptable for screening on its own. The prepared remedy is to calibrate the threshold for 85%
+sensitivity on one half of a verified hold-out and report on the other half, accepting more referrals; this was not completed. The app, model card,
+About screen and README show these figures with the same label.</p>
 <ul>
 <li>Evaluation is image-level (no patient IDs), the redistribution contains augmented near-duplicates, and the validation fold also guided early stopping, so results are optimistic; there is no external test set and no smartphone-lens images.</li>
 <li>Glaucoma and cataract models depend on the ODIR-5K notebook run (patient-separated split, threshold from validation, test scored once); their results will be reported as measured, even if weak. Offline inference in the browser, PostgreSQL/Docker runs, a usability study with health workers and tests on physical low-end devices remain to be done.</li>
