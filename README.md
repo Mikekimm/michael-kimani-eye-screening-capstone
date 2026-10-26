@@ -34,8 +34,8 @@ setting only: no field deployment or clinical evaluation has taken place.
 | Condition | Model | Status |
 |---|---|---|
 | Diabetic retinopathy | MobileNetV2 transfer learning, binary (no DR / DR present), TFLite run with LiteRT | **Available.** Held-out metrics: see [docs/metrics.json](docs/metrics.json) once generated; until then the app says "metrics not yet measured" |
-| Glaucoma | none trained | **Model not available yet.** The app says so and gives no result |
-| Cataract | none trained | **Model not available yet.** The app says so and gives no result |
+| Glaucoma | MobileNetV2, binary, ODIR-5K, patient-separated split: [notebooks/odir_glaucoma_cataract.ipynb](notebooks/odir_glaucoma_cataract.ipynb) | **Model not available yet** until the notebook's output is added; the app then loads it with no code change. Binary result only |
+| Cataract | as glaucoma | as glaucoma. **No 1-5 cataract grading**: ODIR-5K has no severity labels |
 
 The 1-5 band shown for DR is an **estimated severity band** derived from the model score by a
 configurable policy ([docs/risk_policy.md](docs/risk_policy.md)). It is not an ICDR grade. Adding a

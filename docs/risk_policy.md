@@ -43,6 +43,12 @@ With the current values (`t = 0.5`, `m = 0.10`): band 1 below 0.20, band 2 to 0.
   severe. The UI labels it "Estimated severity band" and the disclaimer says it is not a diagnosis.
   Calibration of the probabilities has **not** been measured.
 
+## Binary-only conditions
+
+Glaucoma and cataract are configured with `"severity_bands": false`, because their training data
+(ODIR-5K) has no severity grades. They still get positive / borderline / negative, a risk level and
+referral by the same rule, but no 1-5 band, and the result card says "binary result only".
+
 ## Changing it
 
 Edit `backend/config/risk_policy.json` (all conditions under `default`, or one condition under
