@@ -20,12 +20,13 @@ function Metrics({ model }: { model: ModelInfo }) {
   return (
     <div className="text-sm">
       <table className="w-full text-left">
-        <thead><tr><th className="py-1">Metric (test set, {m.test_images} images)</th><th className="py-1 text-right">Value</th><th className="py-1 text-right">95% interval</th></tr></thead>
+        <thead><tr><th className="py-1">Metric ({m.evaluation_set ?? "test set"}, {m.test_images.toLocaleString()} images)</th><th className="py-1 text-right">Value</th><th className="py-1 text-right">95% interval</th></tr></thead>
         <tbody>
           {row("Sensitivity", "sensitivity")}
           {row("Specificity", "specificity")}
           {row("Precision", "precision")}
-          <tr className="border-t"><td className="py-1">AUC</td><td className="py-1 text-right tabular-nums">{m.auc.toFixed(3)}</td><td /></tr>
+          <tr className="border-t"><td className="py-1">Accuracy</td><td className="py-1 text-right tabular-nums">{percent(m.accuracy, 1)}</td><td /></tr>
+          <tr className="border-t"><td className="py-1">AUC</td><td className="py-1 text-right tabular-nums">{m.auc === null ? "not computed" : m.auc.toFixed(3)}</td><td /></tr>
         </tbody>
       </table>
       <p className="mt-2 text-xs text-muted-foreground">Status: {model.metrics_status}.</p>

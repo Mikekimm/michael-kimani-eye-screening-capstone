@@ -134,4 +134,19 @@ describe("loading, empty and error states", () => {
     expect(screen.getByText("Model not available yet")).toBeInTheDocument();
     expect(screen.queryByText(/Sensitivity/)).not.toBeInTheDocument();
   });
+
+  it("labels validation metrics as not an independent hold-out", async () => {
+    renderWithProviders(<AboutPage />, { signedIn: true, api: {
+      auth: { me: vi.fn().mockResolvedValue(nurse) },
+      models: { list: vi.fn().mockResolvedValue([{ condition: "dr", display_name: "Diabetic retinopathy", available: true,
+        status_reason: "ok", version: "v1", threshold: 0.5, threshold_source: "default", uncertainty_margin: 0.1, input: null,
+        labels: null, architecture: null, training: null, limitations: [],
+        metrics_status: "validation results from the training notebook, not an independent hold-out",
+        metrics: { sensitivity: 0.542, specificity: 0.97, precision: 0.92, f1: 0.682, accuracy: 0.79, auc: null, test_images: 47234,
+          evaluation_set: "validation fold from the training notebook (not an independent hold-out)" } }]) } } });
+    expect(await screen.findByText(/validation fold from the training notebook \(not an independent hold-out\), 47,234 images/)).toBeInTheDocument();
+    expect(screen.getByText("54.2%")).toBeInTheDocument();
+    expect(screen.getByText("not computed")).toBeInTheDocument();
+    expect(screen.queryByText(/test set/)).not.toBeInTheDocument();
+  });
 });
