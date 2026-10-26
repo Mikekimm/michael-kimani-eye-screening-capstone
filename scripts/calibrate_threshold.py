@@ -8,11 +8,17 @@ The file is split in two (stratified, fixed seed):
   * tuning half : the threshold is selected here
   * test half   : every reported number comes from here, with 95% bootstrap intervals
 
+Outputs (all computed from the CSV, nothing typed by hand):
+  * docs/metrics.json                 full report shown in the README, report and About screen
+  * models/dr/model_card.json         calibrated threshold + headline metrics served by GET /api/models
+
 Usage:
-    python scripts/calibrate_threshold.py --predictions holdout_predictions.csv --target 0.85
+    python scripts/calibrate_threshold.py --predictions docs/evaluation/holdout_predictions.csv
+    (add --row-order-verified only after confirming the Kaggle df matched the training session)
 """
 import argparse
 import csv
+import json
 import sys
 from pathlib import Path
 
@@ -22,7 +28,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 from app.ml.config import THRESHOLD_PATH, TARGET_SENSITIVITY  # noqa: E402
 from app.ml.evaluation import bootstrap_metric_ci, roc_auc, stratified_split  # noqa: E402
+from app.ml.metrics_report import apply_to_model_card, build_report  # noqa: E402
 from app.ml.thresholding import metrics_at_threshold, save_threshold, select_threshold  # noqa: E402
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+METRICS_PATH = REPO_ROOT / "docs" / "metrics.json"
+MODEL_CARD_PATH = REPO_ROOT / "models" / "dr" / "model_card.json"
 
 TARGET_SPECIFICITY = 0.80  # from the proposal (Section 3.3)
 
@@ -47,7 +58,9 @@ def main():
     parser.add_argument("--target", type=float, default=TARGET_SENSITIVITY)
     parser.add_argument("--out", default=str(THRESHOLD_PATH))
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--no-save", action="store_true")
+    parser.add_argument("--no-save", action="store_true", help="print only; write no files")
+    parser.add_argument("--row-order-verified", action="store_true",
+                        help="the Kaggle df was confirmed identical to the training session")
     args = parser.parse_args()
 
     y, p = read_predictions(args.predictions)
