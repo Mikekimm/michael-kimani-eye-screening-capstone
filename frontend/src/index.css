@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens: calm clinical palette. Risk colours are restrained and never the only signal
+   (every risk state also has a text label and an icon). Contrast checked against WCAG AA. */
+@layer base {
+  :root {
+    --background: 180 12% 97%;
+    --foreground: 190 30% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 190 30% 12%;
+    --primary: 184 69% 20%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 180 10% 93%;
+    --muted-foreground: 190 10% 34%;
+    --border: 180 10% 86%;
+    --input: 180 10% 78%;
+    --ring: 184 69% 30%;
+    --destructive: 2 64% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --risk-low: 152 45% 30%;
+    --risk-medium: 35 85% 34%;
+    --risk-high: 2 64% 42%;
+    --risk-none: 210 8% 45%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+  }
+}

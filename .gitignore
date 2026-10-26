@@ -1,0 +1,37 @@
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/dev-dist/
+playwright-report/
+test-results/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Local offline data (SQLite database and stored images) is never committed
+data/
+*.db
+*.sqlite3
+backend/uploads/
+
+# Datasets are never committed (public Kaggle data is downloaded, not stored here)
+datasets/
+*.zip
+
+# OS / editor junk
+$Recycle.Bin/
+desktop.ini
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/

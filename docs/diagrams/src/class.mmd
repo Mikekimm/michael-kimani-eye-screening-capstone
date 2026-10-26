@@ -1,0 +1,110 @@
+classDiagram
+  direction LR
+
+  class ConditionModel {
+    <<abstract>>
+    +card: ModelCard
+    +condition: str
+    +version: str
+    +predict_proba(batch) float*
+  }
+  class TFLiteConditionModel {
+    -interpreter
+    -lock: Lock
+    +runtime: str
+    +input_size: tuple
+    +predict_proba(batch) float
+  }
+  class ModelCard {
+    +condition, version, sha256
+    +input, labels, threshold
+    +metrics, metrics_status, limitations
+    +load(path)$ ModelCard
+  }
+  class ModelRegistry {
+    -models: dict
+    -statuses: dict
+    +discover(models_dir) ModelRegistry
+    +get(condition) ConditionModel
+    +statuses() list~ModelStatus~
+  }
+  class ModelStatus {
+    +condition, available, reason
+  }
+  class RiskPolicy {
+    +threshold, uncertainty_margin
+    +refer_when_positive, refer_when_uncertain
+    +assess(probability) RiskAssessment
+  }
+  class RiskPolicyFactory {
+    +from_file(path)$
+    +for_condition(condition, threshold) RiskPolicy
+  }
+  class RiskAssessment {
+    +positive, uncertain
+    +severity_band, risk_level
+    +recommendation, auto_refer
+  }
+  class ScreeningPipeline {
+    +validate_upload(type, bytes) Image
+    +run(type, bytes) PipelineOutcome
+  }
+  class ImagePreprocessor {
+    +load(source) Image
+    +to_batch(image) ndarray
+  }
+  class ImageQualityChecker {
+    +assess(image) QualityReport
+  }
+  class ScreeningService {
+    +create(user, ...) (Screening, duplicate)
+    +refer(user, id) Screening
+    +get(user, id) Screening
+  }
+  class ReviewService {
+    +queue(user) list
+    +review(user, id, request) Screening
+  }
+  class AccessPolicy {
+    +check_patient(user, patient)
+    +check_screening(user, screening)
+    +require_role(user, roles)$
+  }
+  class Repository~T~ {
+    +get(id) T
+    +add(entity) T
+  }
+
+  ConditionModel <|-- TFLiteConditionModel
+  ConditionModel --> ModelCard
+  ModelRegistry o-- ConditionModel
+  ModelRegistry --> ModelStatus
+  RiskPolicyFactory ..> RiskPolicy : creates
+  RiskPolicy ..> RiskAssessment : returns
+  ScreeningPipeline --> ModelRegistry
+  ScreeningPipeline --> RiskPolicyFactory
+  ScreeningPipeline --> ImagePreprocessor
+  ScreeningPipeline --> ImageQualityChecker
+  ScreeningService --> ScreeningPipeline
+  ScreeningService --> AccessPolicy
+  ScreeningService --> Repository
+  ReviewService --> Repository
+  Repository <|-- ScreeningRepository
+  Repository <|-- PatientRepository
+  Repository <|-- ReviewRepository
+  Repository <|-- UserRepository
+
+  class SyncQueue {
+    <<frontend>>
+    +enqueuePatient(patient)
+    +enqueueScreening(input)
+    +syncNow() SyncReport
+    +retry(clientUuid)
+  }
+  class QueueRepository {
+    <<interface>>
+    +all() / get() / put() / remove()
+  }
+  SyncQueue --> QueueRepository
+  QueueRepository <|.. IndexedDbQueueRepository
+  QueueRepository <|.. InMemoryQueueRepository

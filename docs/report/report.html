@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Technical Report: Retinal Screening and Referral Support</title>
+<style>
+  @page { size: A4; margin: 12mm 13mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 9.2pt; line-height: 1.34; color: #16211f; margin: 0; }
+  h1 { font-size: 15pt; margin: 0 0 1mm; color: #0f5257; }
+  h2 { font-size: 10.8pt; margin: 3.2mm 0 1.2mm; color: #0f5257; border-bottom: 0.6pt solid #a9bdb9; padding-bottom: 0.5mm; break-after: avoid; }
+  h3 { font-size: 9.4pt; margin: 2mm 0 0.6mm; color: #0f5257; break-after: avoid; }
+  p { margin: 0 0 1.4mm; text-align: justify; }
+  .meta { color: #4a5a57; font-size: 8.3pt; margin-bottom: 1.5mm; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8mm 0 1.8mm; font-size: 8.3pt; }
+  th, td { border: 0.5pt solid #b3c2bf; padding: 0.7mm 1.3mm; vertical-align: top; text-align: left; }
+  th { background: #e5efed; }
+  tr { break-inside: avoid; }
+  .ok { color: #1d6b45; font-weight: 600; } .pa { color: #8f5a0e; font-weight: 600; } .no { color: #a3352a; font-weight: 600; } .ch { color: #2b4f86; font-weight: 600; }
+  code { font-family: Consolas, monospace; font-size: 7.9pt; }
+  figure { margin: 1mm 0 2mm; text-align: center; break-inside: avoid; }
+  img { max-width: 100%; }
+  figcaption { font-size: 7.8pt; color: #4a5a57; }
+  .two { display: flex; gap: 3mm; align-items: flex-start; }
+  .two > * { flex: 1; }
+  ul { margin: 0 0 1.4mm 4.5mm; padding: 0; } li { margin-bottom: 0.4mm; }
+  .note { background: #fbf4e6; border: 0.5pt solid #e2c991; padding: 1.2mm 2mm; font-size: 8.4pt; margin: 1mm 0 2mm; }
+</style>
+</head>
+<body>
+
+<h1>Retinal Screening and Referral Support: Final Product Technical Report</h1>
+<p class="meta">Michael Kimani · BSc Software Engineering (ML), African Leadership University · Supervisor: Emmanuel Adjei · 26 October 2026<br>
+Repository: github.com/Mikekimm/michael-kimani-eye-screening-capstone (branch <code>main</code>) · Video: <b>[link]</b></p>
+
+<div class="note"><b>Scope of claims.</b> This is screening and referral <i>support</i>, not a diagnostic device. The model was trained and evaluated
+only on public datasets; there has been no field deployment or clinical validation. Every figure below comes from a recorded run in the repository.</div>
+
+<h2>1. Scope alignment and feature validation</h2>
+<p>The approved proposal planned an offline-first Android app that screens fundus photos for diabetic retinopathy (DR), glaucoma and cataract on the
+device, refers uncertain or high-risk cases to a specialist dashboard, and syncs when connectivity returns. Following supervisor feedback (a feasible
+prototype with one demonstrable workflow; reconcile offline use with sync and authentication; separate research evaluation from development), effort went
+into one complete, tested DR workflow, while keeping the multi-disease design real: glaucoma and cataract are registered conditions that report
+"Model not available yet" until a trained model is added, which needs no code change. The full table with evidence paths is in <code>docs/scope_table.md</code>.</p>
+
+<table>
+<tr><th>Planned feature</th><th>Intended purpose</th><th>Status</th><th>Evidence</th></tr>
+<tr><td>DR classifier (MobileNetV2, TFLite)</td><td>Detect DR from a fundus photo</td><td class="ok">Completed</td><td><code>models/dr/</code>, real-model API tests</td></tr>
+<tr><td>Glaucoma and cataract classifiers</td><td>Multi-disease screening</td><td class="pa">Partial</td><td>Patient-separated ODIR-5K training notebook ready and smoke-tested; run pending. App shows "not available" until a model is added (no code change)</td></tr>
+<tr><td>Five-band cataract grading</td><td>Grade cataract severity</td><td class="no">Not implemented</td><td>ODIR-5K has no severity labels; glaucoma and cataract are binary only rather than showing invented bands</td></tr>
+<tr><td>Risk / severity output</td><td>Show urgency</td><td class="ch">Changed</td><td>DR: five-band <i>estimated</i> band from the binary score (<code>RiskPolicy</code>, boundary tests); others binary</td></tr>
+<tr><td>Sensitivity &ge; 85%, specificity &ge; 80%</td><td>Safe screening trade-off (RQ3)</td><td class="no">Not met</td><td>Validation fold: sensitivity 0.542, specificity 0.97 at threshold 0.5; hold-out and calibration not completed</td></tr>
+<tr><td>On-device inference</td><td>Screen without internet</td><td class="ch">Changed</td><td>Server-side LiteRT; offline photos queued and analysed after sync</td></tr>
+<tr><td>Android app (React Native)</td><td>Mobile client</td><td class="ch">Changed</td><td>Installable PWA; E2E on Android and iPhone emulation</td></tr>
+<tr><td>Register patient, capture image, view result</td><td>Core health-worker workflow</td><td class="ok">Completed</td><td>E2E journey 1, screenshots</td></tr>
+<tr><td>Offline storage and two-way sync</td><td>Work with intermittent connectivity</td><td class="ok">Completed</td><td>IndexedDB queue, idempotent push, decision pull; 10 sync tests</td></tr>
+<tr><td>Flag and refer uncertain / high-risk cases</td><td>Structured referral</td><td class="ok">Completed</td><td>Automatic and manual referral, workflow tests</td></tr>
+<tr><td>Specialist review: approve or override</td><td>Close the referral loop</td><td class="ok">Completed</td><td>Plus retake / comment; append-only history; E2E journey 2</td></tr>
+<tr><td>Admin: users and analytics</td><td>Access control, patterns</td><td class="ok">Completed</td><td>Role management, aggregate-only analytics</td></tr>
+<tr><td>FastAPI + PostgreSQL backend</td><td>Central store and API</td><td class="pa">Partial</td><td>FastAPI + SQLite done; PostgreSQL via <code>DATABASE_URL</code> and Docker written, not yet run</td></tr>
+<tr><td>Load balancer</td><td>Scale to many clinics</td><td class="no">Not implemented</td><td>Stateless JWT API can scale horizontally</td></tr>
+<tr><td>Sync tested under interruptions</td><td>Reliability (objective 4)</td><td class="ok">Completed</td><td>Lost-reply, offline-queue and backoff tests</td></tr>
+<tr><td>Usability test with health workers</td><td>Check usability</td><td class="no">Not yet</td><td>SUS study planned</td></tr>
+</table>
+<p>Added beyond the proposal: authentication with role-based access (Argon2, JWT refresh rotation, login throttling), an image quality gate, a SHA-256-verified model registry with
+model cards, eye laterality and model version on every result, an append-only review log and an audit log (the last three answer the supervisor's
+data-model corrections).</p>
+
+<h2>2. Technical functionality</h2>
+<figure><img src="../diagrams/architecture.png" style="width:100%"><figcaption>Figure 1. Architecture as implemented (generated from <code>docs/diagrams/src/architecture.mmd</code>).</figcaption></figure>
+<p><b>Frontend.</b> A React 18 + TypeScript (strict) PWA, mobile-first (bottom tabs below 1024 px, sidebar above). Pages read server data only through
+hooks that call one typed API client, which attaches the JWT, refreshes it once on a 401 for all concurrent requests, and converts failures into
+plain-language messages. Health workers register patients by clinic code, choose the eye, and capture a photo with a circular guide (rear camera or gallery);
+on-device hints flag dark or blurry photos before upload.</p>
+<p><b>Backend.</b> FastAPI with a layered design: routers (HTTP and role guards) &rarr; services (use cases) &rarr; repositories (all SQL). <code>POST /api/screenings</code>
+checks type, size and that the bytes really decode as JPEG/PNG, applies the quality gate (blank or tiny images return 422 with a reason), then runs every
+model the registry has verified and maps each score through that condition's risk policy. One <code>diagnosis_results</code> row is stored per condition with its
+model version, including "not available" rows, so history shows exactly what ran. Positive or borderline results open a referral; specialists approve,
+override (reason required), request a retake or comment, and each action is appended to <code>review_events</code>, which the ORM refuses to update or delete.</p>
+<p><b>Offline and sync.</b> Without a connection, photos and new patients are stored in IndexedDB with a client-generated UUID. A sync engine pushes them in
+order (patients first), retrying with bounded exponential backoff and full jitter; because the server is idempotent on the UUID, a retry after a lost reply
+returns the original record rather than a duplicate. Each cycle then pulls specialist decisions made since the last pull. Offline mode captures and queues;
+it does not run the model on the device.</p>
+<p><b>Data handling and privacy.</b> SQLite by default, PostgreSQL by configuration, schema managed by Alembic migrations. Patients are pseudonymous codes;
+images are stored under random names and served only to authorised users; analytics and audit records contain no images or patient fields; secrets live
+only in a git-ignored <code>.env</code> generated by a script.</p>
+
+<h2>3. Code quality, OOP and algorithms</h2>
+<div class="two">
+<div>
+<table>
+<tr><th>Principle / pattern</th><th>Where</th></tr>
+<tr><td>Abstraction + polymorphism</td><td><code>ConditionModel</code> &rarr; <code>TFLiteConditionModel</code>; tests substitute a labelled double</td></tr>
+<tr><td>Strategy</td><td><code>RiskPolicy</code> per condition, built by <code>RiskPolicyFactory</code> from JSON</td></tr>
+<tr><td>Open/closed</td><td><code>ModelRegistry</code>: new condition = new folder</td></tr>
+<tr><td>Repository + DI</td><td>backend repositories; <code>QueueRepository</code> (IndexedDB / in-memory); <code>api/deps.py</code></td></tr>
+<tr><td>Encapsulation</td><td>append-only history enforced by ORM listeners; one <code>AccessPolicy</code> for record visibility</td></tr>
+<tr><td>Single responsibility</td><td>routers, services, repositories, presenters, schemas in separate modules</td></tr>
+</table>
+</div>
+<div>
+<table>
+<tr><th>Algorithm</th><th>Purpose and complexity</th></tr>
+<tr><td>Laplacian variance, brightness, vignette test</td><td>quality gate, O(pixels) on a 256&sup2; copy</td></tr>
+<tr><td>Sensitivity-targeted threshold search</td><td>highest threshold meeting 85% sensitivity, O(n log n) via sort + binary search</td></tr>
+<tr><td>Rank-sum AUC, stratified bootstrap CIs</td><td>honest evaluation, NumPy only; AUC matches scikit-learn</td></tr>
+<tr><td>Threshold-anchored severity bands</td><td>bands can never contradict the decision (1,001-score sweep test)</td></tr>
+<tr><td>Idempotent sync, backoff with full jitter</td><td>no duplicates, no retry storms</td></tr>
+<tr><td>Streaming SHA-256</td><td>model integrity, 1 MiB chunks</td></tr>
+</table>
+</div>
+</div>
+<p>Quality practices: type hints throughout the backend and TypeScript strict mode with ESLint (which forbids <code>fetch</code> outside the API client); Pydantic v2
+schemas separate from ORM entities; centralised configuration (settings, risk policy, model cards); small conventional commits on a feature branch (<code>git log</code>); a
+reproducible environment (pinned requirements, <code>package-lock.json</code>). Superseded Streamlit code was removed and tagged in git rather than left alongside.</p>
+
+<h2>4. Testing approaches and results</h2>
+<table>
+<tr><th>Strategy</th><th>Why chosen</th><th>How</th><th>Result</th></tr>
+<tr><td>Unit (algorithms)</td><td>boundary errors would mis-triage silently</td><td>pytest, Vitest; boundary values, property sweep; deliberate code breakage to check tests fail</td><td class="ok">77 + 25 pass</td></tr>
+<tr><td>Integration (API + DB + real model)</td><td>security and integrity rules live between layers</td><td>fresh DB per test; real LiteRT model; 45-case role-by-route matrix; 9 invalid-upload cases</td><td class="ok">88 pass</td></tr>
+<tr><td>End-to-end functional</td><td>prove users can finish clinical tasks</td><td>Playwright: worker journey, specialist review, unauthorized access, invalid input</td><td class="ok">16/16 pass</td></tr>
+<tr><td>Compatibility</td><td>clinics use varied phones and browsers</td><td>same journeys on Chromium (Pixel 5, desktop), Firefox, WebKit (iPhone 13)</td><td class="ok">all engines pass</td></tr>
+<tr><td>Performance</td><td>slow hardware and networks</td><td>benchmark script; throttled browser round trip; Lighthouse</td><td class="ok">see section 5</td></tr>
+<tr><td>Accessibility</td><td>low-vision and screen-reader users</td><td>axe-core WCAG 2.1 A/AA on 15 screens, all roles, mobile and desktop</td><td class="ok">0 violations</td></tr>
+<tr><td>Security (brute force)</td><td>password guessing</td><td>sliding-window login throttle; unit tests with a fake clock and API tests</td><td class="ok">429 after 5 failures</td></tr>
+<tr><td>Model validation</td><td>RQ3, honest accuracy claims</td><td>validation fold of the training notebook (hold-out notebook prepared, run not finished)</td><td class="no">target not met</td></tr>
+</table>
+<p><b>Different inputs:</b> scores of 0.05, 0.45 and 0.9 (negative, borderline, positive), blank, tiny, corrupt, mislabelled (BMP sent as JPEG), GIF, oversized
+and future-dated uploads, name-like patient codes, expired, replayed and wrong-type tokens, and every role against every route.
+<b>Improvements made because of testing:</b> a form test exposed that the password field dropped its form reference, so sign-in could never succeed (fixed with
+<code>forwardRef</code>); an end-to-end script test exposed that the calibration script did not write its outputs (fixed); screenshots led to listing DR first
+and to plain-language referral reasons; Lighthouse raised SEO from 91 to 100; axe-core found unlabeled camera and gallery inputs (fixed); a relative database path that created two databases was anchored.</p>
+<div class="two">
+<figure><img src="../screenshots/e2e/mobile-webkit-05b-dr-card.png" style="max-height:58mm"><figcaption>Figure 2. DR result card on iPhone 13 (WebKit), from a synthetic test image: estimated band, model version, score explained, action.</figcaption></figure>
+<figure><img src="../screenshots/e2e/desktop-chromium-08b-history-card.png" style="max-height:58mm"><figcaption>Figure 3. Specialist review history (append-only), desktop Chrome.</figcaption></figure>
+</div>
+
+<h2>5. Performance and compatibility</h2>
+<table>
+<tr><th>Measurement (Windows 11, Intel CPU, 8 logical cores)</th><th>Result</th></tr>
+<tr><td>Model inference, LiteRT, 200 runs (all cores / 1 thread)</td><td>55 / 60 ms mean, 68 / 84 ms p95; 2.6 MB model; about 117 MB process memory</td></tr>
+<tr><td>Full server pipeline on a 1024 px JPEG (all cores / 1 thread)</td><td>74 / 77 ms mean (an earlier run under background load: 166 ms)</td></tr>
+<tr><td>Upload to result in the browser (median of 3)</td><td>0.50 s; 3.17 s with emulated 6x slower CPU and slow 3G</td></tr>
+<tr><td>Lighthouse, sign-in page (performance / accessibility / best practices / SEO)</td><td>mobile 96 / 100 / 100 / 100; desktop 100 / 100 / 100 / 100</td></tr>
+<tr><td>Accessibility of signed-in screens (axe-core, WCAG 2.1 AA)</td><td>0 violations on 15 screens, mobile and desktop</td></tr>
+<tr><td>Browsers and devices (Playwright)</td><td>Chromium on Pixel 5 and desktop, Firefox desktop, WebKit on iPhone 13: all journeys pass</td></tr>
+<tr><td>Bundle</td><td>route-level code splitting; core about 110 KB gzipped; charts (103 KB) load only for admins</td></tr>
+</table>
+<p>Analysis: inference is a small share of the round trip, and limiting it to one thread costs about 5 ms, so a modest server CPU is sufficient. On a slow
+phone and network the wait rises to about 3 s, dominated by the upload; the offline queue means the worker can continue with the next patient meanwhile.
+Low-end figures are emulated (Chrome DevTools); physical low-end devices and real iOS Safari have not been tested.</p>
+
+<h2>6. Model evaluation, limitations and next steps</h2>
+<p>The DR model is MobileNetV2 (frozen ImageNet backbone, small head) trained for 8 epochs on the Kaggle EyePACS + APTOS + Messidor redistribution with a
+group-aware 5-fold split. The training notebook reported, on its 47,234-image validation fold at threshold 0.5: accuracy 0.790, precision 0.920, recall 0.542,
+F1 0.682. These are <b>validation results from the training notebook, not an independent hold-out</b>: the same fold guided early stopping, and the
+independent hold-out run did not finish. Specificity from the same report is 0.97. The <b>85% sensitivity target was not met</b> at threshold 0.5: about
+46% of DR images in that fold were missed, which is unacceptable for screening on its own. The prepared remedy is to calibrate the threshold for 85%
+sensitivity on one half of a verified hold-out and report on the other half, accepting more referrals; this was not completed. The app, model card,
+About screen and README show these figures with the same label.</p>
+<ul>
+<li>Evaluation is image-level (no patient IDs), the redistribution contains augmented near-duplicates, and the validation fold also guided early stopping, so results are optimistic; there is no external test set and no smartphone-lens images.</li>
+<li>Glaucoma and cataract models depend on the ODIR-5K notebook run (patient-separated split, threshold from validation, test scored once); their results will be reported as measured, even if weak. Offline inference in the browser, PostgreSQL/Docker runs, a usability study with health workers and tests on physical low-end devices remain to be done.</li>
+<li>The TFLite export is quantized and differs from the Keras model by up to 0.034 in score on test inputs; the full-fold difference will be recorded by the hold-out run.</li>
+</ul>
+</body>
+</html>
