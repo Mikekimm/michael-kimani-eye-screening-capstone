@@ -219,7 +219,13 @@ served only to authorised users; analytics and audit logs hold no images or pati
 only in `.env`. Limits: tokens are kept in browser localStorage (readable by scripts on the page; the
 app loads no third-party scripts); no TLS in local development; no penetration testing.
 
-## 11. Known issues
+## 11. Use of AI assistance
+
+This project was designed and directed by Michael Maina Kimani. I wrote the proposal, chose the scope and the honesty rules (real trained models only, no invented results), trained and evaluated the diabetic retinopathy model on Kaggle, and made the decisions on what to build and what to cut.
+
+I used Claude (Anthropic), through Claude Code, to help write, refactor and test the backend and frontend code, the test suites and the documentation, working under my direction. I reviewed the results and I am responsible for the submitted work.
+
+## 12. Known issues
 
 * Glaucoma and cataract are not available until models are trained (e.g. on ODIR-5K).
 * Offline mode queues photos but cannot analyse them on the device.
