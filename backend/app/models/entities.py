@@ -14,7 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.database import Base, UTCDateTime, utcnow
 from .enums import (
-    Eye, ReferralReason, ReviewAction, RiskLevel, Role, ScreeningStatus, Sex, SyncOutcome,
+    AccountStatus, Eye, ReferralReason, ReviewAction, RiskLevel, Role, ScreeningStatus, Sex, SyncOutcome,
 )
 
 
@@ -37,6 +37,23 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[Role] = mapped_column(_enum(Role), default=Role.HEALTH_WORKER, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Self-registered health workers wait for an admin; accounts an admin creates are approved at once.
+    status: Mapped[AccountStatus] = mapped_column(_enum(AccountStatus), default=AccountStatus.APPROVED,
+                                                  server_default=AccountStatus.APPROVED.value, index=True)
+    facility: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    registration_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class PasswordResetToken(Base):
+    """One-time password reset link. Only a SHA-256 hash of the token is stored, never the token."""
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    used_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
 

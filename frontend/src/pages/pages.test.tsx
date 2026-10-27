@@ -8,13 +8,14 @@ import { ApiError, NetworkError } from "@/lib/api/http";
 import type { User } from "@/lib/api/types";
 import { renderWithProviders } from "@/test/render";
 
-import { LoginPage, SignupPage, signupSchema } from "./auth";
+import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage, signupSchema } from "./auth";
 import { AboutPage } from "./AboutPage";
 import { HomePage } from "./HomePage";
 import { patientSchema } from "./patients";
 import { reviewSchema } from "./specialist";
 
-const nurse: User = { id: "u1", email: "n@example.org", full_name: "Amina Nurse", role: "health_worker", is_active: true, created_at: "2026-10-01T00:00:00Z" };
+const nurse: User = { id: "u1", email: "n@example.org", full_name: "Amina Nurse", role: "health_worker", is_active: true,
+  status: "approved", facility: "Kisoro HC IV", registration_number: "NC-1", created_at: "2026-10-01T00:00:00Z" };
 
 function guarded(role: "health_worker" | "admin") {
   return (
@@ -99,21 +100,66 @@ describe("LoginPage", () => {
 });
 
 describe("SignupPage", () => {
-  it("explains that sign-up creates a health worker account", () => {
+  const valid = { full_name: "Amina", email: "a@example.org", password: "long-enough-1",
+    facility: "Kisoro HC IV", registration_number: "NC-2024-0153" };
+
+  it("explains that an administrator approves new health worker accounts", () => {
     renderWithProviders(<SignupPage />, { route: "/signup" });
-    expect(screen.getByText(/New accounts are health worker accounts/)).toBeInTheDocument();
+    expect(screen.getByText(/administrator approves new accounts/)).toBeInTheDocument();
   });
 
-  it("rejects short passwords", () => {
-    const result = signupSchema.safeParse({ full_name: "Amina", email: "a@example.org", password: "short" });
-    expect(result.success).toBe(false);
+  it("rejects short passwords and a missing facility or registration number", () => {
+    expect(signupSchema.safeParse({ ...valid, password: "short" }).success).toBe(false);
+    expect(signupSchema.safeParse({ ...valid, facility: "" }).success).toBe(false);
+    expect(signupSchema.safeParse({ ...valid, registration_number: "" }).success).toBe(false);
+    expect(signupSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("says the account is waiting for approval instead of signing in", async () => {
+    const { api } = renderWithProviders(<SignupPage />, { route: "/signup", api: { auth: { register: vi.fn().mockResolvedValue({}) } } });
+    await userEvent.type(screen.getByLabelText("Full name"), valid.full_name);
+    await userEvent.type(screen.getByLabelText("Email"), valid.email);
+    await userEvent.type(screen.getByLabelText("Password"), valid.password);
+    await userEvent.type(screen.getByLabelText("Health facility"), valid.facility);
+    await userEvent.type(screen.getByLabelText("Professional registration number"), valid.registration_number);
+    await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByText("Waiting for approval")).toBeInTheDocument();
+    expect(api.auth.register).toHaveBeenCalledWith(valid);
+    expect(api.auth.login).not.toHaveBeenCalled();
+  });
+});
+
+describe("password reset", () => {
+  it("shows the same confirmation whatever email is entered", async () => {
+    const { api } = renderWithProviders(<ForgotPasswordPage />, { route: "/forgot-password",
+      api: { auth: { forgotPassword: vi.fn().mockResolvedValue({ message: "ok" }) } } });
+    await userEvent.type(screen.getByLabelText("Email"), "someone@example.org");
+    await userEvent.click(screen.getByRole("button", { name: "Send reset link" }));
+    expect(await screen.findByText("Check your email")).toBeInTheDocument();
+    expect(api.auth.forgotPassword).toHaveBeenCalledWith("someone@example.org");
+  });
+
+  it("requires the new password twice before calling the API", async () => {
+    const { api } = renderWithProviders(<ResetPasswordPage />, { route: "/reset-password?token=abc",
+      api: { auth: { resetPassword: vi.fn().mockResolvedValue(undefined) } } });
+    await userEvent.type(screen.getByLabelText("New password"), "brand-new-pass-1");
+    await userEvent.type(screen.getByLabelText("Repeat new password"), "different-pass-2");
+    await userEvent.click(screen.getByRole("button", { name: "Save new password" }));
+    expect(await screen.findByText("The passwords do not match.")).toBeInTheDocument();
+    expect(api.auth.resetPassword).not.toHaveBeenCalled();
+  });
+
+  it("explains an incomplete link instead of showing the form", () => {
+    renderWithProviders(<ResetPasswordPage />, { route: "/reset-password" });
+    expect(screen.getByRole("alert")).toHaveTextContent("This link is incomplete");
   });
 });
 
 describe("form schemas", () => {
-  it("rejects patient codes that look like names", () => {
-    expect(patientSchema.safeParse({ code: "Jane Doe", year_of_birth: "", sex: "unknown", has_diabetes: "unknown" }).success).toBe(false);
-    expect(patientSchema.safeParse({ code: "PHC-0042", year_of_birth: "1970", sex: "female", has_diabetes: "yes" }).success).toBe(true);
+  it("validates patient details; the code itself is generated by the app", () => {
+    expect(patientSchema.safeParse({ year_of_birth: "", sex: "unknown", has_diabetes: "unknown" }).success).toBe(true);
+    expect(patientSchema.safeParse({ year_of_birth: "1970", sex: "female", has_diabetes: "yes" }).success).toBe(true);
+    expect(patientSchema.safeParse({ year_of_birth: String(new Date().getFullYear() + 1), sex: "female", has_diabetes: "yes" }).success).toBe(false);
   });
 
   it("requires a corrected result and a reason for an override", () => {

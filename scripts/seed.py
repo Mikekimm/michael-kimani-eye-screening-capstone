@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 from pydantic_settings import BaseSettings, SettingsConfigDict  # noqa: E402
 
+from app.core import patient_codes  # noqa: E402
 from app.core.config import BACKEND_ROOT, REPO_ROOT, DatabaseSettings  # noqa: E402
 from app.core.database import Database  # noqa: E402
 from app.core.security import PasswordHasher  # noqa: E402
@@ -31,12 +32,17 @@ class SeedSettings(BaseSettings):
     seed_health_worker_password: str
 
 
+def _demo_code(body: str) -> str:
+    """Fixed, valid codes (same format and check character as app-generated ones), so re-running is safe."""
+    return f"{patient_codes.PREFIX}{body}{patient_codes.check_character(body)}"
+
+
 SYNTHETIC_PATIENTS = [
-    ("DEMO-0001", 1961, Sex.FEMALE, True),
-    ("DEMO-0002", 1975, Sex.MALE, True),
-    ("DEMO-0003", 1958, Sex.FEMALE, False),
-    ("DEMO-0004", 1989, Sex.MALE, True),
-    ("DEMO-0005", 1970, Sex.OTHER, None),
+    (_demo_code("DEMA2"), 1961, Sex.FEMALE, True),
+    (_demo_code("DEMB3"), 1975, Sex.MALE, True),
+    (_demo_code("DEMC4"), 1958, Sex.FEMALE, False),
+    (_demo_code("DEMD5"), 1989, Sex.MALE, True),
+    (_demo_code("DEME6"), 1970, Sex.OTHER, None),
 ]
 
 

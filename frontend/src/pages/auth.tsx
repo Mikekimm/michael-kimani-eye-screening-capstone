@@ -1,14 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Clock, Eye, EyeOff, MailCheck, ShieldCheck } from "lucide-react";
 import { forwardRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
 import { HOME_FOR, hasConsented, recordConsent } from "@/components/AppShell";
 import { Disclaimer, describeError } from "@/components/feedback";
 import { Button, Card, FieldError, Input, Label } from "@/components/ui/primitives";
 import { useAuth } from "@/hooks/useAuth";
+import { useApi } from "@/lib/services";
 
 export const loginSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
@@ -19,7 +20,14 @@ export const signupSchema = z.object({
   full_name: z.string().trim().min(2, "Enter your full name."),
   email: z.string().trim().email("Enter a valid email address."),
   password: z.string().min(8, "Use at least 8 characters.").max(128),
+  facility: z.string().trim().min(2, "Enter the health facility where you work."),
+  registration_number: z.string().trim().min(3, "Enter your professional registration number."),
 });
+
+export const resetSchema = z.object({
+  password: z.string().min(8, "Use at least 8 characters.").max(128),
+  confirm: z.string(),
+}).refine((v) => v.password === v.confirm, { path: ["confirm"], message: "The passwords do not match." });
 
 function AuthLayout({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -91,6 +99,7 @@ export function LoginPage() {
           </div>
           {serverError && <p role="alert" className="text-sm text-destructive">{serverError}</p>}
           <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Signing in..." : "Sign in"}</Button>
+          <Link to="/forgot-password" className="text-center text-sm text-primary underline">Forgot password?</Link>
         </form>
       </Card>
       <p className="text-center text-sm">New health worker? <Link to="/signup" className="font-medium text-primary underline">Create an account</Link></p>
@@ -100,9 +109,12 @@ export function LoginPage() {
 
 export function SignupPage() {
   const { user, register } = useAuth();
-  const navigate = useNavigate();
   const [serverError, setServerError] = useState<string | null>(null);
-  const form = useForm<z.infer<typeof signupSchema>>({ resolver: zodResolver(signupSchema), defaultValues: { full_name: "", email: "", password: "" } });
+  const [submitted, setSubmitted] = useState(false);
+  const form = useForm<z.infer<typeof signupSchema>>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { full_name: "", email: "", password: "", facility: "", registration_number: "" },
+  });
   const { errors, isSubmitting } = form.formState;
 
   if (user) return <Navigate to={HOME_FOR[user.role]} replace />;
@@ -111,17 +123,31 @@ export function SignupPage() {
     setServerError(null);
     try {
       await register(values);
-      navigate("/consent", { replace: true });
+      setSubmitted(true);
     } catch (error) {
       setServerError(describeError(error));
     }
   });
 
+  if (submitted) {
+    return (
+      <AuthLayout title="Account created">
+        <Card className="flex flex-col gap-3 p-4 text-sm" role="status">
+          <p className="flex items-center gap-2 font-medium"><Clock aria-hidden className="h-5 w-5 text-primary" />Waiting for approval</p>
+          <p>Your clinic administrator will check your facility and registration number, then approve your account.
+            You can sign in once it is approved.</p>
+          <Link to="/login" className="font-medium text-primary underline">Back to sign in</Link>
+        </Card>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout title="Create account">
       <Card className="p-4">
         <p className="mb-3 text-sm text-muted-foreground">
-          New accounts are health worker accounts. Specialist and administrator access is granted by an administrator.
+          For health workers. Your clinic administrator approves new accounts before first sign-in. Specialist and
+          administrator access is granted by an administrator.
         </p>
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
@@ -139,11 +165,120 @@ export function SignupPage() {
             <PasswordInput id="password" autoComplete="new-password" invalid={!!errors.password} aria-describedby="password-error" {...form.register("password")} />
             <FieldError id="password-error" message={errors.password?.message} />
           </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="facility">Health facility</Label>
+            <Input id="facility" placeholder="e.g. Kisoro Health Centre IV" aria-invalid={!!errors.facility}
+              aria-describedby="facility-error" {...form.register("facility")} />
+            <FieldError id="facility-error" message={errors.facility?.message} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="registration_number">Professional registration number</Label>
+            <Input id="registration_number" placeholder="e.g. nursing council number" aria-invalid={!!errors.registration_number}
+              aria-describedby="registration-error" {...form.register("registration_number")} />
+            <FieldError id="registration-error" message={errors.registration_number?.message} />
+          </div>
           {serverError && <p role="alert" className="text-sm text-destructive">{serverError}</p>}
           <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating account..." : "Create account"}</Button>
         </form>
       </Card>
       <p className="text-center text-sm">Already registered? <Link to="/login" className="font-medium text-primary underline">Sign in</Link></p>
+    </AuthLayout>
+  );
+}
+
+export function ForgotPasswordPage() {
+  const api = useApi();
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const form = useForm<{ email: string }>({ resolver: zodResolver(loginSchema.pick({ email: true })), defaultValues: { email: "" } });
+  const { errors, isSubmitting } = form.formState;
+
+  const onSubmit = form.handleSubmit(async ({ email }) => {
+    setServerError(null);
+    try {
+      await api.auth.forgotPassword(email);
+      setSentTo(email);
+    } catch (error) {
+      setServerError(describeError(error));
+    }
+  });
+
+  return (
+    <AuthLayout title="Reset password">
+      <Card className="p-4">
+        {sentTo ? (
+          <div role="status" className="flex flex-col gap-2 text-sm">
+            <p className="flex items-center gap-2 font-medium"><MailCheck aria-hidden className="h-5 w-5 text-primary" />Check your email</p>
+            <p>If an account exists for <strong>{sentTo}</strong>, we have sent a link to choose a new password.
+              The link works once and expires in 30 minutes.</p>
+          </div>
+        ) : (
+          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">Enter the email you signed up with. We will send you a link to choose a new password.</p>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" autoComplete="username" aria-invalid={!!errors.email}
+                aria-describedby="email-error" {...form.register("email")} />
+              <FieldError id="email-error" message={errors.email?.message} />
+            </div>
+            {serverError && <p role="alert" className="text-sm text-destructive">{serverError}</p>}
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Sending..." : "Send reset link"}</Button>
+          </form>
+        )}
+      </Card>
+      <p className="text-center text-sm"><Link to="/login" className="font-medium text-primary underline">Back to sign in</Link></p>
+    </AuthLayout>
+  );
+}
+
+export function ResetPasswordPage() {
+  const api = useApi();
+  const [params] = useSearchParams();
+  const token = params.get("token") ?? "";
+  const [done, setDone] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const form = useForm<z.infer<typeof resetSchema>>({ resolver: zodResolver(resetSchema), defaultValues: { password: "", confirm: "" } });
+  const { errors, isSubmitting } = form.formState;
+
+  const onSubmit = form.handleSubmit(async ({ password }) => {
+    setServerError(null);
+    try {
+      await api.auth.resetPassword(token, password);
+      setDone(true);
+    } catch (error) {
+      setServerError(describeError(error));
+    }
+  });
+
+  return (
+    <AuthLayout title="Choose a new password">
+      <Card className="p-4">
+        {done ? (
+          <div role="status" className="flex flex-col gap-2 text-sm">
+            <p className="font-medium">Password changed.</p>
+            <p>For safety you have been signed out on every device.</p>
+            <Link to="/login" className="font-medium text-primary underline">Sign in with your new password</Link>
+          </div>
+        ) : !token ? (
+          <p role="alert" className="text-sm text-destructive">This link is incomplete. Open the link from the email again, or request a new one.</p>
+        ) : (
+          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="password">New password</Label>
+              <PasswordInput id="password" autoComplete="new-password" invalid={!!errors.password} aria-describedby="password-error" {...form.register("password")} />
+              <FieldError id="password-error" message={errors.password?.message} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="confirm">Repeat new password</Label>
+              <PasswordInput id="confirm" autoComplete="new-password" invalid={!!errors.confirm} aria-describedby="confirm-error" {...form.register("confirm")} />
+              <FieldError id="confirm-error" message={errors.confirm?.message} />
+            </div>
+            {serverError && <p role="alert" className="text-sm text-destructive">{serverError}</p>}
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save new password"}</Button>
+          </form>
+        )}
+      </Card>
+      <p className="text-center text-sm"><Link to="/forgot-password" className="font-medium text-primary underline">Request a new link</Link></p>
     </AuthLayout>
   );
 }

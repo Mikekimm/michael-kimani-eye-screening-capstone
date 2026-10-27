@@ -8,6 +8,13 @@ class Role(str, Enum):
     ADMIN = "admin"
 
 
+class AccountStatus(str, Enum):
+    """Public sign-ups start as PENDING until a clinic administrator checks them."""
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class Eye(str, Enum):
     LEFT = "left"
     RIGHT = "right"

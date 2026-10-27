@@ -59,6 +59,17 @@ class Settings(DatabaseSettings):
     # model folder is reported as "model not available yet".
     conditions: tuple[str, ...] = ("dr", "glaucoma", "cataract")
 
+    # Password reset by email. Without SMTP_HOST, messages are written to email_outbox_dir instead.
+    app_base_url: str = "http://localhost:5173"   # where the reset link points (the PWA)
+    password_reset_minutes: int = 30
+    email_outbox_dir: Path = REPO_ROOT / "data" / "outbox"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_sender: str = "Retinal Screening <no-reply@example.org>"
+    smtp_starttls: bool = True
+
     @field_validator("jwt_secret")
     @classmethod
     def _reject_placeholder(cls, value: str) -> str:

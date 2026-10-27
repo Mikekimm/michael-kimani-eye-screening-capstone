@@ -8,7 +8,7 @@ from .conftest import auth_headers, register_patient, upload
 # (method, path, body) for every protected route; ids are placeholders, RBAC is checked first.
 ROUTES = {
     "patients.list": ("get", "/api/patients", None),
-    "patients.create": ("post", "/api/patients", {"code": "RBAC-001"}),
+    "patients.create": ("post", "/api/patients", {}),
     "screenings.list": ("get", "/api/screenings", None),
     "reviews.queue": ("get", "/api/reviews/queue", None),
     "reviews.create": ("post", "/api/reviews/x", {"action": "comment", "note": "hi"}),

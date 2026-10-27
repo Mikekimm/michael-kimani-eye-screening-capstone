@@ -14,6 +14,7 @@ from .core.security import PasswordHasher, TokenService
 from .core.throttle import LoginThrottle
 from .ml.registry import ModelRegistry
 from .ml.risk_policy import RiskPolicyFactory
+from .services.email import EmailSender, OutboxEmailSender, SmtpEmailSender
 from .services.image_store import ImageStore
 from .services.pipeline import ScreeningPipeline
 
@@ -35,7 +36,16 @@ def build_container(settings: Settings, registry: ModelRegistry | None = None) -
                             timedelta(minutes=settings.access_token_minutes),
                             timedelta(days=settings.refresh_token_days)),
         login_throttle=LoginThrottle(settings.login_max_failures, settings.login_window_seconds),
+        email=_email_sender(settings),
     )
+
+
+def _email_sender(settings: Settings) -> EmailSender:
+    """Real SMTP when configured; otherwise messages land in data/outbox (development and demos)."""
+    if settings.smtp_host:
+        return SmtpEmailSender(settings.smtp_host, settings.smtp_port, settings.smtp_username,
+                               settings.smtp_password, settings.smtp_sender, settings.smtp_starttls)
+    return OutboxEmailSender(settings.email_outbox_dir)
 
 
 def create_app(container: AppContainer | None = None) -> FastAPI:

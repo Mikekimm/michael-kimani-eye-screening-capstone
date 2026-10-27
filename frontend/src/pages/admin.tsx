@@ -2,11 +2,11 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 import { PageHeader } from "@/components/AppShell";
 import { EmptyState, ErrorState, ListSkeleton, describeError } from "@/components/feedback";
-import { Badge, Card, CardContent, CardHeader, CardTitle, Select } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Select } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useAnalytics, useUpdateUser, useUsers } from "@/hooks/queries";
-import type { Role } from "@/lib/api/types";
+import type { AccountStatus, Role } from "@/lib/api/types";
 import { ROLE_LABEL, formatDate, percent } from "@/lib/utils";
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -109,7 +109,7 @@ export function UsersPage() {
   const update = useUpdateUser();
   const toast = useToast();
 
-  const change = async (id: string, body: { role?: Role; is_active?: boolean }) => {
+  const change = async (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus }) => {
     try {
       await update.mutateAsync({ id, ...body });
       toast("User updated.", "success");
@@ -120,7 +120,8 @@ export function UsersPage() {
 
   return (
     <>
-      <PageHeader title="Users" description="Assign roles. New sign-ups start as health workers." />
+      <PageHeader title="Users"
+        description="Approve new health workers after checking their facility and registration number. Assign roles." />
       {users.isPending && <ListSkeleton />}
       {users.isError && <ErrorState error={users.error} onRetry={() => void users.refetch()} />}
       {users.isSuccess && users.data.length === 0 && <EmptyState title="No users" />}
@@ -130,9 +131,19 @@ export function UsersPage() {
           return (
             <Card key={u.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center">
               <div className="flex-1">
-                <p className="text-sm font-medium">{u.full_name} {self && <Badge tone="info">You</Badge>} {!u.is_active && <Badge tone="high">Deactivated</Badge>}</p>
+                <p className="text-sm font-medium">{u.full_name} {self && <Badge tone="info">You</Badge>} {!u.is_active && <Badge tone="high">Deactivated</Badge>}
+                  {u.status === "pending" && <Badge tone="medium">Waiting for approval</Badge>} {u.status === "rejected" && <Badge tone="high">Rejected</Badge>}</p>
                 <p className="text-xs text-muted-foreground">{u.email} · joined {formatDate(u.created_at)}</p>
+                {(u.facility || u.registration_number) && (
+                  <p className="text-xs text-muted-foreground">{u.facility ?? "facility not given"} · registration no. {u.registration_number ?? "not given"}</p>
+                )}
               </div>
+              {u.status === "pending" && !self && (
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={update.isPending} onClick={() => void change(u.id, { status: "approved" })}>Approve</Button>
+                  <Button size="sm" variant="outline" disabled={update.isPending} onClick={() => void change(u.id, { status: "rejected" })}>Reject</Button>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Select aria-label={`Role for ${u.full_name}`} className="w-44" value={u.role} disabled={self || update.isPending}
                   onChange={(e) => void change(u.id, { role: e.target.value as Role })}>

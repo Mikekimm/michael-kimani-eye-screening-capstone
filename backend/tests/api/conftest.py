@@ -48,7 +48,8 @@ class FixedScoreRegistry(ModelRegistry):
 
 def _settings(tmp_path: Path) -> Settings:
     database_url = os.environ.get("TEST_DATABASE_URL") or f"sqlite:///{(tmp_path / 'test.db').as_posix()}"
-    return Settings(jwt_secret=secrets.token_hex(32), database_url=database_url, upload_dir=tmp_path / "uploads")
+    return Settings(jwt_secret=secrets.token_hex(32), database_url=database_url, upload_dir=tmp_path / "uploads",
+                    email_outbox_dir=tmp_path / "outbox")
 
 
 @pytest.fixture(scope="session")
@@ -107,9 +108,9 @@ def auth_headers(client, role: Role) -> tuple[User, dict]:
 
 
 def register_patient(client, headers, code: str | None = None) -> dict:
-    response = client.post("/api/patients", headers=headers,
-                           json={"code": code or f"PHC-{uuid.uuid4().hex[:6]}", "year_of_birth": 1970,
-                                 "sex": "female", "has_diabetes": True})
+    """Registers a patient; the server generates the code unless a device-generated ``code`` is given."""
+    body = {"year_of_birth": 1970, "sex": "female", "has_diabetes": True} | ({"code": code} if code else {})
+    response = client.post("/api/patients", headers=headers, json=body)
     assert response.status_code == 201, response.text
     return response.json()
 

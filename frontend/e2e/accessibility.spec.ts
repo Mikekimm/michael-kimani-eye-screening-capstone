@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
+import { acceptConsentIfAsked, approveAsAdmin, registerPatient, signIn as signInOnly, signUp } from "./helpers";
+
 // WCAG 2.1 A/AA audit (axe-core) of every screen, signed in as each role, with real content on the page.
 // Lighthouse can only audit the public sign-in page; this covers the rest.
 
@@ -42,24 +44,23 @@ test("every screen meets WCAG 2.1 A/AA checks (axe-core)", async ({ page, browse
   const results: PageResult[] = [];
   const suffix = info.project.name === "mobile-chromium" ? "m" : "d";
 
-  for (const route of ["/login", "/signup"]) await audit(page, "public", route, results);
+  for (const route of ["/login", "/signup", "/forgot-password", "/reset-password?token=e2e-audit-only"]) {
+    await audit(page, "public", route, results);
+  }
 
   // Health worker with real data: a patient, a screening and a referral.
-  await page.goto("/signup");
-  await page.getByLabel("Full name").fill("A11y Nurse");
-  await page.getByLabel("Email").fill(`a11y.nurse.${suffix}@example.org`);
-  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-  await page.getByRole("button", { name: "Create account" }).click();
+  const email = `a11y.nurse.${suffix}@example.org`;
+  await signUp(page, "A11y Nurse", email);
+  await audit(page, "public", "(sign-up: waiting for approval)", results);
+  await approveAsAdmin(page, email);
+  await signInOnly(page, email);
   await page.waitForURL("**/consent");
   await audit(page, "health_worker", "/consent", results);
-  await page.getByLabel("I understand and will follow local referral guidance.").check();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.goto("/patients/new");
-  await page.getByLabel("Patient code").fill(`A11Y-${suffix.toUpperCase()}-01`);
-  await page.getByRole("button", { name: "Register patient" }).click();
-  await page.waitForURL(/\/patients\/[0-9a-f]{32}$/);
-  const patientPath = new URL(page.url()).pathname;
-  await page.goto(`/screen?patient=${patientPath.split("/").pop()}`);
+  await acceptConsentIfAsked(page);
+  const patient = await registerPatient(page);
+  const patientPath = `/patients/${patient.id}`;
+  await audit(page, "health_worker", "(patient page: new code shown)", results);
+  await page.goto(`/screen?patient=${patient.id}`);
   await page.getByRole("button", { name: /Continue with/ }).click();
   await page.getByRole("button", { name: "Left eye" }).click();
   await page.locator('input[type="file"][accept="image/jpeg,image/png"]').setInputFiles(path.join(here, "fixtures", "synthetic-fundus.jpg"));
