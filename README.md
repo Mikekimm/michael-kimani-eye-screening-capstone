@@ -168,6 +168,12 @@ If PowerShell blocks `npm` scripts, use `npm.cmd` as shown. API documentation: h
 PostgreSQL. These files have not yet been built or run, because Docker is not installed on the
 development machine.
 
+**Hosted demo (Render, free plan):** [render.yaml](render.yaml) describes the whole deployment: PostgreSQL,
+the API (built from `backend/Dockerfile`) and the PWA as a static HTTPS site. In the Render dashboard choose
+**New -> Blueprint**, pick this repository, then type the six `SEED_*` values (demo accounts) and, for real
+emails, the `SMTP_*` values (e.g. Gmail with an App Password). Secrets are entered in the dashboard and never
+stored in git. Open the static site's URL on a phone and use **Add to Home Screen** to install the app.
+
 ## 8. Tests
 
 ```powershell
@@ -236,3 +242,6 @@ I used Claude (Anthropic), through Claude Code, to help write, refactor and test
 * The `.tflite` model is a quantized export; scores differ from the Keras model by up to about 0.03.
 * PostgreSQL and Docker configurations are written but not yet run.
 * No usability study with health workers has been completed yet.
+* On the free Render plan the API sleeps after 15 minutes without use (the next request takes about a
+  minute), its disk is wiped on restart (records and results stay in PostgreSQL, but older photos stop
+  displaying), and the free database expires after 30 days.

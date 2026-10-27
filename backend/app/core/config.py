@@ -7,7 +7,7 @@ so behaviour can be changed by configuration instead of code edits. ML decision 
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -27,11 +27,15 @@ class DatabaseSettings(BaseSettings):
 
     @field_validator("database_url")
     @classmethod
-    def _anchor_relative_sqlite_path(cls, value: str) -> str:
-        """sqlite:///data/app.db means <repo>/data/app.db no matter which folder a command runs from."""
+    def _normalise_database_url(cls, value: str) -> str:
+        """sqlite:///data/app.db means <repo>/data/app.db no matter which folder a command runs from.
+        Hosting providers hand out postgres:// or postgresql:// URLs; the app's driver is psycopg 3."""
         prefix = "sqlite:///"
         if value.startswith(prefix) and not Path(value.removeprefix(prefix)).is_absolute():
             return prefix + (REPO_ROOT / value.removeprefix(prefix)).as_posix()
+        for scheme in ("postgres://", "postgresql://"):
+            if value.startswith(scheme):
+                return "postgresql+psycopg://" + value.removeprefix(scheme)
         return value
 
 
@@ -59,6 +63,10 @@ class Settings(DatabaseSettings):
     # model folder is reported as "model not available yet".
     conditions: tuple[str, ...] = ("dr", "glaucoma", "cataract")
 
+    # Hosted deployment (render.yaml): the PWA's host name, e.g. retina-screening.onrender.com. When set, it is
+    # allowed by CORS and used for links in emails.
+    frontend_host: str | None = None
+
     # Password reset by email. Without SMTP_HOST, messages are written to email_outbox_dir instead.
     app_base_url: str = "http://localhost:5173"   # where the reset link points (the PWA)
     password_reset_minutes: int = 30
@@ -69,6 +77,16 @@ class Settings(DatabaseSettings):
     smtp_password: str | None = None
     smtp_sender: str = "Retinal Screening <no-reply@example.org>"
     smtp_starttls: bool = True
+
+    @model_validator(mode="after")
+    def _use_frontend_host(self) -> "Settings":
+        if self.frontend_host:
+            origin = f"https://{self.frontend_host.removeprefix('https://').rstrip('/')}"
+            if origin not in self.cors_origins:
+                self.cors_origins = [*self.cors_origins, origin]
+            if self.app_base_url == "http://localhost:5173":
+                self.app_base_url = origin
+        return self
 
     @field_validator("jwt_secret")
     @classmethod

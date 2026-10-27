@@ -16,8 +16,15 @@ export interface Services {
 
 export function createServices(onSessionExpired: () => void): Services {
   const tokens = new TokenStore();
-  const api = createApi(new HttpClient(import.meta.env.VITE_API_URL ?? "/api", tokens, onSessionExpired));
+  const api = createApi(new HttpClient(apiBaseUrl(), tokens, onSessionExpired));
   return { api, tokens, queue: new SyncQueue(new IndexedDbQueueRepository(), api) };
+}
+
+/** Same origin ("/api") locally; on the hosted deployment the API lives on its own host (render.yaml). */
+function apiBaseUrl(): string {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (import.meta.env.VITE_API_HOST) return `https://${import.meta.env.VITE_API_HOST}/api`;
+  return "/api";
 }
 
 const ServicesContext = createContext<Services | null>(null);
