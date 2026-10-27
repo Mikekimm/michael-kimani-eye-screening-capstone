@@ -5,15 +5,15 @@ const PASSWORD = process.env.E2E_PASSWORD!;
 const ADMIN = process.env.E2E_ADMIN_EMAIL!;
 
 /** Fills the public sign-up form and checks the account is left waiting for an administrator. */
-export async function signUp(page: Page, fullName: string, email: string) {
+export async function signUp(page: Page, fullName: string, email: string, role: "health_worker" | "specialist" = "health_worker") {
   await page.goto("/signup");
   await page.getByLabel("Full name").fill(fullName);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-  await page.getByLabel("Health facility").fill("E2E Health Centre IV");
-  await page.getByLabel("Professional registration number").fill("NC-E2E-0001");
+  await page.getByLabel("I am requesting access as").selectOption(role);
+  await page.getByLabel("Health facility").fill("E2E Health Centre");
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByText("Waiting for approval")).toBeVisible();
+  await expect(page.getByText("Waiting for administrator approval")).toBeVisible();
 }
 
 /** What a clinic administrator does on the Users page, done through the API to keep journeys short. */
@@ -52,3 +52,20 @@ export async function registerPatient(page: Page, yearOfBirth?: string): Promise
   expect(code).toMatch(/^PHC-[2-9A-HJKMNP-TV-Z]{6}$/);
   return { id: page.url().split("/").pop()!, code };
 }
+
+/** Screen step 3: choose a photo, confirm consent and press Analyse. */
+export async function analysePhoto(page: Page, file: string) {
+  await page.locator('input[type="file"][accept="image/jpeg,image/png"]').setInputFiles(file);
+  await expect(page.getByAltText("Captured fundus photo preview")).toBeVisible();
+  await page.getByLabel(/The patient agreed/).check();
+  await page.getByRole("button", { name: "Analyse", exact: true }).click();
+}
+
+/** On a result page: "Ask a specialist" with a question. */
+export async function askSpecialist(page: Page, question: string) {
+  await page.getByRole("button", { name: "Ask a specialist" }).click();
+  await page.getByLabel("Your question for the specialist").fill(question);
+  await page.getByRole("button", { name: "Send to specialist" }).click();
+  await expect(page.getByTestId("status-label").first()).toHaveText("Awaiting specialist");
+}
+

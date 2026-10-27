@@ -1,5 +1,5 @@
 {
-  "measured_at": "2026-10-27T11:34:41.771Z",
+  "measured_at": "2026-10-27T19:41:51.535Z",
   "tool": "axe-core via @axe-core/playwright 4.10.1",
   "tags": [
     "wcag2a",
@@ -7,7 +7,7 @@
     "wcag21a",
     "wcag21aa"
   ],
-  "pages": 19,
+  "pages": 20,
   "total_violations": 0,
   "results": [
     {
@@ -67,12 +67,12 @@
     },
     {
       "role": "health_worker",
-      "route": "/patients/4a99abc289fb40f991c696c4d8ff4338",
+      "route": "/patients/b68b832a06f2439bae5664d1ffd0c591",
       "violations": []
     },
     {
       "role": "health_worker",
-      "route": "/screenings/c852126ebb0e4134b6e851f0551f30ed",
+      "route": "/screenings/5318848d5e7f4ad182cebf0eb92eacbc",
       "violations": []
     },
     {
@@ -92,7 +92,7 @@
     },
     {
       "role": "specialist",
-      "route": "/reviews/c852126ebb0e4134b6e851f0551f30ed",
+      "route": "/reviews/5318848d5e7f4ad182cebf0eb92eacbc",
       "violations": []
     },
     {
@@ -103,6 +103,11 @@
     {
       "role": "admin",
       "route": "/admin/users",
+      "violations": []
+    },
+    {
+      "role": "admin",
+      "route": "/admin/facilities",
       "violations": []
     }
   ]

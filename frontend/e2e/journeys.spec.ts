@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
-import { acceptConsentIfAsked, approveAsAdmin, registerPatient, signIn as signInOnly, signUp } from "./helpers";
+import { acceptConsentIfAsked, analysePhoto, approveAsAdmin, askSpecialist, registerPatient, signIn as signInOnly, signUp } from "./helpers";
 
 // End-to-end journeys against the real FastAPI backend and the real DR model (LiteRT).
 // The uploaded image is a SYNTHETIC fixture (a textured disc): it exercises the pipeline and the UI,
@@ -55,27 +55,29 @@ test.describe.serial("clinical journeys", () => {
     await page.getByRole("button", { name: "Left eye" }).click();
     await page.locator('input[type="file"][accept="image/jpeg,image/png"]').setInputFiles(path.join(FIXTURES, "synthetic-fundus.jpg"));
     await expect(page.getByAltText("Captured fundus photo preview")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
     await shot(page, info, "04-capture");
     await page.getByLabel(/The patient agreed/).check();
-    await page.getByRole("button", { name: "Analyse photo" }).click();
+    await page.getByRole("button", { name: "Analyse", exact: true }).click();
 
     await page.waitForURL("**/screenings/*");
+    // Nothing is sent automatically: the label is the app's recommendation, not "Awaiting specialist".
+    await expect(page.getByTestId("status-label").first()).not.toHaveText("Awaiting specialist");
     const dr = page.getByTestId("result-dr");
-    await expect(dr).toContainText("model mobilenetv2-dr-binary-0.3");
+    await expect(dr).toContainText("model mobilenetv2-dr-binary-2.0");
     await expect(dr).toContainText("Estimated severity band");
-    await expect(page.getByTestId("result-glaucoma")).toContainText("Model not available yet");
-    await expect(page.getByTestId("result-cataract")).toContainText("Model not available yet");
+    for (const condition of ["glaucoma", "cataract"]) {
+      const card = page.getByTestId(`result-${condition}`);
+      await expect(card).toContainText(`model mobilenetv2-${condition}-binary-odir5k`);
+      await expect(card).toContainText("Binary result only");
+    }
     await expect(page.getByText(/not a diagnosis/i).first()).toBeVisible();
     await shot(page, info, "05-result");
     await dr.screenshot({ path: path.join(SHOTS, `${info.project.name}-05b-dr-card.png`) });
 
-    // The synthetic image may or may not be referred by the policy; make sure the specialist sees it.
-    const referButton = page.getByRole("button", { name: "Refer to a specialist anyway" });
-    if (await referButton.isVisible()) {
-      await referButton.click();
-      await expect(page.getByText("Sent to the specialist review queue.")).toBeVisible();
-    }
-    await expect(page.getByText("Awaiting specialist")).toBeVisible();
+    await askSpecialist(page, "E2E: is this glaucoma? Patient has a family history.");
+    await expect(page.getByTestId("referral-question")).toContainText("family history");
+    await expect(page.getByTestId("review-waiting")).toContainText("review by"); // waiting time and target
 
     await page.getByRole("link", { name: "History" }).first().click();
     await expect(page.getByText(`${patient.code} · Left eye`)).toBeVisible();
@@ -85,10 +87,20 @@ test.describe.serial("clinical journeys", () => {
   test("specialist: review queue, approve with note, history preserved", async ({ page }, info) => {
     await signIn(page, SPECIALIST);
     await expect(page).toHaveURL(/\/reviews$/);
+    await expect(page.getByText('"E2E: is this glaucoma? Patient has a family history."')).toBeVisible();
     await page.getByText(`${patientCodes[info.project.name]} · Left eye`).click();
     await expect(page.getByRole("heading", { name: "Case review" })).toBeVisible();
     await shot(page, info, "07-case-review");
+    await expect(page.getByTestId("reliability-glaucoma")).toContainText("false alarms");
 
+    await page.getByLabel("Decision").selectOption("override");
+    await page.getByLabel("Condition to correct").selectOption("glaucoma");
+    await page.getByLabel("Corrected glaucoma result").selectOption("false");
+    await page.getByLabel("Reason (required)").fill("E2E: optic disc looks normal.");
+    await page.getByRole("button", { name: "Save review" }).click();
+    await expect(page.getByText("Overrode the result (Glaucoma: no signs)")).toBeVisible();
+
+    await page.getByLabel("Decision").selectOption("approve");
     await page.getByLabel("Note (optional)").fill("E2E: approved after review.");
     await page.getByRole("button", { name: "Save review" }).click();
     await expect(page.getByText("Approved the screening result")).toBeVisible();
@@ -101,6 +113,39 @@ test.describe.serial("clinical journeys", () => {
     await shot(page, info, "08-review-history");
     await page.getByRole("heading", { name: "Specialist review history" }).locator("xpath=ancestor::div[contains(@class,'rounded-lg')][1]")
       .screenshot({ path: path.join(SHOTS, `${info.project.name}-08b-history-card.png`) });
+  });
+
+  test("health worker: the specialist's decision comes back; a retake request shows Retake needed", async ({ page, browser }, info) => {
+    await signIn(page, workerEmail(info));
+    await page.getByRole("link", { name: "History" }).first().click();
+    const reviewed = page.locator("a", { hasText: `${patientCodes[info.project.name]} · Left eye` }).first();
+    await expect(reviewed.getByTestId("status-label")).toHaveText("Reviewed");
+    await reviewed.click();
+    await expect(page.getByText("Approved the screening result")).toBeVisible();
+    await expect(page.getByText("Overrode the result (Glaucoma: no signs)")).toBeVisible();
+
+    // A second screening, sent and answered with a retake request.
+    await page.goto("/screen");
+    await page.getByRole("button", { name: patientCodes[info.project.name] }).click();
+    await page.getByRole("button", { name: "Right eye" }).click();
+    await analysePhoto(page, path.join(FIXTURES, "synthetic-fundus.jpg"));
+    await page.waitForURL("**/screenings/*");
+    const screeningUrl = page.url();
+    await askSpecialist(page, "E2E: second eye, please check.");
+
+    const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch, baseURL } = info.project.use;
+    const specialist = await (await browser.newContext({ viewport, userAgent, deviceScaleFactor, isMobile, hasTouch, baseURL })).newPage();
+    await signIn(specialist, SPECIALIST);
+    await specialist.getByText(`${patientCodes[info.project.name]} · Right eye`).click();
+    await specialist.getByLabel("Decision").selectOption("request_retake");
+    await specialist.getByLabel("Note", { exact: true }).fill("E2E: too dark, please retake.");
+    await specialist.getByRole("button", { name: "Save review" }).click();
+    await expect(specialist.getByText("Requested a new photo")).toBeVisible();
+
+    await page.goto(screeningUrl);
+    await expect(page.getByTestId("status-label").first()).toHaveText("Retake needed");
+    await expect(page.getByTestId("retake-needed")).toContainText("too dark, please retake");
+    await shot(page, info, "06b-retake-needed");
   });
 
   test("unauthorized access is blocked in the UI and by the API", async ({ page }, info) => {
@@ -124,10 +169,9 @@ test.describe.serial("clinical journeys", () => {
     await page.goto("/screen");
     await page.getByRole("button", { name: patientCodes[info.project.name] }).click();
     await page.getByRole("button", { name: "Right eye" }).click();
-    await page.locator('input[type="file"][accept="image/jpeg,image/png"]').setInputFiles(path.join(FIXTURES, "blank.jpg"));
-    await page.getByLabel(/The patient agreed/).check();
-    await page.getByRole("button", { name: "Analyse photo" }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "cannot be screened" })).toContainText("blank or uniform");
+    await analysePhoto(page, path.join(FIXTURES, "blank.jpg"));
+    await expect(page.getByTestId("photo-rejected")).toContainText("blank or uniform");
+    await expect(page.getByRole("button", { name: "Upload another" })).toBeVisible();
     await shot(page, info, "09-unusable-image");
   });
 });
