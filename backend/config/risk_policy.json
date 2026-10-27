@@ -1,5 +1,8 @@
 {
-  "_comment": "Every number that turns a model score into a screening decision lives here. Reasoning: docs/risk_policy.md. The decision threshold itself comes from each model's model_card.json. severity_bands=false gives a binary result with no 1-5 band (used where the training data has no severity grades).",
+  "_comment": "Every number that turns a model score into a screening recommendation lives here. Reasoning: docs/risk_policy.md. The decision threshold itself comes from each model's model_card.json. refer_when_positive / refer_when_uncertain decide whether such a result SUGGESTS asking a specialist; nothing is sent automatically, the health worker decides. referral_advice.low_quality_photo is the recommendation when every model is negative but the photo has quality warnings. severity_bands=false gives a binary result with no 1-5 band (used where the training data has no severity grades).",
+  "referral_advice": {
+    "low_quality_photo": "consider"
+  },
   "default": {
     "uncertainty_margin": 0.1,
     "refer_when_positive": true,

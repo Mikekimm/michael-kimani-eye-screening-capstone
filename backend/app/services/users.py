@@ -31,8 +31,7 @@ class UserService:
             raise ConflictError("An account with this email already exists.")
         user = self._users.add(User(email=request.email.lower(), full_name=request.full_name,
                                     password_hash=self._hasher.hash(request.password), role=request.role,
-                                    status=AccountStatus.APPROVED, facility=request.facility,
-                                    registration_number=request.registration_number))
+                                    status=AccountStatus.APPROVED, facility=request.facility))
         self._audit.record(admin.id, "user.created", "user", user.id)
         self._session.commit()
         return user
@@ -51,9 +50,16 @@ class UserService:
             self._audit.record(admin.id, "user.activated" if changes.is_active else "user.deactivated", "user", user.id)
             user.is_active = changes.is_active
         if changes.status is not None and changes.status != user.status:
-            # Approve after checking the facility and registration number; reject keeps the record for audit.
+            # Approving grants the role the admin chose, or the one requested at sign-up; rejecting keeps the
+            # record for audit. The requested role never grants anything by itself.
+            if (changes.status == AccountStatus.APPROVED and changes.role is None
+                    and user.requested_role and user.requested_role != user.role):
+                self._audit.record(admin.id, f"user.role_changed:{user.role.value}->{user.requested_role.value}",
+                                   "user", user.id)
+                user.role = user.requested_role
             self._audit.record(admin.id, f"user.{changes.status.value}", "user", user.id)
             user.status = changes.status
+            user.status_reason = changes.status_reason if changes.status == AccountStatus.REJECTED else None
             self._session.commit()
             self._notify_decision(user)
         self._session.commit()
@@ -70,6 +76,6 @@ class UserService:
         else:
             subject = "Your Retinal Screening registration was not approved"
             body = (f"Hello {user.full_name},\n\nYour clinic administrator could not confirm your registration "
-                    "(health facility or professional registration number). Contact your clinic administrator "
-                    "if you think this is a mistake.")
+                    f"(who you are or where you work).\nReason: {user.status_reason}\n\n"
+                    "Contact your clinic administrator if you think this is a mistake.")
         self._email.send(to=user.email, subject=subject, body=body)

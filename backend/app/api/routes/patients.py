@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, Query, Response, status
 
 from ...schemas import PatientCreate, PatientOut, ScreeningOut
 from ...services.patients import PatientService
-from ...services.presenters import patient_out, screening_out
+from ...services.presenters import patient_out
 from ...services.screenings import ScreeningService
-from ..deps import ClinicalUser, HealthWorker, get_patient_service, get_screening_service
+from ..deps import ClinicalUser, HealthWorker, Presenter, get_patient_service, get_screening_service
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 Patients = Annotated[PatientService, Depends(get_patient_service)]
@@ -31,7 +31,7 @@ def get_patient(patient_id: str, user: ClinicalUser, patients: Patients):
 
 
 @router.get("/{patient_id}/screenings", response_model=list[ScreeningOut])
-def patient_screenings(patient_id: str, user: HealthWorker, patients: Patients,
+def patient_screenings(patient_id: str, user: HealthWorker, patients: Patients, presenter: Presenter,
                        screenings: Annotated[ScreeningService, Depends(get_screening_service)]):
     patients.get(user, patient_id)  # access check
-    return [screening_out(s) for s in screenings.list_mine(user, patient_id=patient_id)]
+    return [presenter.screening(s) for s in screenings.list_mine(user, patient_id=patient_id)]

@@ -6,6 +6,7 @@ so behaviour can be changed by configuration instead of code edits. ML decision 
 """
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -50,6 +51,21 @@ class Settings(DatabaseSettings):
     refresh_token_days: int = 7
     login_max_failures: int = 5
     login_window_seconds: int = 15 * 60
+    signup_max_per_window: int = 5          # public sign-ups per client address per window
+    signup_window_seconds: int = 60 * 60
+
+    # Specialist review targets (a design decision; the proposal sets no time limit). See docs/risk_policy.md.
+    review_target_urgent_hours: int = 24
+    review_target_routine_hours: int = 72
+
+    # Day boundary for "screened today" and per-day counts (IANA name). A setting, not a deployment claim.
+    time_zone: str = "Africa/Kigali"
+
+    @field_validator("time_zone")
+    @classmethod
+    def _known_time_zone(cls, value: str) -> str:
+        ZoneInfo(value)  # raises for an unknown zone, so a typo fails at start-up
+        return value
 
     models_dir: Path = REPO_ROOT / "models"
     risk_policy_path: Path = BACKEND_ROOT / "config" / "risk_policy.json"

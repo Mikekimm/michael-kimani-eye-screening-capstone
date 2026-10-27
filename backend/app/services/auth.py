@@ -17,7 +17,7 @@ from ..schemas import RegisterRequest, TokenPair
 from .audit import AuditService
 from .email import EmailSender
 
-PENDING_MESSAGE = "Your account is waiting for approval by your clinic administrator."
+PENDING_MESSAGE = "Your account is waiting for administrator approval."
 REJECTED_MESSAGE = "Your registration was not approved. Contact your clinic administrator."
 INVALID_RESET_MESSAGE = "This reset link is invalid, has expired or was already used. Request a new one."
 
@@ -37,7 +37,7 @@ class AuthService:
     def __init__(self, session: Session, users: UserRepository, refresh_tokens: RefreshTokenRepository,
                  hasher: PasswordHasher, tokens: TokenService, audit: AuditService, access_ttl_seconds: int,
                  throttle: LoginThrottle, resets: PasswordResetRepository | None = None,
-                 reset_config: PasswordResetConfig | None = None):
+                 reset_config: PasswordResetConfig | None = None, signup_throttle: LoginThrottle | None = None):
         self._session = session
         self._users = users
         self._refresh_tokens = refresh_tokens
@@ -48,16 +48,22 @@ class AuthService:
         self._throttle = throttle
         self._resets = resets
         self._reset_config = reset_config
+        self._signup_throttle = signup_throttle
 
-    def register(self, request: RegisterRequest) -> User:
-        """Public sign-up always creates a PENDING health worker; an admin approves it after checking the
-        facility and professional registration number. Roles are only granted by an admin."""
+    def register(self, request: RegisterRequest, client: str | None = None) -> User:
+        """Public sign-up records a request for access. The account is PENDING and cannot sign in; the
+        requested role is stored but grants nothing (``role`` stays the least-privileged one) until an admin
+        approves, possibly with a different role. The app cannot verify who the person is."""
+        key = f"signup|{client or 'unknown'}"
+        if self._signup_throttle is not None:
+            self._signup_throttle.check(key)
+            self._signup_throttle.record_failure(key)  # every attempt counts, successful or not
         if self._users.by_email(request.email):
             raise ConflictError("An account with this email already exists.")
         user = self._users.add(User(email=request.email.lower(), full_name=request.full_name,
                                     password_hash=self._hasher.hash(request.password),
-                                    role=Role.HEALTH_WORKER, status=AccountStatus.PENDING,
-                                    facility=request.facility, registration_number=request.registration_number))
+                                    role=Role.HEALTH_WORKER, requested_role=request.requested_role,
+                                    status=AccountStatus.PENDING, facility=request.facility))
         self._audit.record(user.id, "user.registered", "user", user.id)
         self._session.commit()
         self._notify_admins_of_sign_up(user)
@@ -72,7 +78,8 @@ class AuthService:
             self._reset_config.sender.send(
                 to=admin.email, subject="New health worker account waiting for approval",
                 body=(f"Hello {admin.full_name},\n\n{user.full_name} ({user.email}) registered as a health worker.\n"
-                      f"Health facility: {user.facility}\nRegistration number: {user.registration_number}\n\n"
+                      f"Requested role: {user.requested_role.value.replace('_', ' ')}\n"
+                      f"Health facility (as typed, not verified): {user.facility}\n\n"
                       "Check these against your staff list or the professional register, then approve or reject "
                       f"the account here:\n{link}\n\nPatients never need an account; reject any sign-up you cannot confirm."))
 

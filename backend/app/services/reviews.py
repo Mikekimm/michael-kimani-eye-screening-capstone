@@ -15,6 +15,7 @@ from ..repositories import ReviewRepository, ScreeningRepository
 from ..schemas import QueueItemOut, ReviewRequest
 from .access import AccessPolicy
 from .audit import AuditService
+from .review_targets import ReviewTargets
 
 _STATUS_AFTER = {
     ReviewAction.APPROVE: ScreeningStatus.REVIEWED,
@@ -25,27 +26,36 @@ _STATUS_AFTER = {
 
 class ReviewService:
     def __init__(self, session: Session, screenings: ScreeningRepository, reviews: ReviewRepository,
-                 audit: AuditService):
+                 audit: AuditService, targets: ReviewTargets | None = None):
         self._session = session
         self._screenings = screenings
         self._reviews = reviews
         self._audit = audit
+        self._targets = targets or ReviewTargets()
 
     def queue(self, user: User) -> list[QueueItemOut]:
         AccessPolicy.require_role(user, Role.SPECIALIST)
-        return [self._queue_item(s) for s in self._screenings.review_queue()]
+        now = datetime.now(timezone.utc)
+        items = [self._queue_item(s, now) for s in self._screenings.review_queue()]
+        return sorted(items, key=lambda item: (not item.overdue, item.waiting_since))  # overdue first, then oldest
 
-    @staticmethod
-    def _queue_item(screening: Screening) -> QueueItemOut:
+    def _queue_item(self, screening: Screening, now: datetime) -> QueueItemOut:
         bands = [r.severity_band for r in screening.results if r.severity_band is not None]
+        flagged = [r.condition for r in screening.results if r.refer_suggested]
+        referral = screening.referral
         return QueueItemOut(screening_id=screening.id, patient_code=screening.patient.code, eye=screening.eye,
-                            referral_reason=screening.referral.reason, highest_band=max(bands, default=None),
-                            created_at=screening.created_at, created_by_name=screening.created_by.full_name)
+                            referral_reason=referral.reason, flagged_conditions=flagged,
+                            highest_band=max(bands, default=None),
+                            created_at=screening.created_at, created_by_name=screening.created_by.full_name,
+                            created_by_facility=screening.created_by.facility, question=referral.question,
+                            waiting_since=referral.created_at, priority=self._targets.priority(referral.reason),
+                            due_at=self._targets.due_at(referral.created_at, referral.reason),
+                            overdue=self._targets.is_overdue(referral.created_at, referral.reason, now))
 
     def review(self, user: User, screening_id: str, request: ReviewRequest) -> Screening:
         AccessPolicy.require_role(user, Role.SPECIALIST)
         screening = self._screenings.get_full(screening_id)
-        if screening is None or screening.referral is None:
+        if screening is None or screening.referral is None or screening.discarded_at is not None:
             raise NotFoundError("Referred screening not found.")
         if request.condition is not None:
             evaluated = {r.condition for r in screening.results if r.model_available}

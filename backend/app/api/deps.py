@@ -7,6 +7,7 @@ and repositories here, so routes stay thin and tests can swap any piece.
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -34,6 +35,8 @@ from ..services.email import EmailSender
 from ..services.image_store import ImageStore
 from ..services.patients import PatientService
 from ..services.pipeline import ScreeningPipeline
+from ..services.presenters import ScreeningPresenter
+from ..services.review_targets import ReviewTargets
 from ..services.reviews import ReviewService
 from ..services.screenings import ScreeningService
 from ..services.sync import SyncService
@@ -51,6 +54,8 @@ class AppContainer:
     hasher: PasswordHasher
     tokens: TokenService
     login_throttle: LoginThrottle
+    signup_throttle: LoginThrottle
+    review_targets: ReviewTargets
     email: EmailSender
 
 
@@ -59,6 +64,13 @@ def get_container(request: Request) -> AppContainer:
 
 
 Container = Annotated[AppContainer, Depends(get_container)]
+
+
+def get_presenter(container: Container) -> ScreeningPresenter:
+    return ScreeningPresenter(container.review_targets, container.policies.advisor())
+
+
+Presenter = Annotated[ScreeningPresenter, Depends(get_presenter)]
 
 
 def get_session(container: Container) -> Iterator[Session]:
@@ -81,7 +93,8 @@ def get_auth_service(session: DbSession, container: Container) -> AuthService:
                        container.tokens, _audit(session), container.settings.access_token_minutes * 60,
                        container.login_throttle, PasswordResetRepository(session),
                        PasswordResetConfig(container.email, container.settings.app_base_url,
-                                           container.settings.password_reset_minutes))
+                                           container.settings.password_reset_minutes),
+                       signup_throttle=container.signup_throttle)
 
 
 def get_user_service(session: DbSession, container: Container) -> UserService:
@@ -95,19 +108,22 @@ def get_patient_service(session: DbSession) -> PatientService:
 
 def get_screening_service(session: DbSession, container: Container) -> ScreeningService:
     return ScreeningService(session, ScreeningRepository(session), PatientRepository(session),
-                            container.pipeline, container.images, _access(session), _audit(session))
+                            container.pipeline, container.images, _access(session), _audit(session),
+                            container.policies.advisor(), ZoneInfo(container.settings.time_zone))
 
 
-def get_review_service(session: DbSession) -> ReviewService:
-    return ReviewService(session, ScreeningRepository(session), ReviewRepository(session), _audit(session))
+def get_review_service(session: DbSession, container: Container) -> ReviewService:
+    return ReviewService(session, ScreeningRepository(session), ReviewRepository(session), _audit(session),
+                         container.review_targets)
 
 
 def get_sync_service(session: DbSession, patients: Annotated[PatientService, Depends(get_patient_service)]) -> SyncService:
     return SyncService(session, patients, ScreeningRepository(session))
 
 
-def get_analytics_service(session: DbSession) -> AnalyticsService:
-    return AnalyticsService(AnalyticsRepository(session), UserRepository(session))
+def get_analytics_service(session: DbSession, container: Container) -> AnalyticsService:
+    return AnalyticsService(AnalyticsRepository(session), UserRepository(session), ScreeningRepository(session),
+                            container.review_targets, ZoneInfo(container.settings.time_zone))
 
 
 _bearer = HTTPBearer(auto_error=False)

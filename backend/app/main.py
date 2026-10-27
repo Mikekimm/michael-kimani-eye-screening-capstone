@@ -17,6 +17,7 @@ from .ml.risk_policy import RiskPolicyFactory
 from .services.email import EmailSender, OutboxEmailSender, SmtpEmailSender
 from .services.image_store import ImageStore
 from .services.pipeline import ScreeningPipeline
+from .services.review_targets import ReviewTargets
 
 API_PREFIX = "/api"
 
@@ -36,6 +37,9 @@ def build_container(settings: Settings, registry: ModelRegistry | None = None) -
                             timedelta(minutes=settings.access_token_minutes),
                             timedelta(days=settings.refresh_token_days)),
         login_throttle=LoginThrottle(settings.login_max_failures, settings.login_window_seconds),
+        signup_throttle=LoginThrottle(settings.signup_max_per_window, settings.signup_window_seconds,
+                                      message="Too many sign-ups from this device."),
+        review_targets=ReviewTargets(settings.review_target_urgent_hours, settings.review_target_routine_hours),
         email=_email_sender(settings),
     )
 

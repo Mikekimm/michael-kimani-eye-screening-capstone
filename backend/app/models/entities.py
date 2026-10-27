@@ -40,8 +40,11 @@ class User(Base):
     # Self-registered health workers wait for an admin; accounts an admin creates are approved at once.
     status: Mapped[AccountStatus] = mapped_column(_enum(AccountStatus), default=AccountStatus.APPROVED,
                                                   server_default=AccountStatus.APPROVED.value, index=True)
+    # Free text typed at sign-up, recorded for the administrator to check (e.g. by phoning the facility).
     facility: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    registration_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # What the person asked for at sign-up. It grants nothing: ``role`` is set when an admin approves.
+    requested_role: Mapped[Role | None] = mapped_column(_enum(Role), nullable=True)
+    status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)  # why a registration was rejected
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
 
@@ -109,9 +112,13 @@ class Screening(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow,
                                                  onupdate=utcnow, index=True)
+    # Soft delete: a discarded screening disappears from every list; the row and audit entry stay.
+    discarded_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True, index=True)
+    discarded_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     patient: Mapped[Patient] = relationship(back_populates="screenings")
-    created_by: Mapped[User] = relationship()
+    created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
     results: Mapped[list["DiagnosisResult"]] = relationship(
         back_populates="screening", cascade="all, delete-orphan", order_by="DiagnosisResult.condition")
     reviews: Mapped[list["ReviewEvent"]] = relationship(
@@ -135,7 +142,7 @@ class DiagnosisResult(Base):
     severity_band: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_level: Mapped[RiskLevel | None] = mapped_column(_enum(RiskLevel), nullable=True)
     recommendation: Mapped[str] = mapped_column(Text)
-    auto_refer: Mapped[bool] = mapped_column(Boolean, default=False)
+    refer_suggested: Mapped[bool] = mapped_column(Boolean, default=False)
 
     screening: Mapped[Screening] = relationship(back_populates="results")
 
@@ -154,6 +161,7 @@ class Referral(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     screening_id: Mapped[str] = mapped_column(ForeignKey("screenings.id", ondelete="CASCADE"), unique=True)
     reason: Mapped[ReferralReason] = mapped_column(_enum(ReferralReason))
+    question: Mapped[str | None] = mapped_column(Text, nullable=True)  # the health worker's note to the specialist
     is_open: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     closed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)

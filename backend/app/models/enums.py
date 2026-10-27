@@ -34,8 +34,8 @@ class RiskLevel(str, Enum):
 
 
 class ScreeningStatus(str, Enum):
-    COMPLETED = "completed"                # result available, no referral needed
-    REFERRED = "referred"                  # waiting in the specialist queue
+    COMPLETED = "completed"                # result available; the health worker decides whether to ask a specialist
+    REFERRED = "referred"                  # sent by the health worker; waiting in the specialist queue
     REVIEWED = "reviewed"                  # a specialist approved or overrode the result
     RETAKE_REQUESTED = "retake_requested"  # a specialist asked for a new photo
 
@@ -61,3 +61,10 @@ class SyncOutcome(str, Enum):
 
 def values(enum_cls: type[Enum]) -> list[str]:
     return [member.value for member in enum_cls]
+
+
+class ReferralAdvice(str, Enum):
+    """What the app recommends after a result. Nothing is sent automatically; the health worker decides."""
+    NONE = "none"                # "No referral needed"
+    CONSIDER = "consider"        # "Uncertain, consider asking a specialist" (borderline or low-quality photo)
+    RECOMMENDED = "recommended"  # "Refer recommended" (a model detected signs)
