@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import { ProtectedRoute, recordConsent } from "@/components/AppShell";
+import { AppShell, ProtectedRoute, recordConsent } from "@/components/AppShell";
 import { ApiError, NetworkError } from "@/lib/api/http";
 import type { User } from "@/lib/api/types";
 import { renderWithProviders } from "@/test/render";
@@ -50,6 +50,24 @@ describe("ProtectedRoute", () => {
     recordConsent();
     renderWithProviders(guarded("health_worker"), { route: "/secret", signedIn: true, api: { auth: { me: vi.fn().mockResolvedValue(nurse) } } });
     expect(await screen.findByText("secret page")).toBeInTheDocument();
+  });
+});
+
+describe("AppShell", () => {
+  // Regression: opening "/" while signed out showed a blank page because the shell rendered nothing.
+  it("sends a signed-out visitor of the home page to login", async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/login" element={<p>login page</p>} />
+        <Route element={<AppShell />}>
+          <Route element={<ProtectedRoute roles={["health_worker"]} />}>
+            <Route index element={<p>health worker home</p>} />
+          </Route>
+        </Route>
+      </Routes>,
+      { route: "/" },
+    );
+    expect(await screen.findByText("login page")).toBeInTheDocument();
   });
 });
 
