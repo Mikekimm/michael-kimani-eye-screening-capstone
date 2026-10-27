@@ -10,8 +10,10 @@ const ACCEPTED = ["image/jpeg", "image/png"];
 /**
  * Camera capture with a circular framing guide, plus a gallery fallback. On phones the camera
  * input opens the rear camera; browsers without camera support fall back to a file picker.
+ * Once a photo is chosen only its preview is shown (the screen offers Cancel / Analyse). After the
+ * server refused a photo, ``rejection`` explains why and the buttons read "Retake" / "Upload another".
  */
-export function ImageCaptureGuide({ onImage }: { onImage: (file: File | null) => void }) {
+export function ImageCaptureGuide({ onImage, rejection }: { onImage: (file: File | null) => void; rejection?: string | null }) {
   const cameraId = useId();
   const galleryId = useId();
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -54,17 +56,24 @@ export function ImageCaptureGuide({ onImage }: { onImage: (file: File | null) =>
         <div aria-hidden className="pointer-events-none absolute inset-6 rounded-full border-2 border-dashed border-white/60" />
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      {rejection && !preview && (
+        <div role="alert" data-testid="photo-rejected" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          <p>{rejection}</p>
+          <p className="mt-1 text-foreground">Nothing was saved. Retake the photo or upload another one.</p>
+        </div>
+      )}
+
+      <div className={preview ? "hidden" : "grid grid-cols-2 gap-2"}>
         <input ref={cameraRef} id={cameraId} type="file" accept="image/*" capture="environment" className="sr-only"
           aria-label="Take a fundus photo with the camera" tabIndex={-1}
           onChange={(e) => void handle(e.target.files?.[0])} />
-        <Button type="button" onClick={() => cameraRef.current?.click()}><Camera aria-hidden className="h-4 w-4" />{preview ? "Retake" : "Take photo"}</Button>
+        <Button type="button" onClick={() => cameraRef.current?.click()}><Camera aria-hidden className="h-4 w-4" />{rejection ? "Retake" : "Take photo"}</Button>
         <input ref={galleryRef} id={galleryId} type="file" accept="image/jpeg,image/png" className="sr-only"
           aria-label="Choose a fundus photo from the gallery" tabIndex={-1}
           onChange={(e) => void handle(e.target.files?.[0])} />
-        <Button type="button" variant="outline" onClick={() => galleryRef.current?.click()}><ImageUp aria-hidden className="h-4 w-4" />From gallery</Button>
+        <Button type="button" variant="outline" onClick={() => galleryRef.current?.click()}><ImageUp aria-hidden className="h-4 w-4" />{rejection ? "Upload another" : "From gallery"}</Button>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className={preview ? "hidden" : "text-xs text-muted-foreground"}>
         If the camera does not open, check that this site is allowed to use the camera, or choose a photo from the gallery.
       </p>
 

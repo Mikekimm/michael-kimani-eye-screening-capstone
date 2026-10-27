@@ -22,7 +22,8 @@ export function renderWithProviders(ui: ReactElement, { api = {}, route = "/", s
   const fullApi = {
     auth: { me: vi.fn(), login: vi.fn(), register: vi.fn(), logout: vi.fn().mockResolvedValue(undefined), ...api.auth },
     patients: { search: vi.fn().mockResolvedValue([]), ...api.patients },
-    screenings: { list: vi.fn().mockResolvedValue([]), ...api.screenings },
+    screenings: { list: vi.fn().mockResolvedValue([]),
+      dailyCounts: vi.fn().mockResolvedValue({ time_zone: "Africa/Kigali", today: "2026-10-28", days: [] }), ...api.screenings },
     reviews: { ...api.reviews },
     sync: { pull: vi.fn().mockResolvedValue({ server_time: "t", decisions: [] }), pushPatients: vi.fn(), ...api.sync },
     admin: { ...api.admin },

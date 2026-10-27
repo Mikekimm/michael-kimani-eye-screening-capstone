@@ -15,7 +15,8 @@ import { patientSchema } from "./patients";
 import { reviewSchema } from "./specialist";
 
 const nurse: User = { id: "u1", email: "n@example.org", full_name: "Amina Nurse", role: "health_worker", is_active: true,
-  status: "approved", facility: "Kisoro HC IV", registration_number: "NC-1", created_at: "2026-10-01T00:00:00Z" };
+  status: "approved", status_reason: null, requested_role: null, facility: "Demo Health Centre A",
+  created_at: "2026-10-01T00:00:00Z" };
 
 function guarded(role: "health_worker" | "admin") {
   return (
@@ -101,29 +102,40 @@ describe("LoginPage", () => {
 
 describe("SignupPage", () => {
   const valid = { full_name: "Amina", email: "a@example.org", password: "long-enough-1",
-    facility: "Kisoro HC IV", registration_number: "NC-2024-0153" };
+    requested_role: "specialist", facility: "Hill Health Centre" };
 
-  it("explains that an administrator approves new health worker accounts", () => {
+  it("explains that a sign-up is a request an administrator approves", () => {
     renderWithProviders(<SignupPage />, { route: "/signup" });
-    expect(screen.getByText(/administrator approves new accounts/)).toBeInTheDocument();
+    expect(screen.getByText(/the role you ask for grants nothing until then/)).toBeInTheDocument();
   });
 
-  it("rejects short passwords and a missing facility or registration number", () => {
-    expect(signupSchema.safeParse({ ...valid, password: "short" }).success).toBe(false);
+  it("asks only for name, email, password, requested role and a free-text facility", () => {
+    renderWithProviders(<SignupPage />, { route: "/signup" });
+    for (const label of ["Full name", "Email", "Password", "I am requesting access as", "Health facility"]) {
+      expect(screen.getByLabelText(label)).toBeInTheDocument();
+    }
+    expect(screen.getByLabelText("Health facility").tagName).toBe("INPUT");
+    expect(screen.queryByText(/registration/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Administrator" })).not.toBeInTheDocument();
+  });
+
+  it("rejects weak passwords, a missing facility and the admin role", () => {
+    expect(signupSchema.safeParse({ ...valid, password: "onlyletters" }).success).toBe(false);
     expect(signupSchema.safeParse({ ...valid, facility: "" }).success).toBe(false);
-    expect(signupSchema.safeParse({ ...valid, registration_number: "" }).success).toBe(false);
+    expect(signupSchema.safeParse({ ...valid, requested_role: "admin" }).success).toBe(false);
     expect(signupSchema.safeParse(valid).success).toBe(true);
   });
 
-  it("says the account is waiting for approval instead of signing in", async () => {
-    const { api } = renderWithProviders(<SignupPage />, { route: "/signup", api: { auth: { register: vi.fn().mockResolvedValue({}) } } });
+  it("says the request is waiting for approval instead of signing in", async () => {
+    const { api } = renderWithProviders(<SignupPage />, { route: "/signup",
+      api: { auth: { register: vi.fn().mockResolvedValue({}) } } });
     await userEvent.type(screen.getByLabelText("Full name"), valid.full_name);
     await userEvent.type(screen.getByLabelText("Email"), valid.email);
     await userEvent.type(screen.getByLabelText("Password"), valid.password);
+    await userEvent.selectOptions(screen.getByLabelText("I am requesting access as"), "specialist");
     await userEvent.type(screen.getByLabelText("Health facility"), valid.facility);
-    await userEvent.type(screen.getByLabelText("Professional registration number"), valid.registration_number);
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(await screen.findByText("Waiting for approval")).toBeInTheDocument();
+    expect(await screen.findByText("Waiting for administrator approval")).toBeInTheDocument();
     expect(api.auth.register).toHaveBeenCalledWith(valid);
     expect(api.auth.login).not.toHaveBeenCalled();
   });
@@ -163,10 +175,12 @@ describe("form schemas", () => {
   });
 
   it("requires a corrected result and a reason for an override", () => {
-    expect(reviewSchema.safeParse({ action: "override", override_positive: "", note: "" }).success).toBe(false);
-    expect(reviewSchema.safeParse({ action: "override", override_positive: "false", note: "" }).success).toBe(false);
-    expect(reviewSchema.safeParse({ action: "override", override_positive: "false", note: "Artefact" }).success).toBe(true);
-    expect(reviewSchema.safeParse({ action: "approve", override_positive: "", note: "" }).success).toBe(true);
+    const override = { action: "override", condition: "glaucoma" };
+    expect(reviewSchema.safeParse({ ...override, override_positive: "", note: "" }).success).toBe(false);
+    expect(reviewSchema.safeParse({ ...override, override_positive: "false", note: "" }).success).toBe(false);
+    expect(reviewSchema.safeParse({ ...override, condition: "", override_positive: "false", note: "Artefact" }).success).toBe(false);
+    expect(reviewSchema.safeParse({ ...override, override_positive: "false", note: "Artefact" }).success).toBe(true);
+    expect(reviewSchema.safeParse({ action: "approve", condition: "", override_positive: "", note: "" }).success).toBe(true);
   });
 });
 

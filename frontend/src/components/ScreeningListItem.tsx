@@ -20,7 +20,7 @@ export function ScreeningListItem({ screening, showPatient = true }: { screening
             {formatDateTime(screening.created_at)}
             {dr?.severity_band ? ` · DR band ${dr.severity_band}` : ""}
           </p>
-          <StatusPill status={screening.status} />
+          <StatusPill screening={screening} />
         </div>
         <ChevronRight aria-hidden className="h-4 w-4 text-muted-foreground" />
       </Card>

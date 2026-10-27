@@ -24,10 +24,25 @@ export interface User {
   role: Role;
   is_active: boolean;
   status: AccountStatus;
+  /** Why an administrator rejected the registration. */
+  status_reason: string | null;
+  /** What the person asked for at sign-up. It grants nothing until an administrator approves. */
+  requested_role: Role | null;
+  /** Free text typed at sign-up, recorded for the administrator; not verified. */
   facility: string | null;
-  registration_number: string | null;
   created_at: string;
 }
+
+/** The app's recommendation after a result. Nothing is sent automatically: the health worker decides. */
+export type ReferralAdvice = "none" | "consider" | "recommended";
+
+export interface DailyCounts {
+  time_zone: string;
+  today: string;
+  days: { day: string; count: number }[];
+}
+
+export type ReviewPriority = "urgent" | "routine";
 
 export interface Patient {
   id: string;
@@ -61,7 +76,7 @@ export interface ConditionResult {
   severity_band: number | null;
   risk_level: RiskLevel | null;
   recommendation: string;
-  auto_refer: boolean;
+  refer_suggested: boolean;
 }
 
 export interface Quality {
@@ -97,7 +112,15 @@ export interface Screening {
   created_by_name: string;
   quality: Quality;
   results: ConditionResult[];
+  referral_advice: ReferralAdvice;
   referral_reason: ReferralReason | null;
+  /** The health worker's question when they asked a specialist. */
+  referral_question: string | null;
+  referred_at: string | null;
+  /** Set while the referral is open. */
+  review_priority: ReviewPriority | null;
+  review_due_at: string | null;
+  review_overdue: boolean;
   reviews: ReviewEvent[];
   disclaimer: string;
   duplicate?: boolean;
@@ -108,9 +131,18 @@ export interface QueueItem {
   patient_code: string;
   eye: Eye;
   referral_reason: ReferralReason;
+  /** Conditions whose result triggered the referral (positive or borderline). */
+  flagged_conditions: string[];
+  /** Only DR has severity bands. */
   highest_band: number | null;
   created_at: string;
   created_by_name: string;
+  created_by_facility: string | null;
+  question: string | null;
+  waiting_since: string;
+  priority: ReviewPriority;
+  due_at: string;
+  overdue: boolean;
 }
 
 export interface ReviewInput {
@@ -178,7 +210,10 @@ export interface Analytics {
   screenings_per_day: { day: string; count: number }[];
   positives_per_condition: Record<string, number>;
   referral_rate: number | null;
+  time_zone: string;
   open_referrals: number;
+  overdue_referrals: number;
+  review_targets_hours: { urgent: number; routine: number };
   median_review_turnaround_hours: number | null;
   model_versions_in_use: Record<string, number>;
   users_by_role: Record<string, number>;

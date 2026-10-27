@@ -29,9 +29,15 @@ export const useCreatePatient = () => {
   });
 };
 
-export const useScreenings = (limit = 50) => {
+export const useScreenings = (limit = 50, day?: string) => {
   const api = useApi();
-  return useQuery({ queryKey: ["screenings", "mine", limit], queryFn: () => api.screenings.list(limit) });
+  return useQuery({ queryKey: ["screenings", "mine", limit, day ?? ""], queryFn: () => api.screenings.list(limit, day) });
+};
+
+/** Screenings per day in the clinic's time zone (server setting), for "Screened today" and History. */
+export const useDailyCounts = (days = 14) => {
+  const api = useApi();
+  return useQuery({ queryKey: ["screenings", "daily", days], queryFn: () => api.screenings.dailyCounts(days) });
 };
 
 export const useScreening = (id: string) => {
@@ -39,15 +45,24 @@ export const useScreening = (id: string) => {
   return useQuery({ queryKey: ["screenings", "detail", id], queryFn: () => api.screenings.get(id) });
 };
 
-export const useReferScreening = (id: string) => {
+export const useAskSpecialist = (id: string) => {
   const api = useApi();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: () => api.screenings.refer(id),
+    mutationFn: (question: string) => api.screenings.askSpecialist(id, question),
     onSuccess: (screening) => {
       client.setQueryData(["screenings", "detail", id], screening);
       return client.invalidateQueries({ queryKey: ["screenings"] });
     },
+  });
+};
+
+export const useDiscardScreening = (id: string) => {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (reason: string) => api.screenings.discard(id, reason),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["screenings"] }),
   });
 };
 
@@ -87,8 +102,17 @@ export const useUpdateUser = () => {
   const api = useApi();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; role?: Role; is_active?: boolean; status?: AccountStatus }) =>
+    mutationFn: ({ id, ...body }: { id: string; role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string }) =>
       api.admin.updateUser(id, body),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["admin"] }),
+  });
+};
+
+export const useCreateUser = () => {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { email: string; full_name: string; password: string; role: Role }) => api.admin.createUser(body),
     onSuccess: () => client.invalidateQueries({ queryKey: ["admin"] }),
   });
 };

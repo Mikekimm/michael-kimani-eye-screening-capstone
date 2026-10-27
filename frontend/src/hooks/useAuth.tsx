@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { NetworkError } from "@/lib/api/http";
 import type { User } from "@/lib/api/types";
+import type { SignUpInput } from "@/lib/api/endpoints";
 import { useServices } from "@/lib/services";
 
 const USER_CACHE = "retina.user";
@@ -13,7 +14,7 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
   /** Creates a pending account; the person can sign in once an administrator approves it. */
-  register: (input: { email: string; full_name: string; password: string; facility: string; registration_number: string }) => Promise<void>;
+  register: (input: SignUpInput) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return me;
   }, [api, tokens, remember]);
 
-  const register = useCallback(async (input: { email: string; full_name: string; password: string; facility: string; registration_number: string }) => {
+  const register = useCallback(async (input: SignUpInput) => {
     await api.auth.register(input);
   }, [api]);
 

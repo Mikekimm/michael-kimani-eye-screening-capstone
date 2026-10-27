@@ -2,7 +2,7 @@ import { AlertCircle, Inbox, ShieldAlert, WifiOff } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ApiError, NetworkError } from "@/lib/api/http";
-import type { ScreeningStatus } from "@/lib/api/types";
+import type { ReferralAdvice, Screening, ScreeningStatus } from "@/lib/api/types";
 
 import { Badge, Button, Card, Skeleton } from "./ui/primitives";
 
@@ -43,16 +43,27 @@ export function ListSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-const STATUS: Record<ScreeningStatus, { label: string; tone: "neutral" | "low" | "medium" | "high" | "info" }> = {
-  completed: { label: "No referral needed", tone: "low" },
-  referred: { label: "Awaiting specialist", tone: "medium" },
-  reviewed: { label: "Reviewed by specialist", tone: "info" },
-  retake_requested: { label: "Retake requested", tone: "high" },
+type Tone = "neutral" | "low" | "medium" | "high" | "info";
+
+// Before a case is sent, the label is the app's recommendation; only sent cases are "Awaiting specialist".
+const ADVICE: Record<ReferralAdvice, { label: string; tone: Tone }> = {
+  none: { label: "No referral needed", tone: "low" },
+  consider: { label: "Uncertain, consider asking a specialist", tone: "medium" },
+  recommended: { label: "Refer recommended", tone: "high" },
+};
+const SENT: Record<Exclude<ScreeningStatus, "completed">, { label: string; tone: Tone }> = {
+  referred: { label: "Awaiting specialist", tone: "info" },
+  reviewed: { label: "Reviewed", tone: "low" },
+  retake_requested: { label: "Retake needed", tone: "high" },
 };
 
-export function StatusPill({ status }: { status: ScreeningStatus }) {
-  const { label, tone } = STATUS[status];
-  return <Badge tone={tone}>{label}</Badge>;
+export function statusLabel(screening: Pick<Screening, "status" | "referral_advice">): { label: string; tone: Tone } {
+  return screening.status === "completed" ? ADVICE[screening.referral_advice] : SENT[screening.status];
+}
+
+export function StatusPill({ screening }: { screening: Pick<Screening, "status" | "referral_advice"> }) {
+  const { label, tone } = statusLabel(screening);
+  return <Badge tone={tone} data-testid="status-label">{label}</Badge>;
 }
 
 export function Disclaimer({ text }: { text?: string }) {
