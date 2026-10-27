@@ -1,4 +1,4 @@
-"""Admin user management."""
+"""Admin user management, including approving or rejecting self-registered health workers."""
 from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
@@ -6,17 +6,22 @@ from sqlalchemy.orm import Session
 from ..core.errors import ConflictError, NotFoundError, PermissionDeniedError
 from ..core.security import PasswordHasher
 from ..models import User
+from ..models.enums import AccountStatus
 from ..repositories import UserRepository
 from ..schemas import AdminUserCreate, UserUpdate
 from .audit import AuditService
+from .email import EmailSender
 
 
 class UserService:
-    def __init__(self, session: Session, users: UserRepository, hasher: PasswordHasher, audit: AuditService):
+    def __init__(self, session: Session, users: UserRepository, hasher: PasswordHasher, audit: AuditService,
+                 email: EmailSender | None = None, app_base_url: str = ""):
         self._session = session
         self._users = users
         self._hasher = hasher
         self._audit = audit
+        self._email = email
+        self._app_base_url = app_base_url.rstrip("/")
 
     def list(self) -> Sequence[User]:
         return self._users.list()
@@ -25,7 +30,9 @@ class UserService:
         if self._users.by_email(request.email):
             raise ConflictError("An account with this email already exists.")
         user = self._users.add(User(email=request.email.lower(), full_name=request.full_name,
-                                    password_hash=self._hasher.hash(request.password), role=request.role))
+                                    password_hash=self._hasher.hash(request.password), role=request.role,
+                                    status=AccountStatus.APPROVED, facility=request.facility,
+                                    registration_number=request.registration_number))
         self._audit.record(admin.id, "user.created", "user", user.id)
         self._session.commit()
         return user
@@ -43,5 +50,26 @@ class UserService:
         if changes.is_active is not None and changes.is_active != user.is_active:
             self._audit.record(admin.id, "user.activated" if changes.is_active else "user.deactivated", "user", user.id)
             user.is_active = changes.is_active
+        if changes.status is not None and changes.status != user.status:
+            # Approve after checking the facility and registration number; reject keeps the record for audit.
+            self._audit.record(admin.id, f"user.{changes.status.value}", "user", user.id)
+            user.status = changes.status
+            self._session.commit()
+            self._notify_decision(user)
         self._session.commit()
         return user
+
+    def _notify_decision(self, user: User) -> None:
+        """Emails the person the outcome of their registration, so nobody waits without knowing."""
+        if self._email is None or user.status == AccountStatus.PENDING:
+            return
+        if user.status == AccountStatus.APPROVED:
+            subject = "Your Retinal Screening account is approved"
+            body = (f"Hello {user.full_name},\n\nYour clinic administrator has approved your account. "
+                    f"You can now sign in at {self._app_base_url}/login with the email and password you chose.")
+        else:
+            subject = "Your Retinal Screening registration was not approved"
+            body = (f"Hello {user.full_name},\n\nYour clinic administrator could not confirm your registration "
+                    "(health facility or professional registration number). Contact your clinic administrator "
+                    "if you think this is a mistake.")
+        self._email.send(to=user.email, subject=subject, body=body)

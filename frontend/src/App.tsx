@@ -4,7 +4,7 @@ import { Link, Route, Routes } from "react-router-dom";
 import { AppShell, ProtectedRoute } from "@/components/AppShell";
 import { EmptyState, ListSkeleton } from "@/components/feedback";
 import { buttonVariants } from "@/components/ui/primitives";
-import { ConsentPage, LoginPage, SignupPage } from "@/pages/auth";
+import { ConsentPage, ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from "@/pages/auth";
 
 // Each area is its own chunk, so a health worker's phone never downloads the admin charts.
 const HomePage = lazy(() => import("@/pages/HomePage").then((m) => ({ default: m.HomePage })));
@@ -31,6 +31,8 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/consent" element={<ConsentPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<AppShell />}>
           <Route element={<ProtectedRoute roles={["health_worker"]} />}>
             <Route index element={<HomePage />} />

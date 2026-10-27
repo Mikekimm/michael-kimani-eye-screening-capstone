@@ -1,6 +1,6 @@
 import type { HttpClient } from "./http";
 import type {
-  Analytics, Eye, ModelInfo, Patient, PatientInput, QueueItem, ReviewInput, Role, Screening, SyncItemResult,
+  AccountStatus, Analytics, Eye, ModelInfo, Patient, PatientInput, QueueItem, ReviewInput, Role, Screening, SyncItemResult,
   SyncPullResponse, TokenPair, User,
 } from "./types";
 
@@ -11,14 +11,20 @@ export interface NewScreening {
   capturedAt: string;
   image: Blob;
   fileName?: string;
+  /** The health worker confirmed the patient agreed; the server refuses screenings without it. */
+  patientConsent: boolean;
 }
 
 /** Typed wrappers for every backend endpoint, grouped by feature. Components use these via hooks. */
 export function createApi(http: HttpClient) {
   return {
     auth: {
-      register: (body: { email: string; full_name: string; password: string }) =>
+      register: (body: { email: string; full_name: string; password: string; facility: string; registration_number: string }) =>
         http.request<User>("/auth/register", { method: "POST", json: body, anonymous: true }),
+      forgotPassword: (email: string) =>
+        http.request<{ message: string }>("/auth/password/forgot", { method: "POST", json: { email }, anonymous: true }),
+      resetPassword: (token: string, password: string) =>
+        http.request<void>("/auth/password/reset", { method: "POST", json: { token, password }, anonymous: true }),
       login: (email: string, password: string) =>
         http.request<TokenPair>("/auth/login", { method: "POST", json: { email, password }, anonymous: true }),
       logout: (refreshToken: string) =>
@@ -43,6 +49,7 @@ export function createApi(http: HttpClient) {
         form.append("eye", input.eye);
         form.append("client_uuid", input.clientUuid);
         form.append("captured_at", input.capturedAt);
+        form.append("patient_consent", String(input.patientConsent));
         return http.request<Screening>("/screenings", {
           method: "POST", form, headers: { "X-Sync-Attempt": String(attempt) },
         });
@@ -64,7 +71,7 @@ export function createApi(http: HttpClient) {
       users: () => http.request<User[]>("/admin/users"),
       createUser: (body: { email: string; full_name: string; password: string; role: Role }) =>
         http.request<User>("/admin/users", { method: "POST", json: body }),
-      updateUser: (id: string, body: { role?: Role; is_active?: boolean }) =>
+      updateUser: (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus }) =>
         http.request<User>(`/admin/users/${id}`, { method: "PATCH", json: body }),
       analytics: () => http.request<Analytics>("/admin/analytics"),
     },

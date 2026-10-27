@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..core.errors import AppError, ConflictError
+from ..core.errors import AppError, ConflictError, ConsentRequiredError
 from ..models import DiagnosisResult, Referral, Screening, SyncLog, User
 from ..models.enums import Eye, ReferralReason, Role, ScreeningStatus, SyncOutcome
 from ..repositories import PatientRepository, ScreeningRepository
@@ -30,12 +30,16 @@ class ScreeningService:
         self._audit = audit
 
     def create(self, user: User, *, patient_id: str, eye: Eye, client_uuid: str, captured_at: datetime,
-               content_type: str | None, data: bytes, sync_attempt: int = 1) -> tuple[Screening, bool]:
-        """Returns (screening, duplicate). Re-sending the same client_uuid never creates a second record."""
+               content_type: str | None, data: bytes, sync_attempt: int = 1,
+               patient_consent: bool = False) -> tuple[Screening, bool]:
+        """Returns (screening, duplicate). Re-sending the same client_uuid never creates a second record.
+        Nothing is analysed or stored unless the health worker confirmed the patient's consent."""
         AccessPolicy.require_role(user, Role.HEALTH_WORKER)
         existing = self._existing(user, client_uuid, sync_attempt)
         if existing is not None:
             return existing, True
+        if not patient_consent:
+            raise ConsentRequiredError("Confirm that the patient agreed to the photo and the screening.")
 
         self._access.check_patient(user, self._patients.get(patient_id))
         captured_at = self._validate_captured_at(captured_at)
@@ -95,7 +99,7 @@ class ScreeningService:
         ]
         referral = self._referral_for(results)
         screening = Screening(
-            client_uuid=client_uuid, patient_id=patient_id, eye=eye, captured_at=captured_at,
+            client_uuid=client_uuid, patient_id=patient_id, eye=eye, captured_at=captured_at, patient_consent=True,
             image_path=image_name,
             image_sha256=outcome.image_sha256, quality=quality_out(outcome.quality),
             status=ScreeningStatus.REFERRED if referral else ScreeningStatus.COMPLETED,

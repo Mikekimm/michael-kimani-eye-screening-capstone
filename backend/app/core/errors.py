@@ -43,6 +43,12 @@ class UnprocessableImageError(AppError):
     code = "unusable_image"
 
 
+class ConsentRequiredError(AppError):
+    """A screening was sent without confirming that the patient agreed to it."""
+    status_code = 422
+    code = "consent_required"
+
+
 class PayloadTooLargeError(AppError):
     status_code = 413
     code = "payload_too_large"

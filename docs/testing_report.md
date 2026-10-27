@@ -8,8 +8,8 @@ Six strategies were used, each chosen for a specific risk in a screening-and-ref
 
 | # | Strategy | Risk it addresses | Tooling | Result |
 |---|---|---|---|---|
-| 1 | Unit testing of algorithms | wrong decision logic silently mis-triages patients | pytest, Vitest | 77 backend ML and algorithm tests + 25 frontend logic tests pass |
-| 2 | Integration testing of the API with the real model | layers work alone but not together; RBAC gaps | pytest + FastAPI TestClient + LiteRT | 88 API tests pass (incl. 45-case role matrix) |
+| 1 | Unit testing of algorithms | wrong decision logic silently mis-triages patients | pytest, Vitest | 94 backend ML and algorithm tests + 25 frontend logic tests pass |
+| 2 | Integration testing of the API with the real model | layers work alone but not together; RBAC gaps | pytest + FastAPI TestClient + LiteRT | 90 API tests pass (incl. 45-case role matrix) |
 | 3 | End-to-end functional testing | the user cannot complete a clinical task | Playwright | 16/16 journeys pass on 4 browser/device profiles |
 | 4 | Compatibility testing | works in one browser only | Playwright: Chromium, Firefox, WebKit | all journeys pass on all three engines |
 | 5 | Performance testing | too slow on clinic hardware or networks | benchmark script, Playwright + CDP throttling, Lighthouse | 74 ms server pipeline; 0.5 s / 3.2 s round trip; Lighthouse 96-100 |
@@ -30,7 +30,7 @@ no visible failure.
 
 | Area | File | Tests | What is checked |
 |---|---|---|---|
-| Risk policy | `backend/tests/ml/test_risk_policy.py` | 26 | every band edge (0.1999 vs 0.2, ...), uncertain zone, auto-refer switches, invalid config; a sweep of 1,001 scores proves bands never contradict the decision |
+| Risk policy | `backend/tests/ml/test_risk_policy.py` | 30 | every band edge (0.1999 vs 0.2, ...), uncertain zone, auto-refer switches, invalid config; a sweep of 1,001 scores proves bands never contradict the decision |
 | Threshold selection | `test_thresholding.py` | 10 | known confusion matrices; chosen threshold is the highest meeting the sensitivity target |
 | Evaluation | `test_evaluation.py` | 11 | stratified split keeps class ratios; AUC equals scikit-learn's; bootstrap intervals contain the estimate |
 | Preprocessing / quality | `test_preprocessing.py`, `test_quality.py` | 17 | nearest-neighbour resize and [-1, 1] scaling match training; blank and tiny images block; blur and darkness warn |
@@ -53,7 +53,7 @@ whether a retried upload duplicates, whether review history can be rewritten.
 
 | Area | Tests | Highlights |
 |---|---|---|
-| Auth | 12 | sign-up cannot set a role (422); Argon2id hash stored; refresh rotation (replayed token rejected); logout revokes; same error for unknown email and wrong password |
+| Auth | 14 | sign-up cannot set a role (422); Argon2id hash stored; refresh rotation (replayed token rejected); logout revokes; same error for unknown email and wrong password |
 | RBAC | 45 | every protected route x every role, plus unauthenticated access to each route; self-promotion blocked; workers cannot see each other's patients |
 | Screenings | 16 | real model returns a probability in [0, 1], deterministic; glaucoma/cataract return "not available" with no score; same `client_uuid` twice gives one record (200, duplicate); blank / tiny / non-image / BMP-as-JPEG / GIF / oversized / future timestamp / bad eye are all rejected with clear errors |
 | Workflow | 15 | positive and borderline referral; approve / override (reason required) / retake / comment; ORM refuses to update or delete review events; sync pull returns only new decisions; sync push idempotent; analytics contain no identifiers; audit log entries |

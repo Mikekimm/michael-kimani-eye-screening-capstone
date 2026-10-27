@@ -8,9 +8,10 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..core.database import Base
 from ..models import (
-    AuditEvent, DiagnosisResult, Patient, Referral, RefreshToken, ReviewEvent, Screening, SyncLog, User,
+    AuditEvent, DiagnosisResult, PasswordResetToken, Patient, Referral, RefreshToken, ReviewEvent, Screening,
+    SyncLog, User,
 )
-from ..models.enums import Role, ScreeningStatus
+from ..models.enums import AccountStatus, Role, ScreeningStatus
 
 T = TypeVar("T", bound=Base)
 
@@ -40,6 +41,10 @@ class UserRepository(Repository[User]):
     def list(self) -> Sequence[User]:
         return self.session.scalars(select(User).order_by(User.created_at)).all()
 
+    def active_admins(self) -> Sequence[User]:
+        return self.session.scalars(select(User).where(
+            User.role == Role.ADMIN, User.is_active.is_(True), User.status == AccountStatus.APPROVED)).all()
+
     def count_by_role(self) -> dict[str, int]:
         rows = self.session.execute(select(User.role, func.count()).group_by(User.role)).all()
         return {role.value: count for role, count in rows}
@@ -47,6 +52,19 @@ class UserRepository(Repository[User]):
 
 class RefreshTokenRepository(Repository[RefreshToken]):
     model = RefreshToken
+
+    def revoke_all_for(self, user_id: str, when: datetime) -> None:
+        """Ends every session of a user, e.g. after a password reset."""
+        for token in self.session.scalars(select(RefreshToken).where(
+                RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))):
+            token.revoked_at = when
+
+
+class PasswordResetRepository(Repository[PasswordResetToken]):
+    model = PasswordResetToken
+
+    def by_hash(self, token_hash: str) -> PasswordResetToken | None:
+        return self.session.scalar(select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash))
 
 
 class PatientRepository(Repository[Patient]):

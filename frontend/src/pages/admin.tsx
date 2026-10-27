@@ -1,12 +1,13 @@
+import { Link } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { PageHeader } from "@/components/AppShell";
 import { EmptyState, ErrorState, ListSkeleton, describeError } from "@/components/feedback";
-import { Badge, Card, CardContent, CardHeader, CardTitle, Select } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Select, buttonVariants } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useAnalytics, useUpdateUser, useUsers } from "@/hooks/queries";
-import type { Role } from "@/lib/api/types";
+import type { AccountStatus, Role } from "@/lib/api/types";
 import { ROLE_LABEL, formatDate, percent } from "@/lib/utils";
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -21,6 +22,18 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
 
 const CONDITION_NAME: Record<string, string> = { dr: "Diabetic retinopathy", glaucoma: "Glaucoma", cataract: "Cataract" };
 
+function PendingApprovalsNotice() {
+  const users = useUsers();
+  const pending = users.data?.filter((u) => u.status === "pending").length ?? 0;
+  if (!pending) return null;
+  return (
+    <Card role="status" className="mb-4 flex items-center justify-between gap-3 border-risk-medium p-3 text-sm">
+      <span>{pending === 1 ? "1 account is" : `${pending} accounts are`} waiting for approval.</span>
+      <Link to="/admin/users" className={buttonVariants({ size: "sm" })}>Review</Link>
+    </Card>
+  );
+}
+
 export function AnalyticsPage() {
   const analytics = useAnalytics();
   if (analytics.isPending) return <ListSkeleton rows={4} />;
@@ -31,6 +44,7 @@ export function AnalyticsPage() {
   return (
     <>
       <PageHeader title="Analytics" description="Aggregate counts only. No images, patient codes or names." />
+      <PendingApprovalsNotice />
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile label="Screenings" value={String(a.total_screenings)} />
         <StatTile label="Referral rate" value={a.referral_rate === null ? "-" : percent(a.referral_rate)} />
@@ -109,7 +123,7 @@ export function UsersPage() {
   const update = useUpdateUser();
   const toast = useToast();
 
-  const change = async (id: string, body: { role?: Role; is_active?: boolean }) => {
+  const change = async (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus }) => {
     try {
       await update.mutateAsync({ id, ...body });
       toast("User updated.", "success");
@@ -120,19 +134,30 @@ export function UsersPage() {
 
   return (
     <>
-      <PageHeader title="Users" description="Assign roles. New sign-ups start as health workers." />
+      <PageHeader title="Users"
+        description="Approve new health workers after checking their facility and registration number. Assign roles." />
       {users.isPending && <ListSkeleton />}
       {users.isError && <ErrorState error={users.error} onRetry={() => void users.refetch()} />}
       {users.isSuccess && users.data.length === 0 && <EmptyState title="No users" />}
       <div className="flex flex-col gap-2">
-        {users.data?.map((u) => {
+        {[...(users.data ?? [])].sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending")).map((u) => {
           const self = u.id === me?.id;
           return (
             <Card key={u.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center">
               <div className="flex-1">
-                <p className="text-sm font-medium">{u.full_name} {self && <Badge tone="info">You</Badge>} {!u.is_active && <Badge tone="high">Deactivated</Badge>}</p>
+                <p className="text-sm font-medium">{u.full_name} {self && <Badge tone="info">You</Badge>} {!u.is_active && <Badge tone="high">Deactivated</Badge>}
+                  {u.status === "pending" && <Badge tone="medium">Waiting for approval</Badge>} {u.status === "rejected" && <Badge tone="high">Rejected</Badge>}</p>
                 <p className="text-xs text-muted-foreground">{u.email} · joined {formatDate(u.created_at)}</p>
+                {(u.facility || u.registration_number) && (
+                  <p className="text-xs text-muted-foreground">{u.facility ?? "facility not given"} · registration no. {u.registration_number ?? "not given"}</p>
+                )}
               </div>
+              {u.status === "pending" && !self && (
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={update.isPending} onClick={() => void change(u.id, { status: "approved" })}>Approve</Button>
+                  <Button size="sm" variant="outline" disabled={update.isPending} onClick={() => void change(u.id, { status: "rejected" })}>Reject</Button>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Select aria-label={`Role for ${u.full_name}`} className="w-44" value={u.role} disabled={self || update.isPending}
                   onChange={(e) => void change(u.id, { role: e.target.value as Role })}>

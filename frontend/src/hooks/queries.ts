@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { PatientInput, ReviewInput, Role } from "@/lib/api/types";
+import type { AccountStatus, PatientInput, ReviewInput, Role } from "@/lib/api/types";
 import { useApi } from "@/lib/services";
 
 /** Data hooks: components read server state only through these (no fetch calls in components). */
@@ -87,7 +87,8 @@ export const useUpdateUser = () => {
   const api = useApi();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; role?: Role; is_active?: boolean }) => api.admin.updateUser(id, body),
+    mutationFn: ({ id, ...body }: { id: string; role?: Role; is_active?: boolean; status?: AccountStatus }) =>
+      api.admin.updateUser(id, body),
     onSuccess: () => client.invalidateQueries({ queryKey: ["admin"] }),
   });
 };

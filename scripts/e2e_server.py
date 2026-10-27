@@ -19,10 +19,12 @@ def main() -> int:
     DATA.mkdir(exist_ok=True)
     (DATA / "e2e.db").unlink(missing_ok=True)
     shutil.rmtree(DATA / "e2e-uploads", ignore_errors=True)
+    shutil.rmtree(DATA / "e2e-outbox", ignore_errors=True)
     env = {
         **os.environ,
         "DATABASE_URL": f"sqlite:///{(DATA / 'e2e.db').as_posix()}",
         "UPLOAD_DIR": str(DATA / "e2e-uploads"),
+        "EMAIL_OUTBOX_DIR": str(DATA / "e2e-outbox"),
         "JWT_SECRET": secrets.token_hex(32),
         "SEED_ADMIN_EMAIL": os.environ["E2E_ADMIN_EMAIL"],
         "SEED_ADMIN_PASSWORD": os.environ["E2E_PASSWORD"],

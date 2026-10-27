@@ -1,0 +1,71 @@
+# Continuous integration: backend tests on PostgreSQL, frontend checks, and the Docker deployment build.
+# Local development uses SQLite; this is where the PostgreSQL configuration and the Docker images are exercised.
+name: CI
+
+on:
+  push:
+    branches: [main, final-app]
+  pull_request:
+
+jobs:
+  backend-postgres:
+    name: Backend tests (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: screening
+          POSTGRES_PASSWORD: ci-only-not-a-secret
+          POSTGRES_DB: screening
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U screening"
+          --health-interval 10s
+          --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://screening:ci-only-not-a-secret@localhost:5432/screening
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"  # same as backend/Dockerfile
+      # TensorFlow is left out on purpose (large); the one Keras-vs-TFLite test skips without it.
+      - name: Install dependencies
+        run: pip install -r requirements.txt "psycopg[binary]==3.2.3" pytest==9.1.1 httpx==0.28.1 psutil==7.2.2 scikit-learn==1.9.1
+      - name: Apply Alembic migrations to PostgreSQL
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: alembic upgrade head
+      - name: Run pytest against PostgreSQL
+        run: python -m pytest -q
+
+  frontend:
+    name: Frontend type-check, lint and unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"  # same as frontend/Dockerfile
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  docker-build:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create placeholder .env (compose requires the file; values are not used to build)
+        run: cp .env.example .env
+      - run: docker compose build

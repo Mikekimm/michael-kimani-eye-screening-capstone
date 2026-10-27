@@ -30,7 +30,8 @@ export function ScreeningDetailPage() {
 
   return (
     <>
-      <PageHeader title="Screening result" />
+      <PageHeader title="Screening result"
+        description={screening.data.patient_consent ? "Patient consent recorded" : screening.data.patient_consent === false ? "No patient consent recorded" : undefined} />
       <ScreeningView screening={screening.data} />
       {canRefer && (
         <Button variant="outline" className="mt-3 w-full" disabled={refer.isPending} onClick={() => void onRefer()}>

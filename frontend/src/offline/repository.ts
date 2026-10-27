@@ -30,6 +30,8 @@ export interface ScreeningQueueItem extends QueueItemBase {
   eye: Eye;
   capturedAt: string;
   image: Blob;
+  /** Recorded at capture time; items queued before consent capture existed are missing it. */
+  patientConsent?: boolean;
 }
 
 export type QueueItem = PatientQueueItem | ScreeningQueueItem;

@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { acceptConsentIfAsked, approveAsAdmin, registerPatient, signIn, signUp } from "./helpers";
+
 // Times the real screening round trip (upload -> server quality gate + LiteRT inference -> result card)
 // as a user experiences it, with and without an emulated low-end phone on a slow network.
 // Emulation uses Chrome DevTools Protocol, so this file runs on Chromium only. It is EMULATION,
@@ -11,7 +13,6 @@ import { expect, test, type Page } from "@playwright/test";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(here, "..", "..", "docs", "benchmarks");
-const PASSWORD = process.env.E2E_PASSWORD!;
 const RUNS = 3;
 
 const PROFILES = {
@@ -19,25 +20,18 @@ const PROFILES = {
   "low-end-phone-slow-3g": { cpuRate: 6, latencyMs: 400, downKbps: 400, upKbps: 400 },
 } as const;
 
-async function prepare(page: Page, email: string, code: string) {
-  await page.goto("/signup");
-  await page.getByLabel("Full name").fill("Perf Nurse");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await page.getByLabel("I understand and will follow local referral guidance.").check();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.goto("/patients/new");
-  await page.getByLabel("Patient code").fill(code);
-  await page.getByRole("button", { name: "Register patient" }).click();
-  await expect(page.getByRole("heading", { name: code })).toBeVisible();
-  return page.url().split("/").pop()!;
+async function prepare(page: Page, email: string) {
+  await signUp(page, "Perf Nurse", email);
+  await approveAsAdmin(page, email);
+  await signIn(page, email);
+  await acceptConsentIfAsked(page);
+  return registerPatient(page);
 }
 
 test("screening round trip: normal vs emulated low-end phone on slow 3G", async ({ page, browserName }, info) => {
   test.skip(browserName !== "chromium" || info.project.name !== "mobile-chromium", "CDP throttling: one Chromium project only");
   test.setTimeout(240_000);
-  const patientId = await prepare(page, "perf.nurse@example.org", "PERF-0001");
+  const patient = await prepare(page, "perf.nurse@example.org");
   const cdp = await page.context().newCDPSession(page);
   const results: Record<string, number[]> = {};
 
@@ -52,10 +46,11 @@ test("screening round trip: normal vs emulated low-end phone on slow 3G", async 
     }
     results[name] = [];
     for (let i = 0; i < RUNS; i++) {
-      await page.goto(`/screen?patient=${patientId}`);
-      await page.getByRole("button", { name: "Continue with PERF-0001" }).click();
+      await page.goto(`/screen?patient=${patient.id}`);
+      await page.getByRole("button", { name: `Continue with ${patient.code}` }).click();
       await page.getByRole("button", { name: i % 2 ? "Right eye" : "Left eye" }).click();
       await page.locator('input[type="file"][accept="image/jpeg,image/png"]').setInputFiles(path.join(here, "fixtures", "synthetic-fundus.jpg"));
+      await page.getByLabel(/The patient agreed/).check();
       const start = Date.now();
       await page.getByRole("button", { name: "Analyse photo" }).click();
       await expect(page.getByTestId("result-dr")).toContainText("Estimated severity band", { timeout: 60_000 });

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from app.core import patient_codes
 from app.models import AppendOnlyViolation, AuditEvent, ReviewEvent
 from app.models.enums import Role
 
@@ -111,8 +112,8 @@ def test_sync_pull_returns_only_new_decisions(referred):
 
 def test_sync_push_is_idempotent_per_client_uuid(stub_client):
     _, worker = auth_headers(stub_client, Role.HEALTH_WORKER)
-    batch = {"patients": [{"code": "OFF-001", "client_uuid": str(uuid.uuid4())},
-                          {"code": "OFF-002", "client_uuid": str(uuid.uuid4())}]}
+    batch = {"patients": [{"code": patient_codes.generate(), "client_uuid": str(uuid.uuid4())},
+                          {"code": patient_codes.generate(), "client_uuid": str(uuid.uuid4())}]}
     first = stub_client.post("/api/sync/push", headers=worker, json=batch).json()["results"]
     replay = stub_client.post("/api/sync/push", headers={**worker, "X-Sync-Attempt": "2"}, json=batch).json()["results"]
     assert [r["outcome"] for r in first] == ["accepted", "accepted"]
@@ -121,13 +122,13 @@ def test_sync_push_is_idempotent_per_client_uuid(stub_client):
     assert len(stub_client.get("/api/patients", headers=worker).json()) == 2
 
 
-def test_sync_push_rejects_items_without_key_or_with_taken_code(stub_client):
+def test_sync_push_rejects_items_without_key_and_replaces_a_taken_device_code(stub_client):
     _, worker = auth_headers(stub_client, Role.HEALTH_WORKER)
-    register_patient(stub_client, worker, code="TAKEN-1")
-    batch = {"patients": [{"code": "NOKEY-1"}, {"code": "TAKEN-1", "client_uuid": str(uuid.uuid4())}]}
+    taken = register_patient(stub_client, worker)["code"]
+    batch = {"patients": [{"code": patient_codes.generate()}, {"code": taken, "client_uuid": str(uuid.uuid4())}]}
     results = stub_client.post("/api/sync/push", headers=worker, json=batch).json()["results"]
-    assert [r["outcome"] for r in results] == ["rejected", "rejected"]
-    assert "already registered" in results[1]["error"]
+    assert [r["outcome"] for r in results] == ["rejected", "accepted"]
+    assert results[1]["code"] != taken and patient_codes.is_valid(results[1]["code"])
 
 
 def test_analytics_are_aggregates_only(referred):

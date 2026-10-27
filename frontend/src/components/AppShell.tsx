@@ -76,8 +76,11 @@ function SyncPill() {
 
 /** Mobile: top bar + bottom tabs. Desktop (lg+): sidebar. */
 export function AppShell() {
-  const { user, logout } = useAuth();
-  if (!user) return null;
+  const { user, loading, logout } = useAuth();
+  const location = useLocation();
+  // The role guards are rendered inside this shell, so it must redirect signed-out visitors itself.
+  if (loading) return <div className="p-4"><ListSkeleton /></div>;
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   const items = NAV[user.role];
 
   return (

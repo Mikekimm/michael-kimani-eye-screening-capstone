@@ -116,8 +116,8 @@ reproducible environment (pinned requirements, <code>package-lock.json</code>). 
 <h2>4. Testing approaches and results</h2>
 <table>
 <tr><th>Strategy</th><th>Why chosen</th><th>How</th><th>Result</th></tr>
-<tr><td>Unit (algorithms)</td><td>boundary errors would mis-triage silently</td><td>pytest, Vitest; boundary values, property sweep; deliberate code breakage to check tests fail</td><td class="ok">77 + 25 pass</td></tr>
-<tr><td>Integration (API + DB + real model)</td><td>security and integrity rules live between layers</td><td>fresh DB per test; real LiteRT model; 45-case role-by-route matrix; 9 invalid-upload cases</td><td class="ok">88 pass</td></tr>
+<tr><td>Unit (algorithms)</td><td>boundary errors would mis-triage silently</td><td>pytest, Vitest; boundary values, property sweep; deliberate code breakage to check tests fail</td><td class="ok">94 + 25 pass</td></tr>
+<tr><td>Integration (API + DB + real model)</td><td>security and integrity rules live between layers</td><td>fresh DB per test; real LiteRT model; 45-case role-by-route matrix; 9 invalid-upload cases</td><td class="ok">90 pass</td></tr>
 <tr><td>End-to-end functional</td><td>prove users can finish clinical tasks</td><td>Playwright: worker journey, specialist review, unauthorized access, invalid input</td><td class="ok">16/16 pass</td></tr>
 <tr><td>Compatibility</td><td>clinics use varied phones and browsers</td><td>same journeys on Chromium (Pixel 5, desktop), Firefox, WebKit (iPhone 13)</td><td class="ok">all engines pass</td></tr>
 <tr><td>Performance</td><td>slow hardware and networks</td><td>benchmark script; throttled browser round trip; Lighthouse</td><td class="ok">see section 5</td></tr>

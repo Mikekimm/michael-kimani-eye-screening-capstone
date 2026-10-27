@@ -22,13 +22,15 @@ from ..ml.risk_policy import RiskPolicyFactory
 from ..models import User
 from ..models.enums import Role
 from ..repositories import (
-    AnalyticsRepository, AuditRepository, PatientRepository, RefreshTokenRepository, ReviewRepository,
+    AnalyticsRepository, AuditRepository, PasswordResetRepository, PatientRepository, RefreshTokenRepository,
+    ReviewRepository,
     ScreeningRepository, UserRepository,
 )
 from ..services.access import AccessPolicy
 from ..services.analytics import AnalyticsService
 from ..services.audit import AuditService
-from ..services.auth import AuthService
+from ..services.auth import AuthService, PasswordResetConfig
+from ..services.email import EmailSender
 from ..services.image_store import ImageStore
 from ..services.patients import PatientService
 from ..services.pipeline import ScreeningPipeline
@@ -49,6 +51,7 @@ class AppContainer:
     hasher: PasswordHasher
     tokens: TokenService
     login_throttle: LoginThrottle
+    email: EmailSender
 
 
 def get_container(request: Request) -> AppContainer:
@@ -76,11 +79,14 @@ def _access(session: Session) -> AccessPolicy:
 def get_auth_service(session: DbSession, container: Container) -> AuthService:
     return AuthService(session, UserRepository(session), RefreshTokenRepository(session), container.hasher,
                        container.tokens, _audit(session), container.settings.access_token_minutes * 60,
-                       container.login_throttle)
+                       container.login_throttle, PasswordResetRepository(session),
+                       PasswordResetConfig(container.email, container.settings.app_base_url,
+                                           container.settings.password_reset_minutes))
 
 
 def get_user_service(session: DbSession, container: Container) -> UserService:
-    return UserService(session, UserRepository(session), container.hasher, _audit(session))
+    return UserService(session, UserRepository(session), container.hasher, _audit(session),
+                       container.email, container.settings.app_base_url)
 
 
 def get_patient_service(session: DbSession) -> PatientService:

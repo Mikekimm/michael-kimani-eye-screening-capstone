@@ -154,3 +154,19 @@ def test_patient_history_lists_screenings(client):
     assert {s["eye"] for s in history} == {"left", "right"}
     detail = client.get(f"/api/patients/{patient['id']}", headers=headers).json()
     assert detail["screening_count"] == 2
+
+
+def test_screening_without_patient_consent_is_refused_and_nothing_is_stored(client):
+    headers, patient = _worker_with_patient(client)
+    response = upload(client, headers, patient["id"], consent=False)
+    assert response.status_code == 422
+    assert response.json()["error"] == "consent_required"
+    for session in client.container.database.session():
+        assert session.query(Screening).count() == 0
+    uploads = client.container.settings.upload_dir
+    assert not uploads.exists() or not any(uploads.iterdir())  # the photo was not saved either
+
+
+def test_consent_is_recorded_with_the_screening(client):
+    headers, patient = _worker_with_patient(client)
+    assert upload(client, headers, patient["id"]).json()["patient_consent"] is True

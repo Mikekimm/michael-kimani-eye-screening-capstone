@@ -36,7 +36,8 @@ class SyncService:
             try:
                 patient, duplicate = self._patients.register(user, item)
                 outcome = SyncOutcome.DUPLICATE if duplicate else SyncOutcome.ACCEPTED
-                result = SyncItemResult(client_uuid=item.client_uuid, outcome=outcome, server_id=patient.id)
+                result = SyncItemResult(client_uuid=item.client_uuid, outcome=outcome, server_id=patient.id,
+                                        code=patient.code)
             except AppError as exc:
                 self._session.rollback()
                 result = SyncItemResult(client_uuid=item.client_uuid, outcome=SyncOutcome.REJECTED,

@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Camera, ChevronRight, Search, UserPlus } from "lucide-react";
 import { useDeferredValue, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 
 import { PageHeader } from "@/components/AppShell";
@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { useCreatePatient, usePatient, usePatientScreenings, usePatients } from "@/hooks/queries";
 import { useSync } from "@/hooks/useSync";
 import { NetworkError } from "@/lib/api/http";
+import { generatePatientCode } from "@/lib/patientCode";
 import { useServices } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 
@@ -59,7 +60,6 @@ export function PatientsPage() {
 const thisYear = new Date().getFullYear();
 
 export const patientSchema = z.object({
-  code: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{2,39}$/, "Use 3-40 letters, digits, - or _ (a clinic code, not a name)."),
   year_of_birth: z.union([z.literal(""), z.coerce.number().int().min(1900).max(thisYear, "Year cannot be in the future.")]),
   sex: z.enum(["female", "male", "other", "unknown"]),
   has_diabetes: z.enum(["yes", "no", "unknown"]),
@@ -72,25 +72,26 @@ export function NewPatientPage() {
   const { queue } = useServices();
   const { refresh } = useSync();
   const form = useForm<z.input<typeof patientSchema>, unknown, z.output<typeof patientSchema>>({
-    resolver: zodResolver(patientSchema), defaultValues: { code: "", year_of_birth: "", sex: "unknown", has_diabetes: "unknown" },
+    resolver: zodResolver(patientSchema), defaultValues: { year_of_birth: "", sex: "unknown", has_diabetes: "unknown" },
   });
   const { errors, isSubmitting } = form.formState;
 
   const onSubmit = form.handleSubmit(async (values) => {
+    // The app gives every patient a unique code (works offline too); nobody types it, so it cannot be reused.
     const body = {
-      code: values.code, sex: values.sex, client_uuid: crypto.randomUUID(),
+      code: generatePatientCode(), sex: values.sex, client_uuid: crypto.randomUUID(),
       year_of_birth: values.year_of_birth === "" ? null : values.year_of_birth,
       has_diabetes: values.has_diabetes === "unknown" ? null : values.has_diabetes === "yes",
     };
     try {
       const patient = await createPatient.mutateAsync(body);
       toast(`Patient ${patient.code} registered.`, "success");
-      navigate(`/patients/${patient.id}`);
+      navigate(`/patients/${patient.id}`, { state: { newCode: patient.code } });
     } catch (error) {
       if (error instanceof NetworkError) {
         await queue.enqueuePatient(body);
         await refresh();
-        toast(`Offline: ${body.code} saved on this device and will sync later.`, "info");
+        toast(`Offline: patient ${body.code} saved on this device and will sync later. Write this code on the patient's card.`, "info");
         navigate(`/screen?offlinePatient=${body.client_uuid}&code=${encodeURIComponent(body.code)}`);
         return;
       }
@@ -100,14 +101,10 @@ export function NewPatientPage() {
 
   return (
     <>
-      <PageHeader title="Register patient" description="Use a clinic code. Do not enter names or phone numbers." />
+      <PageHeader title="Register patient"
+        description="The app gives the patient a unique code when you save. Do not record names or phone numbers." />
       <Card className="p-4">
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="code">Patient code</Label>
-            <Input id="code" placeholder="e.g. PHC-0042" aria-invalid={!!errors.code} aria-describedby="code-error" {...form.register("code")} />
-            <FieldError id="code-error" message={errors.code?.message} />
-          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <Label htmlFor="year_of_birth">Year of birth</Label>
@@ -139,6 +136,7 @@ export function NewPatientPage() {
 
 export function PatientDetailPage() {
   const { id = "" } = useParams();
+  const newCode = (useLocation().state as { newCode?: string } | null)?.newCode;
   const patient = usePatient(id);
   const history = usePatientScreenings(id);
 
@@ -152,6 +150,13 @@ export function PatientDetailPage() {
         description={[p.year_of_birth && `born ${p.year_of_birth}`, p.sex !== "unknown" && p.sex,
           p.has_diabetes === true ? "diabetic" : p.has_diabetes === false ? "not diabetic" : null].filter(Boolean).join(" · ") || "No details recorded"}
         action={<Link to={`/screen?patient=${p.id}`} className={buttonVariants({ size: "sm" })}><Camera aria-hidden className="h-4 w-4" />Screen</Link>} />
+      {newCode && (
+        <Card role="status" className="mb-4 border-primary p-4 text-center">
+          <p className="text-sm text-muted-foreground">New patient code</p>
+          <p className="my-1 font-mono text-3xl font-semibold tracking-widest" data-testid="new-patient-code">{newCode}</p>
+          <p className="text-sm">Write this code on the patient's card. Use it to find the patient at the next visit.</p>
+        </Card>
+      )}
       <h2 className="mb-2 font-semibold">Screening history</h2>
       {history.isPending && <ListSkeleton />}
       {history.isError && <ErrorState error={history.error} onRetry={() => void history.refetch()} />}

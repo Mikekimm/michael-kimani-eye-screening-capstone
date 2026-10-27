@@ -12,7 +12,8 @@ interface AuthState {
   /** true until the stored session has been checked on start-up */
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (input: { email: string; full_name: string; password: string }) => Promise<void>;
+  /** Creates a pending account; the person can sign in once an administrator approves it. */
+  register: (input: { email: string; full_name: string; password: string; facility: string; registration_number: string }) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -62,10 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return me;
   }, [api, tokens, remember]);
 
-  const register = useCallback(async (input: { email: string; full_name: string; password: string }) => {
+  const register = useCallback(async (input: { email: string; full_name: string; password: string; facility: string; registration_number: string }) => {
     await api.auth.register(input);
-    await login(input.email, input.password);
-  }, [api, login]);
+  }, [api]);
 
   const logout = useCallback(async () => {
     const refresh = tokens.refreshToken;
