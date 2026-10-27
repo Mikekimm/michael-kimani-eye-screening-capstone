@@ -1,4 +1,9 @@
-"""Fixtures for API tests: a throwaway SQLite database, real or test-double models, and users per role."""
+"""Fixtures for API tests: a throwaway database, real or test-double models, and users per role.
+
+Each test gets a fresh SQLite file by default. Setting TEST_DATABASE_URL (used by CI) runs the same
+tests against PostgreSQL instead; every table is dropped and recreated before each test.
+"""
+import os
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -42,8 +47,8 @@ class FixedScoreRegistry(ModelRegistry):
 
 
 def _settings(tmp_path: Path) -> Settings:
-    return Settings(jwt_secret=secrets.token_hex(32), database_url=f"sqlite:///{(tmp_path / 'test.db').as_posix()}",
-                    upload_dir=tmp_path / "uploads")
+    database_url = os.environ.get("TEST_DATABASE_URL") or f"sqlite:///{(tmp_path / 'test.db').as_posix()}"
+    return Settings(jwt_secret=secrets.token_hex(32), database_url=database_url, upload_dir=tmp_path / "uploads")
 
 
 @pytest.fixture(scope="session")
@@ -54,7 +59,10 @@ def real_registry():
 
 def _make_client(tmp_path, registry):
     container = build_container(_settings(tmp_path), registry=registry)
-    Base.metadata.create_all(container.database.engine)  # tests only; the app relies on Alembic
+    engine = container.database.engine
+    if engine.dialect.name != "sqlite":
+        Base.metadata.drop_all(engine)  # shared PostgreSQL test database: start every test clean
+    Base.metadata.create_all(engine)  # tests only; the app relies on Alembic
     client = TestClient(create_app(container))
     client.container = container
     return client
@@ -64,6 +72,7 @@ def _make_client(tmp_path, registry):
 def client(tmp_path, real_registry):
     with _make_client(tmp_path, real_registry) as c:
         yield c
+    c.container.database.engine.dispose()
 
 
 @pytest.fixture
@@ -72,6 +81,7 @@ def stub_client(tmp_path):
     FixedScoreModel.score = 0.9
     with _make_client(tmp_path, FixedScoreRegistry(("dr", "glaucoma", "cataract"))) as c:
         yield c
+    c.container.database.engine.dispose()
 
 
 def create_user(client, role: Role, email: str | None = None, active: bool = True) -> User:
