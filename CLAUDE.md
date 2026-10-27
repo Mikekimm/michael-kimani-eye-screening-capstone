@@ -97,10 +97,12 @@ backend/tests/   backend/alembic/   scripts/   models/<condition>/
 frontend/   docs/{diagrams,evaluation,benchmarks,report}/   notebooks/
 ```
 
-## 12b. Current state (26 Oct 2026)
-Backend, frontend, E2E, docs and diagrams are done (see `docs/scope_table.md`). The Streamlit prototype was
-retired (git tag `legacy-streamlit-prototype`). DR metrics = validation results from the training notebook, not an independent hold-out (docs/metrics.json). Pending: ODIR notebook run,
-technical report PDF, video, usability test, merge `final-app` into `main`.
+## 12b. Current state (27 Oct 2026)
+Backend, frontend, E2E, docs, diagrams and the technical report PDF are done (see `docs/scope_table.md`);
+`final-app` is merged into `main`. The Streamlit prototype was retired (git tag `legacy-streamlit-prototype`).
+DR metrics = validation results from the training notebook, not an independent hold-out (docs/metrics.json).
+Latest test run: 184 backend, 50 Vitest, Playwright 19 passed + 3 skipped by design.
+Pending: ODIR notebook run, walkthrough video, usability test, physical-device test.
 
 ## 13. Environment
 Windows + PowerShell. Python in project `.venv` only (never global). Pinned requirements.
@@ -111,7 +113,9 @@ provided for deployment only, not required locally.
 ## 14. Working rules
 - Plan first, wait for approval, then implement in small steps.
 - Conventional commits (feat/fix/test/docs/refactor/chore). Branch `final-app`; merge to `main` at the end.
-  No force-push, no history rewrites. Michael decides when to push.
+  No force-push, no history rewrites. One approved exception: on 26 Oct 2026 commit-message trailers were
+  removed with a history rewrite (file contents unchanged; backups kept). Michael decides when to push:
+  never push until he types exactly "OK, push". No Co-Authored-By trailers; AI use is disclosed in README §11.
 - Preserve working code and existing tests. Never commit datasets, venvs, secrets, `$Recycle.Bin/`.
 - End each phase with: files changed, commands run + real results, failures/blocked items,
   evidence to capture, scope-table rows updated. Then stop.
