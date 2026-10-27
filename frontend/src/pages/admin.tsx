@@ -1,8 +1,9 @@
+import { Link } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { PageHeader } from "@/components/AppShell";
 import { EmptyState, ErrorState, ListSkeleton, describeError } from "@/components/feedback";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Select } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Select, buttonVariants } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useAnalytics, useUpdateUser, useUsers } from "@/hooks/queries";
@@ -21,6 +22,18 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
 
 const CONDITION_NAME: Record<string, string> = { dr: "Diabetic retinopathy", glaucoma: "Glaucoma", cataract: "Cataract" };
 
+function PendingApprovalsNotice() {
+  const users = useUsers();
+  const pending = users.data?.filter((u) => u.status === "pending").length ?? 0;
+  if (!pending) return null;
+  return (
+    <Card role="status" className="mb-4 flex items-center justify-between gap-3 border-risk-medium p-3 text-sm">
+      <span>{pending === 1 ? "1 account is" : `${pending} accounts are`} waiting for approval.</span>
+      <Link to="/admin/users" className={buttonVariants({ size: "sm" })}>Review</Link>
+    </Card>
+  );
+}
+
 export function AnalyticsPage() {
   const analytics = useAnalytics();
   if (analytics.isPending) return <ListSkeleton rows={4} />;
@@ -31,6 +44,7 @@ export function AnalyticsPage() {
   return (
     <>
       <PageHeader title="Analytics" description="Aggregate counts only. No images, patient codes or names." />
+      <PendingApprovalsNotice />
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile label="Screenings" value={String(a.total_screenings)} />
         <StatTile label="Referral rate" value={a.referral_rate === null ? "-" : percent(a.referral_rate)} />
@@ -126,7 +140,7 @@ export function UsersPage() {
       {users.isError && <ErrorState error={users.error} onRetry={() => void users.refetch()} />}
       {users.isSuccess && users.data.length === 0 && <EmptyState title="No users" />}
       <div className="flex flex-col gap-2">
-        {users.data?.map((u) => {
+        {[...(users.data ?? [])].sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending")).map((u) => {
           const self = u.id === me?.id;
           return (
             <Card key={u.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center">

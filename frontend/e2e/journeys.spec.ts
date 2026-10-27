@@ -56,6 +56,7 @@ test.describe.serial("clinical journeys", () => {
     await page.locator('input[type="file"][accept="image/jpeg,image/png"]').setInputFiles(path.join(FIXTURES, "synthetic-fundus.jpg"));
     await expect(page.getByAltText("Captured fundus photo preview")).toBeVisible();
     await shot(page, info, "04-capture");
+    await page.getByLabel(/The patient agreed/).check();
     await page.getByRole("button", { name: "Analyse photo" }).click();
 
     await page.waitForURL("**/screenings/*");
@@ -124,6 +125,7 @@ test.describe.serial("clinical journeys", () => {
     await page.getByRole("button", { name: patientCodes[info.project.name] }).click();
     await page.getByRole("button", { name: "Right eye" }).click();
     await page.locator('input[type="file"][accept="image/jpeg,image/png"]').setInputFiles(path.join(FIXTURES, "blank.jpg"));
+    await page.getByLabel(/The patient agreed/).check();
     await page.getByRole("button", { name: "Analyse photo" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "cannot be screened" })).toContainText("blank or uniform");
     await shot(page, info, "09-unusable-image");

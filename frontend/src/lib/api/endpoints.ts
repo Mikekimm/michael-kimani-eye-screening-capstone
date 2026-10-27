@@ -11,6 +11,8 @@ export interface NewScreening {
   capturedAt: string;
   image: Blob;
   fileName?: string;
+  /** The health worker confirmed the patient agreed; the server refuses screenings without it. */
+  patientConsent: boolean;
 }
 
 /** Typed wrappers for every backend endpoint, grouped by feature. Components use these via hooks. */
@@ -47,6 +49,7 @@ export function createApi(http: HttpClient) {
         form.append("eye", input.eye);
         form.append("client_uuid", input.clientUuid);
         form.append("captured_at", input.capturedAt);
+        form.append("patient_consent", String(input.patientConsent));
         return http.request<Screening>("/screenings", {
           method: "POST", form, headers: { "X-Sync-Attempt": String(attempt) },
         });

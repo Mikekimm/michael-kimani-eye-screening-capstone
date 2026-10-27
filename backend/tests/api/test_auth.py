@@ -224,3 +224,14 @@ def test_pending_accounts_get_no_reset_email(client):
 def test_garbage_reset_token_is_refused(client):
     response = client.post("/api/auth/password/reset", json={"token": "x" * 43, "password": "brand-new-pass-1"})
     assert response.status_code == 400
+
+
+def test_the_person_is_emailed_when_an_admin_approves_or_rejects_them(client):
+    admin = login(client, create_user(client, Role.ADMIN))
+    approved = client.post("/api/auth/register", json=NEW_USER).json()
+    rejected = client.post("/api/auth/register", json={**NEW_USER, "email": "other@example.org"}).json()
+    client.patch(f"/api/admin/users/{approved['id']}", headers=admin, json={"status": "approved"})
+    client.patch(f"/api/admin/users/{rejected['id']}", headers=admin, json={"status": "rejected"})
+    mails = [m.read_text(encoding="utf-8") for m in _outbox(client)]
+    assert any(NEW_USER["email"] in m and "approved" in m for m in mails)
+    assert any("other@example.org" in m and "not approved" in m for m in mails)

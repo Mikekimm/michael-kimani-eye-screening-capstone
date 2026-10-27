@@ -166,6 +166,7 @@ class ScreeningOut(ORMModel):
     eye: Eye
     status: ScreeningStatus
     captured_at: datetime
+    patient_consent: bool | None
     created_at: datetime
     updated_at: datetime
     created_by_name: str

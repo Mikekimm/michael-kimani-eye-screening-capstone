@@ -50,6 +50,7 @@ test("screening round trip: normal vs emulated low-end phone on slow 3G", async 
       await page.getByRole("button", { name: `Continue with ${patient.code}` }).click();
       await page.getByRole("button", { name: i % 2 ? "Right eye" : "Left eye" }).click();
       await page.locator('input[type="file"][accept="image/jpeg,image/png"]').setInputFiles(path.join(here, "fixtures", "synthetic-fundus.jpg"));
+      await page.getByLabel(/The patient agreed/).check();
       const start = Date.now();
       await page.getByRole("button", { name: "Analyse photo" }).click();
       await expect(page.getByTestId("result-dr")).toContainText("Estimated severity band", { timeout: 60_000 });

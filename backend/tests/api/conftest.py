@@ -122,11 +122,12 @@ def fundus_jpeg(seed: int = 0) -> bytes:
 
 def upload(client, headers, patient_id: str, *, data: bytes | None = None, client_uuid: str | None = None,
            eye: str = "left", content_type: str = "image/jpeg", captured_at: datetime | None = None,
-           attempt: int | None = None):
+           attempt: int | None = None, consent: bool = True):
     extra = {"X-Sync-Attempt": str(attempt)} if attempt else {}
     return client.post(
         "/api/screenings", headers={**headers, **extra},
         files={"image": ("eye.jpg", data if data is not None else fundus_jpeg(), content_type)},
         data={"patient_id": patient_id, "eye": eye, "client_uuid": client_uuid or str(uuid.uuid4()),
-              "captured_at": (captured_at or datetime.now(timezone.utc)).isoformat()},
+              "captured_at": (captured_at or datetime.now(timezone.utc)).isoformat(),
+              "patient_consent": "true" if consent else "false"},
     )

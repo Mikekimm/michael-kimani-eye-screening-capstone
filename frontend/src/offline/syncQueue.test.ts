@@ -68,7 +68,7 @@ describe("SyncQueue", () => {
   });
 
   it("sends queued screenings and marks them synced", async () => {
-    await queue.enqueueScreening({ patientId: "p1", patientCode: "PHC-1", eye: "left", image });
+    await queue.enqueueScreening({ patientId: "p1", patientCode: "PHC-1", eye: "left", image, patientConsent: true });
     const report = await queue.syncNow();
     expect(report).toMatchObject({ synced: 1, failed: 0, offline: false });
     const [item] = await queue.list();
@@ -76,7 +76,7 @@ describe("SyncQueue", () => {
   });
 
   it("does not create a duplicate when the reply is lost after the server saved the record", async () => {
-    const item = await queue.enqueueScreening({ patientId: "p1", patientCode: "PHC-1", eye: "right", image });
+    const item = await queue.enqueueScreening({ patientId: "p1", patientCode: "PHC-1", eye: "right", image, patientConsent: true });
     server.mode = "lose-reply";
     await queue.syncNow();
     expect((await queue.list())[0]).toMatchObject({ status: "pending", attempts: 1 });
@@ -90,9 +90,9 @@ describe("SyncQueue", () => {
   });
 
   it("stops at the first network failure, keeps order, and schedules a backoff", async () => {
-    await queue.enqueueScreening({ patientId: "p1", patientCode: "A", eye: "left", image });
+    await queue.enqueueScreening({ patientId: "p1", patientCode: "A", eye: "left", image, patientConsent: true });
     clock += 1;
-    await queue.enqueueScreening({ patientId: "p1", patientCode: "B", eye: "left", image });
+    await queue.enqueueScreening({ patientId: "p1", patientCode: "B", eye: "left", image, patientConsent: true });
     server.mode = "offline";
     const report = await queue.syncNow();
     expect(report.offline).toBe(true);
@@ -104,7 +104,7 @@ describe("SyncQueue", () => {
   });
 
   it("respects the backoff: items are not retried before their next attempt time", async () => {
-    await queue.enqueueScreening({ patientId: "p1", patientCode: "A", eye: "left", image });
+    await queue.enqueueScreening({ patientId: "p1", patientCode: "A", eye: "left", image, patientConsent: true });
     server.mode = "offline";
     await queue.syncNow();
     server.mode = "ok";
@@ -116,7 +116,7 @@ describe("SyncQueue", () => {
   });
 
   it("marks an item failed permanently when the server rejects it (no endless retries)", async () => {
-    await queue.enqueueScreening({ patientId: "p1", patientCode: "A", eye: "left", image });
+    await queue.enqueueScreening({ patientId: "p1", patientCode: "A", eye: "left", image, patientConsent: true });
     server.mode = "reject";
     const report = await queue.syncNow();
     expect(report.failed).toBe(1);
@@ -129,7 +129,7 @@ describe("SyncQueue", () => {
   });
 
   it("gives up automatic retries after the attempt limit but allows a manual retry", async () => {
-    await queue.enqueueScreening({ patientId: "p1", patientCode: "A", eye: "left", image });
+    await queue.enqueueScreening({ patientId: "p1", patientCode: "A", eye: "left", image, patientConsent: true });
     server.mode = "error500";
     for (let i = 0; i < MAX_AUTO_ATTEMPTS + 2; i++) {
       clock += 10 * 60_000;
@@ -147,7 +147,7 @@ describe("SyncQueue", () => {
   it("pushes an offline-registered patient before its screening and links them", async () => {
     const patient = await queue.enqueuePatient({ code: "OFF-1" });
     clock += 1;
-    await queue.enqueueScreening({ patientClientUuid: patient.clientUuid, patientCode: "OFF-1", eye: "left", image });
+    await queue.enqueueScreening({ patientClientUuid: patient.clientUuid, patientCode: "OFF-1", eye: "left", image, patientConsent: true });
     await queue.syncNow();
     expect(server.patients.get(patient.clientUuid)).toBe("pat-1");
     expect(server.calls[0]!.patientId).toBe("pat-1");
@@ -155,7 +155,7 @@ describe("SyncQueue", () => {
   });
 
   it("holds a screening whose patient has not synced yet", async () => {
-    await queue.enqueueScreening({ patientClientUuid: "missing", patientCode: "X", eye: "left", image });
+    await queue.enqueueScreening({ patientClientUuid: "missing", patientCode: "X", eye: "left", image, patientConsent: true });
     await queue.syncNow();
     expect(server.calls).toHaveLength(0);
     expect((await queue.list())[0]).toMatchObject({ status: "pending" });
@@ -168,7 +168,7 @@ describe("SyncQueue", () => {
   });
 
   it("shares one run between concurrent sync calls", async () => {
-    await queue.enqueueScreening({ patientId: "p1", patientCode: "A", eye: "left", image });
+    await queue.enqueueScreening({ patientId: "p1", patientCode: "A", eye: "left", image, patientConsent: true });
     await Promise.all([queue.syncNow(), queue.syncNow(), queue.syncNow()]);
     expect(server.calls).toHaveLength(1);
   });

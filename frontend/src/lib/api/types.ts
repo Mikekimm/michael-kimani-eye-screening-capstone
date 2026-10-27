@@ -90,6 +90,8 @@ export interface Screening {
   eye: Eye;
   status: ScreeningStatus;
   captured_at: string;
+  /** null for screenings recorded before consent capture existed */
+  patient_consent: boolean | null;
   created_at: string;
   updated_at: string;
   created_by_name: string;

@@ -85,7 +85,8 @@ def get_auth_service(session: DbSession, container: Container) -> AuthService:
 
 
 def get_user_service(session: DbSession, container: Container) -> UserService:
-    return UserService(session, UserRepository(session), container.hasher, _audit(session))
+    return UserService(session, UserRepository(session), container.hasher, _audit(session),
+                       container.email, container.settings.app_base_url)
 
 
 def get_patient_service(session: DbSession) -> PatientService:

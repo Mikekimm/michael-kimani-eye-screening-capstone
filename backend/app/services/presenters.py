@@ -25,6 +25,7 @@ def screening_out(screening: Screening, schema: type[ScreeningOut] = ScreeningOu
     return schema(
         id=screening.id, client_uuid=screening.client_uuid, patient_id=screening.patient_id,
         patient_code=screening.patient.code, eye=screening.eye, status=screening.status,
+        patient_consent=screening.patient_consent,
         captured_at=screening.captured_at, created_at=screening.created_at, updated_at=screening.updated_at,
         created_by_name=screening.created_by.full_name,
         quality=QualityOut.model_validate(screening.quality),

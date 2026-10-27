@@ -66,6 +66,7 @@ test("every screen meets WCAG 2.1 A/AA checks (axe-core)", async ({ page, browse
   await page.locator('input[type="file"][accept="image/jpeg,image/png"]').setInputFiles(path.join(here, "fixtures", "synthetic-fundus.jpg"));
   await expect(page.getByAltText("Captured fundus photo preview")).toBeVisible();
   await audit(page, "health_worker", "(screen: capture step with preview)", results);
+  await page.getByLabel(/The patient agreed/).check();
   await page.getByRole("button", { name: "Analyse photo" }).click();
   await page.waitForURL("**/screenings/*");
   const screeningPath = new URL(page.url()).pathname;

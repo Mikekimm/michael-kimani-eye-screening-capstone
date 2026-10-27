@@ -102,6 +102,9 @@ class Screening(Base):
     quality: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     status: Mapped[ScreeningStatus] = mapped_column(_enum(ScreeningStatus), index=True)
     captured_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # The health worker confirmed the patient agreed to the photo and the screening (NULL = recorded
+    # before consent capture existed).
+    patient_consent: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow,

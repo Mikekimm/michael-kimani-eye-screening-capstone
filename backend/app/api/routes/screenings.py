@@ -25,14 +25,15 @@ async def create_screening(
     eye: Annotated[Eye, Form()],
     client_uuid: Annotated[str, Form(min_length=8, max_length=36)],
     captured_at: Annotated[datetime, Form()],
+    patient_consent: Annotated[bool, Form(description="The patient agreed to the photo and the screening")] = False,
     x_sync_attempt: Annotated[int, Header(ge=1, le=1000)] = 1,
 ):
-    """Runs every available condition model. Re-sending the same client_uuid returns the
-    original record with 200 instead of creating a duplicate."""
+    """Runs every available condition model. Requires ``patient_consent=true``. Re-sending the same
+    client_uuid returns the original record with 200 instead of creating a duplicate."""
     data = await image.read()
     screening, duplicate = screenings.create(
         user, patient_id=patient_id, eye=eye, client_uuid=client_uuid, captured_at=captured_at,
-        content_type=image.content_type, data=data, sync_attempt=x_sync_attempt)
+        content_type=image.content_type, data=data, sync_attempt=x_sync_attempt, patient_consent=patient_consent)
     if duplicate:
         response.status_code = status.HTTP_200_OK
     return screening_out(screening, ScreeningCreated, duplicate=duplicate)

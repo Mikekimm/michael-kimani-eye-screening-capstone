@@ -46,6 +46,8 @@ export class SyncQueue {
 
   async enqueueScreening(input: {
     patientId?: string; patientClientUuid?: string; patientCode: string; eye: Eye; image: Blob; capturedAt?: string;
+    /** Must be true: a screening is only captured after the patient agreed. */
+    patientConsent: true;
   }): Promise<ScreeningQueueItem> {
     if (!input.patientId && !input.patientClientUuid) throw new Error("A patient is required.");
     const item: ScreeningQueueItem = {
@@ -53,6 +55,7 @@ export class SyncQueue {
       patientId: input.patientId ?? null, patientClientUuid: input.patientClientUuid ?? null,
       patientCode: input.patientCode, eye: input.eye, image: input.image,
       capturedAt: input.capturedAt ?? new Date(this.now()).toISOString(),
+      patientConsent: input.patientConsent,
     };
     await this.repo.put(item);
     return item;
@@ -141,7 +144,8 @@ export class SyncQueue {
       if (!patientId) return null;
     }
     const screening = await this.api.screenings.create(
-      { patientId: patientId!, eye: item.eye, clientUuid: item.clientUuid, capturedAt: item.capturedAt, image: item.image },
+      { patientId: patientId!, eye: item.eye, clientUuid: item.clientUuid, capturedAt: item.capturedAt, image: item.image,
+        patientConsent: item.patientConsent === true },
       attempt,
     );
     return screening.id;
