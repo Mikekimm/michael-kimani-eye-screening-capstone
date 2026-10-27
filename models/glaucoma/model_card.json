@@ -1,0 +1,108 @@
+{
+  "condition": "glaucoma",
+  "display_name": "Glaucoma",
+  "version": "mobilenetv2-glaucoma-binary-odir5k-0.1",
+  "file": "model.tflite",
+  "sha256": "e3f790a2dc61dac6265f81c629d820a9f4ad892466aff0ac752d8c4f8dabcdee",
+  "task": "binary",
+  "labels": {
+    "0": "No glaucoma named for this eye",
+    "1": "Glaucoma named in the eye's diagnostic keywords"
+  },
+  "input": {
+    "shape": [
+      1,
+      224,
+      224,
+      3
+    ],
+    "dtype": "float32",
+    "color": "RGB",
+    "resize": "nearest-neighbour to 224x224 (matches the app's ImagePreprocessor)",
+    "normalisation": "MobileNetV2 preprocess_input: pixel / 127.5 - 1, range [-1, 1]"
+  },
+  "output": {
+    "shape": [
+      1,
+      1
+    ],
+    "meaning": "sigmoid score for glaucoma present, in [0, 1]"
+  },
+  "threshold": 0.3198474049568176,
+  "threshold_source": "selected on the patient-separated validation split: highest threshold with sensitivity >= 85%; the test split was not used for any choice",
+  "architecture": "MobileNetV2 (ImageNet weights) -> GlobalAveragePooling2D -> Dropout(0.3) -> Dense(64, relu) -> Dropout(0.2) -> Dense(1, sigmoid); head trained with Adam 1e-4, then top 30 backbone layers fine-tuned at 1e-5 (BatchNorm frozen); class weights; early stopping on validation loss; SEED 42",
+  "training": {
+    "dataset": "Kaggle andrewmvd/ocular-disease-recognition-odir5k (ODIR-5K training set, per-eye diagnostic keywords)",
+    "label_rule": "positive if 'glaucoma' appears in that eye's keywords; excluded: ['suspected glaucoma', 'optic disk photographically invisible'] and unusable photos ['low image quality', 'image offset', 'no fundus image', 'anterior segment image']",
+    "split": "by patient, 70/15/15, stratified on whether a patient has glaucoma and/or cataract; no patient in more than one split",
+    "counts": {
+      "train": {
+        "eyes": 4849,
+        "positives": 197,
+        "patients": 2444
+      },
+      "val": {
+        "eyes": 1037,
+        "positives": 43,
+        "patients": 524
+      },
+      "test": {
+        "eyes": 1040,
+        "positives": 42,
+        "patients": 524
+      }
+    },
+    "epochs_run": 9,
+    "notebook": "notebooks/odir_glaucoma_cataract.ipynb",
+    "export": "float32 TFLite; max |Keras - TFLite| score difference on validation 5.07e-06"
+  },
+  "metrics": {
+    "sensitivity": 0.7619047619047619,
+    "specificity": 0.7214428857715431,
+    "precision": 0.1032258064516129,
+    "f1": 0.18181818181818182,
+    "accuracy": 0.7230769230769231,
+    "auc": 0.8182794159748067,
+    "test_images": 1040,
+    "test_positives": 42,
+    "test_patients": 524,
+    "confidence_intervals": {
+      "sensitivity": {
+        "estimate": 0.7619047619047619,
+        "low": 0.6457986111111111,
+        "high": 0.8717948717948718
+      },
+      "specificity": {
+        "estimate": 0.7214428857715431,
+        "low": 0.6873111450302686,
+        "high": 0.7545319084317224
+      },
+      "precision": {
+        "estimate": 0.1032258064516129,
+        "low": 0.06430157438632264,
+        "high": 0.14675846197200737
+      }
+    },
+    "at_default_threshold_0_5": {
+      "threshold": 0.5,
+      "sensitivity": 0.47619047619047616,
+      "specificity": 0.9028056112224448,
+      "precision": 0.17094017094017094,
+      "f1": 0.25157232704402516,
+      "accuracy": 0.885576923076923,
+      "tp": 20,
+      "fp": 97,
+      "tn": 901,
+      "fn": 22
+    },
+    "source": "notebooks/odir_glaucoma_cataract.ipynb (test split scored once with the exported TFLite file)"
+  },
+  "metrics_status": "measured on a patient-separated held-out test split (1040 eyes, 42 positive, 524 patients); limited evidence, not clinically validated; below the 85% sensitivity / 80% specificity targets",
+  "limitations": [
+    "Screening support only. Not a diagnosis and not clinically validated.",
+    "Binary result only: ODIR-5K has no severity grades, so no severity band is given.",
+    "Labels come from free-text diagnostic keywords per eye in ODIR-5K and may be noisy.",
+    "Small positive class: 42 positive test eyes, so the intervals are wide.",
+    "Single public dataset collected in one country; no external validation; no smartphone-lens images."
+  ]
+}

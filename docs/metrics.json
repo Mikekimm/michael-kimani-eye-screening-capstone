@@ -1,34 +1,106 @@
 {
-  "status": "validation results from the training notebook, not an independent hold-out: 47,234 images, threshold 0.5; does NOT meet the 85% sensitivity target (sensitivity 0.542)",
-  "source": "notebooks/model_notebook.ipynb, saved outputs of the evaluation cell (classification_report)",
-  "evaluation_set": "validation fold of the training run (StratifiedGroupKFold, seed 42), also used for early stopping",
-  "threshold": 0.5,
-  "metrics": {
-    "accuracy": 0.79,
-    "precision": 0.92,
-    "sensitivity": 0.542,
-    "specificity": 0.97,
-    "f1": 0.682
+  "status": "held-out test split by image (no patient IDs available; near-duplicates could not be excluded); not external validation; not clinically validated; 35,426 test images; meets the 85% sensitivity target; below the 80% specificity target",
+  "model_version": "mobilenetv2-dr-binary-2.0",
+  "source": "notebooks/dr_v2_finetune.ipynb -> docs/evaluation/dr_v2/ (recomputed by scripts/dr_v2_metrics.py)",
+  "evaluation_set": "held-out test split by image group (seed 42); the threshold was chosen on the validation split only",
+  "split": {
+    "method": "by image group (augmentation suffixes stripped), stratified, seed 42",
+    "train": 165319,
+    "validation": 35425,
+    "test": 35426,
+    "groups": 236170,
+    "group_overlap": 0
   },
-  "precision_of_values": "accuracy, precision, sensitivity and F1 to 3 decimals; specificity to 2 decimals (from the classification report)",
-  "auc": null,
+  "threshold": 0.41817495226860046,
+  "threshold_rule": "highest validation threshold with sensitivity >= 0.85",
+  "metrics": {
+    "sensitivity": 0.8512890094979647,
+    "specificity": 0.7479938122401625,
+    "precision": 0.7064917515905635,
+    "f1": 0.772160856589028,
+    "accuracy": 0.7909727318918308,
+    "auc": 0.9002506922989231,
+    "tp": 12548,
+    "fp": 5213,
+    "tn": 15473,
+    "fn": 2192
+  },
+  "confidence_intervals": {
+    "sensitivity": {
+      "estimate": 0.8512890094979647,
+      "low": 0.8451102442333785,
+      "high": 0.8568537991858888
+    },
+    "specificity": {
+      "estimate": 0.7479938122401625,
+      "low": 0.7426749975829063,
+      "high": 0.7536993618872667
+    },
+    "precision": {
+      "estimate": 0.7064917515905635,
+      "low": 0.7017709153188173,
+      "high": 0.7115200381651843
+    }
+  },
+  "test_at_default_0_5": {
+    "threshold": 0.5,
+    "sensitivity": 0.7991180461329715,
+    "specificity": 0.844677559702214,
+    "precision": 0.7856856990394877,
+    "f1": 0.7923449482039554,
+    "accuracy": 0.8257212217015751,
+    "tp": 11779,
+    "fp": 3213,
+    "tn": 17473,
+    "fn": 2961
+  },
+  "referable_dr_grade_2_plus": {
+    "sensitivity": 0.8688984477276978,
+    "specificity_vs_grade0": 0.7479938122401625,
+    "auc_grade0_vs_grade2plus": 0.911838770276758
+  },
+  "share_flagged_per_icdr_grade": {
+    "0": {
+      "images": 20686,
+      "flagged": 0.2520061877598376
+    },
+    "1": {
+      "images": 4046,
+      "flagged": 0.8047454275827979
+    },
+    "2": {
+      "images": 6759,
+      "flagged": 0.8020417221482468
+    },
+    "3": {
+      "images": 1704,
+      "flagged": 0.9847417840375586
+    },
+    "4": {
+      "images": 2231,
+      "flagged": 0.9829672792469745
+    }
+  },
   "class_counts": {
-    "no_dr": 27581,
-    "dr_present": 19653,
-    "total": 47234
+    "no_dr": 20686,
+    "dr_present": 14740,
+    "total": 35426
   },
   "targets": {
     "sensitivity": 0.85,
     "specificity": 0.8,
-    "sensitivity_met": false,
-    "specificity_met": true
+    "sensitivity_met": true,
+    "specificity_met": false
   },
   "caveats": [
-    "Not an independent hold-out or test set: the same fold guided early stopping.",
-    "The independent hold-out evaluation (notebooks/kaggle_holdout_eval.ipynb) did not finish.",
-    "Image-level data with no patient identifiers and augmented near-duplicates: optimistic.",
-    "Measured with the Keras model in the training session; the served .tflite is a quantized export that differs by up to about 0.03 in score.",
-    "No threshold calibration was performed; the app uses the default 0.5."
+    "The notebook found 236,170 image groups for 236,170 images: augmented copies and the two eyes of one patient could not be grouped, so near-duplicates may sit in both train and test and these figures may be optimistic.",
+    "No patient identifiers in the dataset; no external validation; not clinically validated.",
+    "Images are from clinic fundus cameras, not low-cost smartphone lenses."
   ],
-  "reference_only": "Gulshan et al. (2016): 90.3% sensitivity / 98.1% specificity on different data, model and operating point."
+  "reference_only": "Gulshan et al. (2016) reported 90.3% sensitivity / 98.1% specificity on different data, model and operating point; not a like-for-like comparison.",
+  "previous_model": {
+    "version": "mobilenetv2-dr-binary-0.3",
+    "file": "docs/evaluation/dr_v1_metrics.json",
+    "summary": "validation fold only, threshold 0.5: sensitivity 0.542, specificity 0.97"
+  }
 }

@@ -21,9 +21,10 @@ _INTERPOLATION = {
 class ImagePreprocessor:
     """Decodes an image source and turns it into a model-ready batch.
 
-    The default interpolation is "nearest" because the training generators
-    (Keras ``flow_from_dataframe``) resize with nearest-neighbour by default.
-    Using the same resize at inference avoids train/serve skew.
+    Each model must be fed the resize it was trained with (its model card says which): the ODIR
+    models used nearest-neighbour (Keras ``flow_from_dataframe`` default), DR v2 used TensorFlow's
+    anti-aliased bilinear resize. Feeding DR v2 nearest-neighbour input flipped 6 of 24 parity
+    decisions, so the choice is not cosmetic.
     """
 
     def __init__(self, target_size=IMG_SIZE, interpolation: str = "nearest"):
@@ -58,7 +59,19 @@ class ImagePreprocessor:
 
     def to_batch(self, image: Image.Image) -> np.ndarray:
         """Resize and scale to [-1, 1] (MobileNetV2 preprocessing), shape (1,H,W,3)."""
-        resized = image.resize(self._target_size, self._resample)
-        array = np.asarray(resized, dtype=np.float32)
+        if self._resample == Image.NEAREST:
+            array = np.asarray(image.resize(self._target_size, self._resample), dtype=np.float32)
+        else:
+            array = self._resize_float(np.asarray(image, dtype=np.float32))
         array = array / 127.5 - 1.0
         return array[np.newaxis, ...]
+
+    def _resize_float(self, array: np.ndarray) -> np.ndarray:
+        """Resizes each channel in float32, like tf.image.resize, instead of rounding back to 8 bits.
+
+        Pillow's bilinear/bicubic filters widen with the scale factor when shrinking, which is the
+        same anti-aliasing as tf.image.resize(antialias=True).
+        """
+        channels = [np.asarray(Image.fromarray(array[..., c]).resize(self._target_size, self._resample))
+                    for c in range(array.shape[-1])]
+        return np.stack(channels, axis=-1)

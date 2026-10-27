@@ -21,18 +21,26 @@ def models_dir(tmp_path):
     return tmp_path
 
 
-def test_real_models_folder_registers_dr_only():
+def test_real_models_folder_registers_all_three_conditions():
     registry = ModelRegistry(CONDITIONS).discover(REPO_ROOT / "models")
-    assert registry.get("dr") is not None
+    for condition in CONDITIONS:
+        assert registry.get(condition) is not None
+        assert registry.status(condition).available, registry.status(condition).reason
+
+
+def test_condition_without_a_folder_is_not_available_yet(models_dir):
+    registry = ModelRegistry(CONDITIONS).discover(models_dir)  # fixture copies dr only
     assert registry.status("dr").available
     for condition in ("glaucoma", "cataract"):
         assert registry.get(condition) is None
         assert "not available yet" in registry.status(condition).reason.lower()
 
 
-def test_model_card_checksum_matches_the_shipped_file():
-    card = json.loads((DR_FOLDER / "model_card.json").read_text(encoding="utf-8"))
-    assert sha256_of(DR_FOLDER / card["file"]) == card["sha256"]
+@pytest.mark.parametrize("condition", CONDITIONS)
+def test_model_card_checksum_matches_the_shipped_file(condition):
+    folder = REPO_ROOT / "models" / condition
+    card = json.loads((folder / "model_card.json").read_text(encoding="utf-8"))
+    assert sha256_of(folder / card["file"]) == card["sha256"]
 
 
 def test_checksum_mismatch_is_rejected(models_dir):
@@ -83,3 +91,20 @@ def test_real_model_output_is_a_probability_and_deterministic():
     scores = [model.predict_proba(batch) for _ in range(3)]
     assert all(0.0 <= s <= 1.0 for s in scores)
     assert np.ptp(scores) == 0.0
+
+
+@pytest.mark.parametrize(("condition", "expected"), [("dr", "bilinear"), ("glaucoma", "nearest"), ("cataract", "nearest")])
+def test_each_model_card_names_the_resize_it_was_trained_with(condition, expected):
+    card = ModelRegistry(CONDITIONS).discover(REPO_ROOT / "models").get(condition).card
+    assert card.interpolation == expected
+
+
+def test_card_that_does_not_say_how_to_resize_is_rejected(models_dir):
+    card_path = models_dir / "dr" / "model_card.json"
+    card = json.loads(card_path.read_text(encoding="utf-8"))
+    card["input"].pop("interpolation")
+    card["input"]["resize"] = "to 224x224"
+    card_path.write_text(json.dumps(card), encoding="utf-8")
+    registry = ModelRegistry(CONDITIONS).discover(models_dir)
+    assert registry.get("dr") is None
+    assert "resize method" in registry.status("dr").reason
