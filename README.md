@@ -109,6 +109,7 @@ models/dr/            model.tflite (served), model.h5 (source), model_card.json
 notebooks/            training notebook, Kaggle hold-out evaluation notebook
 scripts/              init_env, seed, benchmark, calibrate_threshold, export_tflite, e2e_server
 docs/                 scope table, testing report, risk policy, benchmarks, diagrams, screenshots, report
+.github/workflows/     CI: backend tests on PostgreSQL, frontend checks, Docker build
 ```
 
 ## 6. Technical requirements (versions actually used)
@@ -175,14 +176,17 @@ cd frontend; npm.cmd run typecheck; npm.cmd run lint; npm.cmd test
 cd frontend; npx playwright install chromium firefox webkit; npx playwright test     # starts its own throwaway backend
 ```
 
+Continuous integration ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push: the backend suite
+against PostgreSQL 16 (after `alembic upgrade head`), frontend type-check, lint and Vitest, and `docker compose build`.
+
 Latest recorded results (26 Oct 2026, development laptop):
 
 | Suite | Result |
 |---|---|
-| Backend pytest (unit, API integration, real-model tests) | 165 passed, 0 skipped |
-| Frontend Vitest (algorithms, API client, components, forms, routes) | 48 passed |
+| Backend pytest (unit, API integration, real-model tests) | 184 passed, 0 skipped |
+| Frontend Vitest (algorithms, API client, components, forms, routes) | 50 passed |
 | TypeScript strict type-check / ESLint | clean / clean |
-| Playwright end-to-end (4 journeys x Chromium mobile + desktop, Firefox desktop, WebKit/iPhone) | 16 passed |
+| Playwright end-to-end (4 journeys x Chromium mobile + desktop, Firefox desktop, WebKit/iPhone; plus axe-core and throttled-performance checks on Chromium) | 19 passed (16 journeys + 2 accessibility + 1 performance), 3 skipped by design (those checks run on Chromium only) |
 | Browser performance (upload to result, Chromium) | median 0.50 s; 3.17 s with emulated 6x slower CPU + slow 3G |
 | Accessibility, axe-core WCAG 2.1 A/AA (15 screens, all roles, mobile + desktop) | 0 violations |
 | Lighthouse, sign-in page (mobile / desktop) | 96/100/100/100 and 100/100/100/100 (performance/accessibility/best practices/SEO) |
