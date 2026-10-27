@@ -1,5 +1,5 @@
 {
-  "measured_at": "2026-10-26T14:46:15.727Z",
+  "measured_at": "2026-10-27T11:19:52.600Z",
   "tool": "axe-core via @axe-core/playwright 4.10.1",
   "tags": [
     "wcag2a",
@@ -7,7 +7,7 @@
     "wcag21a",
     "wcag21aa"
   ],
-  "pages": 15,
+  "pages": 19,
   "total_violations": 0,
   "results": [
     {
@@ -21,8 +21,28 @@
       "violations": []
     },
     {
+      "role": "public",
+      "route": "/forgot-password",
+      "violations": []
+    },
+    {
+      "role": "public",
+      "route": "/reset-password?token=e2e-audit-only",
+      "violations": []
+    },
+    {
+      "role": "public",
+      "route": "(sign-up: waiting for approval)",
+      "violations": []
+    },
+    {
       "role": "health_worker",
       "route": "/consent",
+      "violations": []
+    },
+    {
+      "role": "health_worker",
+      "route": "(patient page: new code shown)",
       "violations": []
     },
     {
@@ -47,12 +67,12 @@
     },
     {
       "role": "health_worker",
-      "route": "/patients/bd51c123d92f48d9bab11323f5fe63ae",
+      "route": "/patients/3c2e7dcb5169453d9b9c986459f0befc",
       "violations": []
     },
     {
       "role": "health_worker",
-      "route": "/screenings/20283b7922304685981d97131603c691",
+      "route": "/screenings/b1a7195edcb14b3a92af1c91d7d9a7ff",
       "violations": []
     },
     {
@@ -72,7 +92,7 @@
     },
     {
       "role": "specialist",
-      "route": "/reviews/20283b7922304685981d97131603c691",
+      "route": "/reviews/b1a7195edcb14b3a92af1c91d7d9a7ff",
       "violations": []
     },
     {
