@@ -1,22 +1,23 @@
 # Testing, validation and performance report
 
-All results below were produced on 26 October 2026 on the development laptop (Windows 11 Pro,
-Intel CPU with 8 logical cores, Python 3.14.6, Node 24.22.1) unless stated otherwise. Commands to
-reproduce them are in the [README](../README.md#8-tests).
+Results were produced on 26-27 October 2026 on the development laptop (Windows 11 Pro, Intel CPU with
+8 logical cores, Python 3.14.6, Node 24.22.1) unless stated otherwise, and in GitHub Actions (Ubuntu,
+PostgreSQL 16). Commands to reproduce them are in the [README](../README.md#8-tests).
 
-Six strategies were used, each chosen for a specific risk in a screening-and-referral tool:
+Seven strategies were used, each chosen for a specific risk in a screening-and-referral tool:
 
 | # | Strategy | Risk it addresses | Tooling | Result |
 |---|---|---|---|---|
-| 1 | Unit testing of algorithms | wrong decision logic silently mis-triages patients | pytest, Vitest | 94 backend ML and algorithm tests + 25 frontend logic tests pass |
-| 2 | Integration testing of the API with the real model | layers work alone but not together; RBAC gaps | pytest + FastAPI TestClient + LiteRT | 90 API tests pass (incl. 45-case role matrix) |
-| 3 | End-to-end functional testing | the user cannot complete a clinical task | Playwright | 16/16 journeys pass on 4 browser/device profiles |
+| 1 | Unit testing of algorithms | wrong decision logic silently mis-triages patients | pytest, Vitest | 119 backend ML and algorithm tests + frontend logic tests pass |
+| 2 | Integration testing of the API with the real models | layers work alone but not together; RBAC gaps; fake accounts | pytest + FastAPI TestClient + LiteRT; PostgreSQL in CI | 136 API tests pass (incl. a 56-case role matrix) |
+| 3 | End-to-end functional testing | the user cannot complete a clinical task; a stranger gets in | Playwright | 6 journeys x 4 browser/device profiles: 24/24 pass |
 | 4 | Compatibility testing | works in one browser only | Playwright: Chromium, Firefox, WebKit | all journeys pass on all three engines |
-| 5 | Performance testing | too slow on clinic hardware or networks | benchmark script, Playwright + CDP throttling, Lighthouse | 74 ms server pipeline; 0.5 s / 3.2 s round trip; Lighthouse 96-100 |
-| 5b | Accessibility testing | health workers with low vision or screen readers cannot use it | axe-core (WCAG 2.1 A/AA) on every screen, Lighthouse | 0 violations on 15 screens, mobile and desktop |
-| 6 | Model validation | the model is worse than claimed | training-notebook validation fold; hold-out notebook prepared | sensitivity 0.542, specificity 0.97 at 0.5 (validation, not hold-out): **target not met** |
+| 5 | Performance testing | too slow on clinic hardware or networks | benchmark script, Playwright + CDP throttling, Lighthouse | 74 ms server pipeline (DR v1); 0.5 s / 3.2 s round trip; Lighthouse 96-100 |
+| 5b | Accessibility testing | health workers with low vision or screen readers cannot use it | axe-core (WCAG 2.1 A/AA) on every screen | 0 violations on 20 audited pages, mobile and desktop |
+| 6 | Model validation and parity | the model is worse than claimed, or the app feeds it differently from training | held-out test splits; recomputation with the app's code; 24-photo parity test | DR sensitivity 0.851 (target met), specificity 0.748 (not met); app reproduces notebook scores within 0.021 |
 
-Usability testing with health workers (SUS questionnaire) is planned but **has not been run**.
+Usability testing with health workers (SUS questionnaire, kit in [usability/](usability/)) is planned but
+**has not been run**.
 
 ---
 
@@ -30,78 +31,88 @@ no visible failure.
 
 | Area | File | Tests | What is checked |
 |---|---|---|---|
-| Risk policy | `backend/tests/ml/test_risk_policy.py` | 30 | every band edge (0.1999 vs 0.2, ...), uncertain zone, auto-refer switches, invalid config; a sweep of 1,001 scores proves bands never contradict the decision |
+| Risk policy | `backend/tests/ml/test_risk_policy.py` | 30 | every band edge, uncertain zone, auto-refer switches, invalid config; a sweep of 1,001 scores proves bands never contradict the decision |
 | Threshold selection | `test_thresholding.py` | 10 | known confusion matrices; chosen threshold is the highest meeting the sensitivity target |
 | Evaluation | `test_evaluation.py` | 11 | stratified split keeps class ratios; AUC equals scikit-learn's; bootstrap intervals contain the estimate |
-| Preprocessing / quality | `test_preprocessing.py`, `test_quality.py` | 17 | nearest-neighbour resize and [-1, 1] scaling match training; blank and tiny images block; blur and darkness warn |
-| Registry | `test_registry.py` | 8 | checksum mismatch, bad card, wrong folder, missing file are rejected; a dropped-in model folder is registered with no code change |
-| Backoff | `frontend/src/offline/backoff.test.ts` | 5 | exponential growth, cap, full jitter, invalid input |
-| Sync queue | `syncQueue.test.ts` | 10 | **reply lost after the server saved** -> retry creates no duplicate; stops at first network error and keeps order; respects backoff; permanent failure on 422; attempt limit then manual retry; offline patient pushed before its screening |
-| Image hints | `imageQuality.test.ts` | 4 | Laplacian sharpness and brightness hints |
+| Preprocessing / quality | `test_preprocessing.py`, `test_quality.py` | 19 | [-1, 1] scaling; nearest-neighbour copies pixels, bilinear stays in float like TensorFlow; blank and tiny images block; blur and darkness warn |
+| Registry and model cards | `test_registry.py` | 15 | checksum mismatch, bad card, wrong folder, missing file, and a card that does not name its resize are rejected; each card names the resize it was trained with |
+| Review targets | `test_review_targets.py` | 4 | urgent 24 h / routine 72 h due times, overdue one second after, configurable and validated |
+| Rate limits, patient codes, SUS score | `test_throttle.py`, `test_patient_codes.py`, `test_sus_score.py` | 18 | sliding window and Retry-After; check character catches typos; SUS arithmetic |
+| Backoff and sync queue | `frontend/src/offline/*.test.ts` | 15 | **reply lost after the server saved** -> retry creates no duplicate; stops at first network error and keeps order; backoff with jitter; attempt limit |
+| Waiting time, image hints | `utils.test.ts`, `imageQuality.test.ts` | 8 | "30 min", "5 h", "3 days" for a case referred at midnight; sharpness and brightness hints |
 
 **Checking the tests themselves:** I deliberately broke the code (band 3 returned as 2; the
 append-only guard disabled). 10 tests failed as expected, then the code was restored.
 
-## 2. Integration testing (API + database + real model)
+## 2. Integration testing (API + database + real models)
 
 **Why:** most security and data-integrity rules live where layers meet: who may see a record,
-whether a retried upload duplicates, whether review history can be rewritten.
+whether a stranger can get in, whether a retried upload duplicates, whether review history can be rewritten.
 
-**How:** each test gets a fresh SQLite database and calls the real HTTP API. Screening tests use the
-**real, checksum-verified DR model**. Referral and review tests use a clearly labelled test double
-(`FixedScoreModel`) so a referral can be forced; it is never used outside tests.
+**How:** each test gets a fresh database and calls the real HTTP API. Screening tests use the **real,
+checksum-verified DR, glaucoma and cataract models**. Referral and review tests that need a forced score
+use a clearly labelled test double (`FixedScoreModel`); it is never used outside tests. In CI the same
+suite runs against **PostgreSQL 16** after `alembic upgrade head`:
+[run #1](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40503709691) (final-app)
+and [run #2](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40503744036) (main),
+27 October 2026, all three jobs green (backend tests on PostgreSQL, frontend checks, Docker image build).
+Those runs predate the changes of the evening of 27 October; the next push re-runs them.
 
 | Area | Tests | Highlights |
 |---|---|---|
-| Auth | 14 | sign-up cannot set a role (422); Argon2id hash stored; refresh rotation (replayed token rejected); logout revokes; same error for unknown email and wrong password |
-| RBAC | 45 | every protected route x every role, plus unauthenticated access to each route; self-promotion blocked; workers cannot see each other's patients |
-| Screenings | 16 | real model returns a probability in [0, 1], deterministic; glaucoma/cataract return "not available" with no score; same `client_uuid` twice gives one record (200, duplicate); blank / tiny / non-image / BMP-as-JPEG / GIF / oversized / future timestamp / bad eye are all rejected with clear errors |
-| Workflow | 15 | positive and borderline referral; approve / override (reason required) / retake / comment; ORM refuses to update or delete review events; sync pull returns only new decisions; sync push idempotent; analytics contain no identifiers; audit log entries |
+| Auth and approval | 31 | sign-up is **pending**: with the correct password, sign-in returns 403 "Your account is waiting for administrator approval."; approved -> 200; rejected -> 403; rejecting needs a reason, which is emailed; each decision audited; free-text or inactive facility refused (422); password needs a letter and a number; sign-ups rate-limited (429); sign-up cannot set a role; Argon2id; refresh rotation; logout revokes; password reset |
+| Facilities | 3 | public list shows active facilities only; admin adds, renames, deactivates; duplicate names refused |
+| RBAC | 61 | every protected route x every role (42) and without a token (14): a health worker gets 403 on specialist and admin routes, a specialist gets 403 on admin routes; self-promotion blocked; workers cannot see each other's patients |
+| Screenings | 20 | all three real models return a score in [0, 1]; DR has a band, glaucoma/cataract do not; a condition without a model is "not available" with no score; idempotent `client_uuid`; blank / tiny / non-image / wrong type / oversized / future timestamp / bad eye / no consent rejected; specialist overrides a glaucoma result |
+| Workflow | 16 | positive and borderline referral (borderline score derived from the model card's threshold); approve / override / retake / comment; append-only history; sync pull; analytics without identifiers; waiting time, priority and overdue flag in the queue, on the screening and in admin analytics |
 
-**Inputs varied:** positive (0.9), borderline (0.45), negative (0.05), blank, tiny, corrupt,
-wrong-type and oversized images; valid and invalid tokens; every role.
+**Inputs varied:** positive, borderline and negative scores; real fundus photos and synthetic images; blank,
+tiny, corrupt, wrong-type and oversized uploads; fake facility names; weak passwords; valid and invalid
+tokens; every role.
 
 ## 3. End-to-end functional testing (Playwright)
 
-**Why:** to prove a real user can finish each core task through the real UI, API and model.
+**Why:** to prove a real user can finish each core task through the real UI, API and models.
 
-**How:** `frontend/e2e/journeys.spec.ts` starts a throwaway migrated backend and the production build,
-then drives a browser. The uploaded photo is a synthetic fixture (a textured disc), so the journeys
-test the software, not model accuracy.
+**How:** the specs start a throwaway migrated backend (seeded with three demo facilities) and the
+production build, then drive a browser. The clinical journeys upload a synthetic fixture, so they test
+the software, not model accuracy.
 
 | Journey | Steps checked |
 |---|---|
-| Health worker | sign up -> consent -> register patient -> choose eye -> upload -> real result: DR card with model version and estimated band, glaucoma and cataract "Model not available yet", disclaimer -> referral -> history |
-| Specialist | sign in -> queue -> open case -> approve with note -> add comment -> both entries visible (append-only) |
+| Fake sign-up (supervisor's check) | sign up with a listed facility -> "Waiting for administrator approval" -> sign-in refused with that message -> admin sees name, email, facility, registration number "(recorded for administrator review, not verified)" -> Approve -> sign-in works |
+| Rejection | admin clicks Reject -> "Give a reason." -> rejects with a reason -> reason shown; sign-in still 403 |
+| Health worker | sign up -> admin approval -> consent -> register patient -> eye -> upload -> DR v2.0 card with band; glaucoma and cataract cards with model versions, "Binary result only" -> referral -> "Awaiting specialist" with waiting time and review target -> history |
+| Specialist | queue -> open case -> glaucoma reliability box ("false alarms") -> override glaucoma with a reason -> approve with note -> comment -> all entries kept |
 | Unauthorized access | worker opening `/admin/users` is redirected; API returns 401 without a token and 403 with a worker token |
 | Invalid input | name-like patient code rejected by the form; blank photo -> server 422 shown as "cannot be screened ... blank or uniform" |
 
-**Result:** 16/16 passed. Screenshots of every step: [screenshots/e2e/](screenshots/e2e/).
+Screenshots of every step: [screenshots/e2e/](screenshots/e2e/) (files `10-` to `12-` show the fake sign-up).
 
 ## 4. Compatibility testing
 
 | Browser engine | Profile | Journeys |
 |---|---|---|
-| Chromium (Playwright 1.48.2 build) | Pixel 5 (mobile, 393x851, touch) | 4/4 |
-| Chromium | Desktop Chrome 1280x720 | 4/4 |
-| Firefox (Playwright build) | Desktop Firefox | 4/4 |
-| WebKit (Safari's engine) | iPhone 13 | 4/4 |
+| Chromium (Playwright 1.48.2 build) | Pixel 5 (mobile, 393x851, touch) | 6/6 |
+| Chromium | Desktop Chrome 1280x720 | 6/6 |
+| Firefox (Playwright build) | Desktop Firefox | 6/6 |
+| WebKit (Safari's engine) | iPhone 13 | 6/6 |
 
-Layout: bottom tabs below 1024 px, sidebar above (screenshots for both). Limits: all on Windows 11;
-no physical Android/iOS device or real Safari on macOS/iOS has been tested yet.
+Layout: bottom tabs below 1024 px, sidebar above. Limits: all on Windows 11; no physical Android/iOS
+device or real Safari on iOS has been tested yet (planned on an iPhone 13 Pro after the HTTPS deploy).
 
 ## 5. Performance testing
 
-**Server (scripts/benchmark.py, 200 runs after warm-up, synthetic 1024 px JPEG):**
+**Server (scripts/benchmark.py, 200 runs after warm-up, synthetic 1024 px JPEG; measured 26 October with
+the DR v1 model, 2.6 MB):**
 
 | Configuration | Model only mean / p95 | Full pipeline mean / p95 | Memory |
 |---|---|---|---|
 | All cores (default) | 55 ms / 68 ms | 74 ms / 90 ms | 90 -> 117 MB |
 | 1 thread (closer to a low-end CPU) | 60 ms / 84 ms | 77 ms / 103 ms | 90 -> 117 MB |
 
-Model file 2.6 MB; registry load (including SHA-256 check) under 0.15 s. A first run earlier the
-same day, under background load, measured 110 / 166 ms means: timings vary with machine load, so
-both are reported.
+The served models are now three float32 files of about 9 MB each; the benchmark has not yet been
+re-run with them.
 
 **Client round trip** (`e2e/performance.spec.ts`, tap "Analyse photo" to result shown, 3 runs each):
 
@@ -110,54 +121,93 @@ both are reported.
 | No throttling | 0.50 s |
 | Emulated low-end phone: 6x CPU slowdown + slow 3G (400 ms latency, 400 kbit/s) | 3.17 s |
 
-A repeat run gave 0.48 s and 3.09 s (all runs: [benchmarks/browser-timings.jsonl](benchmarks/browser-timings.jsonl)). This is Chrome DevTools emulation, not a physical low-end device.
+All runs: [benchmarks/browser-timings.jsonl](benchmarks/browser-timings.jsonl). This is Chrome DevTools
+emulation, not a physical low-end device; a later run under heavy laptop load measured 5.4 s throttled.
 
-**Lighthouse 12.2.1** (production build, sign-in page; protected pages need a session, which
-Lighthouse cannot create):
-
-| | Performance | Accessibility | Best practices | SEO |
-|---|---|---|---|---|
-| Mobile (simulated 4G, 4x CPU) | 96 | 100 | 100 | 100 |
-| Desktop | 100 | 100 | 100 | 100 |
-
-Bundle: route-level code splitting; core JS about 110 KB gzipped; the charts library (103 KB
-gzipped) loads only on the admin analytics page.
+**Lighthouse 12.2.1** (production build, sign-in page): mobile 96/100/100/100, desktop 100/100/100/100
+(performance / accessibility / best practices / SEO).
 
 ## 5b. Accessibility (axe-core, WCAG 2.1 A and AA)
 
-**Why:** Lighthouse can only reach the public sign-in page; clinical screens need checking too.
-**How:** `frontend/e2e/accessibility.spec.ts` signs in as each role, creates a patient, a screening and a
-referral, and runs axe-core on 15 screens (public, health worker incl. the capture step, specialist,
-admin) on Chromium mobile and desktop. Results: [accessibility/](accessibility/).
-**Result:** first run found 2 critical issues (the hidden camera and gallery file inputs had no labels);
-after fixing, **0 violations of any severity** on all 15 screens in both profiles.
+`frontend/e2e/accessibility.spec.ts` signs in as each role, creates a patient, a screening and a
+referral, and runs axe-core on 20 pages (public, health worker incl. the capture steps, specialist,
+admin incl. facilities) on Chromium mobile and desktop. Results, with the selector of any failing element:
+[accessibility/](accessibility/).
 
-## 6. Model validation
+**Found and fixed:** the hidden camera and gallery inputs had no labels (critical); and on 27 October,
+once the new models started referring the test image, the amber "Awaiting specialist" and "Borderline"
+badges failed contrast (4.3:1 against 4.5:1 required). The colour was darkened from 34% to 30%
+lightness; 0 violations of any severity since.
 
-**Reported result (validation results from the training notebook, not an independent hold-out):** on the 47,234-image validation fold at threshold
-0.5, accuracy 0.790, precision 0.920, sensitivity 0.542, specificity 0.97, F1 0.682 (AUC not computed).
-The **85% sensitivity target is not met**: about 46% of DR images in that fold were missed. Values are
-parsed from the notebook by `scripts/extract_notebook_metrics.py`. The independent hold-out run did
-not finish. The protocol that was prepared for it:
-[notebooks/kaggle_holdout_eval.ipynb](../notebooks/kaggle_holdout_eval.ipynb) rebuilds the
-training run's validation fold and first checks it matches the training notebook's own record
-(fold size 47,234, class counts, row order, and the `.h5`'s metrics at 0.5). Then
-`scripts/calibrate_threshold.py` chooses a threshold for 85% sensitivity on half of the fold and
-reports every metric on the other half with 95% bootstrap intervals into
-[metrics.json](metrics.json). Known bias: this fold was also used for early stopping during
-training, and the dataset has no patient IDs and contains augmented near-duplicates, so any result
-is an optimistic estimate.
+## 6. Model validation and parity
+
+**DR v2** ([notebooks/dr_v2_finetune.ipynb](../notebooks/dr_v2_finetune.ipynb), outputs in
+[evaluation/dr_v2/](evaluation/dr_v2/)): split 70/15/15 by image group (train 165,319 / validation
+35,425 / test 35,426). The threshold (0.418) was chosen on validation as the highest with sensitivity
+>= 85%; the test split was scored once.
+
+| Test split (35,426 images) | Sensitivity | Specificity | Precision | AUC |
+|---|---|---|---|---|
+| At threshold 0.418 | **0.851** (95% CI 0.845-0.857) | **0.748** (0.743-0.754) | 0.706 | 0.900 |
+| At 0.5 (for comparison) | 0.799 | 0.845 | 0.786 | |
+
+Sensitivity target met; **specificity target (80%) not met**. Referable DR (grade 2+) sensitivity 0.869.
+Label: held-out test split by image (no patient IDs available; near-duplicates could not be excluded); not
+external validation; not clinically validated. The notebook found as many image groups as images
+(236,170), so augmented copies and a patient's two eyes could not be grouped: these figures may be
+optimistic.
+
+**Recomputation:** `scripts/dr_v2_metrics.py` reads the notebook's validation and test predictions and
+recomputes the threshold and every figure with the app's own `select_threshold`, `metrics_at_threshold`
+and bootstrap code; it stops if anything differs from the notebook. Threshold, sensitivity, specificity,
+precision, accuracy, F1 and AUC matched exactly. The specificity interval differs in the third decimal
+from the notebook's (0.742-0.754) because the two bootstrap implementations differ; the app's is reported.
+`test_notebook_metrics.py` repeats this check on every test run.
+
+**Parity (does the app feed the model exactly as the notebook did?):** the notebook saved 24 of its test
+photos with the score its TFLite file gave each one. `test_dr_parity.py` runs the same photos through the
+app's own pipeline (Pillow decode, bilinear resize from the model card, scaling, LiteRT):
+
+| | Result |
+|---|---|
+| Served file SHA-256 | `eb2603ab5b8ed412ac4462fc7fcad3cc6b8b84a7a7bf5d711ba24b673f05eb30`, equal to the notebook's `results.json` |
+| Largest score difference from the notebook | **0.021** (mean 0.005) |
+| Tolerance | 0.03, chosen by me; it is not a standard. I set it after the first measurement, so the stronger evidence is the next row |
+| Screening decisions changed | **0 of 24** |
+| Same test with nearest-neighbour resize (the old hard-coded default) | largest difference 0.68, **6 of 24 decisions changed** |
+
+A small difference is expected because the app and the notebook use different image-decoding and resize
+code (TensorFlow's JPEG decoder and `tf.image.resize` versus Pillow). The parity photos come from the
+dataset and are not committed, so this test skips in CI and runs where `incoming/dr_v2/parity/` exists.
+The Keras-vs-TFLite agreement test also passes (tolerance 1e-3; the notebook measured 9.8e-06).
+
+**Glaucoma and cataract** ([notebooks/odir_glaucoma_cataract.ipynb](../notebooks/odir_glaucoma_cataract.ipynb),
+[odir_metrics.json](odir_metrics.json)): split by patient, thresholds chosen on validation, test scored
+once with the exported file; all integrity checks in the notebook passed.
+
+| Test split | Sensitivity | Specificity | Precision | AUC | Positives |
+|---|---|---|---|---|---|
+| Glaucoma (1,040 eyes) | 0.762 | 0.721 | **0.103** | 0.818 | 42 |
+| Cataract (1,044 eyes) | 0.978 | 0.962 | 0.542 | 0.991 | 46 |
+
+Glaucoma is below both targets and about 9 in 10 of its positive flags are false alarms; the result
+screens say so next to every glaucoma result. Cataract meets both targets, but with 46 positives the
+intervals are wide. ODIR-5K labels come from free-text keywords and may be noisy.
+
+**History:** the earlier DR model (v0.3) reported sensitivity 0.542 on its training-notebook validation
+fold ([evaluation/dr_v1_metrics.json](evaluation/dr_v1_metrics.json)). Results it produced keep its version
+label, and the app shows a notice on them instead of re-scoring them silently.
 
 ## Improvements made because of testing
 
 | Found by | Problem | Fix |
 |---|---|---|
+| Parity test | the app resized every photo with nearest-neighbour; DR v2 was trained with bilinear: 6 of 24 decisions would have changed | each model card states its resize; the pipeline uses it; a card without one is refused |
+| Full test run after the DR v2 install | a borderline test hard-coded the old 0.5 threshold | the borderline score is derived from the model card |
+| Supervisor's live test | a fake sign-up seemed to get in | audit log showed the fake account never signed in (the browser signed in the developer's own account); approval was already enforced. Added the facility list, rejection reasons, password rule, sign-up rate limit and an E2E test of the whole path |
+| axe-core | amber badges below 4.5:1 contrast | colour darkened |
 | Vitest (form tests) | password field dropped React Hook Form's ref: **login could never succeed** | `forwardRef` on `PasswordInput` |
-| pytest (script test) | `calibrate_threshold.py` never wrote `metrics.json` (an edit had silently not applied) | rewritten and covered by an end-to-end script test |
-| E2E screenshots | results listed alphabetically, so cataract (no model) appeared above DR | product order: DR, glaucoma, cataract |
-| E2E screenshots | "referred because the result was manual" | plain-language referral reasons |
+| pytest (script test) | `calibrate_threshold.py` never wrote `metrics.json` | rewritten and covered by an end-to-end script test |
+| E2E screenshots | results listed alphabetically | product order: DR, glaucoma, cataract |
 | Lighthouse | SEO 91: no `robots.txt` | added; SEO 100 |
-| axe-core | camera and gallery file inputs had no accessible name (critical) | labelled and removed from tab order |
-| Agreement test | `.tflite` differs from `.h5` by up to 0.034 (quantized export) | tolerance documented; full-fold difference recorded by the Kaggle run |
 | Manual review | relative SQLite path created two databases depending on the folder | paths anchored to the repository root |
-| Manual review | `.local` demo emails rejected by email validation | demo accounts use `example.org` |

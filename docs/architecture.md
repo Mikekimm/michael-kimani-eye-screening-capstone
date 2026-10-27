@@ -53,6 +53,6 @@ sync logs, refresh tokens and an audit log.
 | React Native Android app | React PWA, installable on Android and usable on any browser | one codebase for health workers, specialists and admins, testable end to end in one semester; Android remains possible via the same API |
 | On-device TFLite inference | Server-side TFLite (LiteRT); offline = capture, queue and sync | reconciles offline use with authentication and central review (supervisor point); in-browser inference left as future work |
 | SQLite on device (WatermelonDB/Realm) | IndexedDB on device; SQLite or PostgreSQL on the server | IndexedDB is the browser's native store and can hold image blobs |
-| Three disease models | DR only; glaucoma and cataract shown as "Model not available yet" | no glaucoma/cataract model was trained in time; the registry makes adding them a drop-in |
+| Three disease models | DR, glaucoma and cataract all served | glaucoma and cataract trained later on ODIR-5K (patient-separated split) and added as model folders with no code change; glaucoma is below target and labelled so |
 | Load balancer | not implemented | not meaningful for a single-instance prototype; the API is stateless (JWT) so it can be scaled horizontally |
 | PlantUML diagrams | Mermaid | renders on GitHub, no Java dependency |

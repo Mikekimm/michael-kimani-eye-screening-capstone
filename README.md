@@ -25,38 +25,56 @@ setting only: no field deployment or clinical evaluation has taken place.
 
 | Role | What they do in the app |
 |---|---|
-| **Health worker** (public sign-up) | Registers patients by clinic code, captures or uploads a fundus photo of the left or right eye, gets a screening result, refers cases, works offline and syncs later |
-| **Specialist** (granted by an admin) | Reviews referred cases: approve, override with a reason, request a retake, comment. History is append-only |
-| **Admin** | Manages users and roles, sees aggregate analytics (no images or identifiers) |
+| **Health worker** (public sign-up, then admin approval) | Registers patients by app-generated code, captures or uploads a fundus photo of the left or right eye, gets a screening result, refers cases, works offline and syncs later |
+| **Specialist** (created or promoted by an admin) | Reviews referred cases: approve, override any condition with a reason, request a retake, comment. History is append-only |
+| **Admin** (created at install) | Approves or rejects sign-ups (rejection needs a reason), creates staff accounts, assigns roles, maintains the facility list, sees aggregate analytics (no images or identifiers) |
+
+Patients have no accounts: they are records with an app-generated code. A new sign-up is **pending** and
+cannot sign in until an admin approves it. The facility comes from the admin's list (no free text) and
+the professional registration number is **recorded for the admin to check** (for example by phoning
+the facility); the app cannot verify it. The server checks the role on every request (`AccessPolicy`
+and route guards), so a health worker calling a specialist or admin endpoint gets HTTP 403.
 
 ## 2. Conditions and real model availability
 
 | Condition | Model | Status |
 |---|---|---|
-| Diabetic retinopathy | MobileNetV2 transfer learning, binary (no DR / DR present), TFLite run with LiteRT | **Available.** At threshold 0.5 on 47,234 validation images: accuracy 0.790, precision 0.920, sensitivity 0.542, specificity 0.97, F1 0.682 ([docs/metrics.json](docs/metrics.json)). These are validation results from the training notebook, not an independent hold-out; **the 85% sensitivity target is not met** |
-| Glaucoma | MobileNetV2, binary, ODIR-5K, patient-separated split: [notebooks/odir_glaucoma_cataract.ipynb](notebooks/odir_glaucoma_cataract.ipynb) | **Model not available yet** until the notebook's output is added; the app then loads it with no code change. Binary result only |
-| Cataract | as glaucoma | as glaucoma. **No 1-5 cataract grading**: ODIR-5K has no severity labels |
+| Diabetic retinopathy | v2.0: MobileNetV2 fine-tuned from `block_13_expand`, binary (no DR / DR present), bilinear resize, TFLite run with LiteRT ([notebooks/dr_v2_finetune.ipynb](notebooks/dr_v2_finetune.ipynb)) | **Available.** Threshold 0.418 chosen on the validation split. On 35,426 test images: sensitivity **0.851** (95% CI 0.845-0.857), specificity **0.748** (0.743-0.754), precision 0.706, AUC 0.900 ([docs/metrics.json](docs/metrics.json)). **Sensitivity target met; specificity target (80%) not met.** Held-out test split by image (no patient IDs available; near-duplicates could not be excluded); not external validation; not clinically validated |
+| Glaucoma | MobileNetV2, binary, ODIR-5K, patient-separated split ([notebooks/odir_glaucoma_cataract.ipynb](notebooks/odir_glaucoma_cataract.ipynb)) | **Available, below target, limited evidence.** Threshold 0.320. On 1,040 test eyes (42 positive): sensitivity 0.762, specificity 0.721, **precision 0.103** (about 9 in 10 positive flags are false alarms), AUC 0.818 ([docs/odir_metrics.json](docs/odir_metrics.json)). Binary result only |
+| Cataract | as glaucoma | **Available, limited evidence.** Threshold 0.541. On 1,044 test eyes (46 positive): sensitivity 0.978, specificity 0.962, precision 0.542, AUC 0.991; meets both targets, but with only 46 positives the intervals are wide. Binary result only: **no 1-5 cataract grading**, because ODIR-5K has no severity labels |
+
+ODIR-5K labels come from free-text diagnostic keywords per eye and may be noisy. The earlier DR model
+(v0.3, sensitivity 0.542 on its validation fold) is kept only as history in
+[docs/evaluation/dr_v1_metrics.json](docs/evaluation/dr_v1_metrics.json); results it produced keep its
+version label and the app says so on those screens.
 
 The 1-5 band shown for DR is an **estimated severity band** derived from the model score by a
-configurable policy ([docs/risk_policy.md](docs/risk_policy.md)). It is not an ICDR grade. Adding a
-trained glaucoma or cataract model needs no code change: drop `model.tflite` + `model_card.json` into
-`models/glaucoma/` or `models/cataract/` and restart (the registry verifies the SHA-256).
+configurable policy ([docs/risk_policy.md](docs/risk_policy.md)). It is not an ICDR grade. Adding or
+replacing a model needs no code change: drop `model.tflite` + `model_card.json` into `models/<condition>/`
+and restart. The registry verifies the SHA-256, and the card says which resize the model was trained with
+(the app feeds each model exactly that; a card that does not say is refused).
 
 ## 3. Features
 
-* Sign-up / sign-in with Argon2-hashed passwords, JWT access + refresh tokens, role-based access enforced by the API
+* Sign-up with admin approval (pending until approved; facility from an admin-managed list; rejection with a reason, emailed to the person), sign-in with Argon2-hashed passwords, JWT access + refresh tokens, sign-in and sign-up rate limits, role-based access enforced by the API
+* Forgot password by emailed one-time link; required patient consent per screening
 * Patient registry using pseudonymous clinic codes (no names), patient screening history
 * 3-step capture: patient, eye, photo (rear camera with a circular guide, or gallery), with on-device quality hints
 * Server quality gate (blank, too small) with plain-language 422 errors; warnings for blur, darkness and non-fundus images
-* One result card per condition: classification, model score explained, borderline flag, estimated severity band, model version, recommended action
+* One result card per condition: classification, model score explained, borderline flag, estimated severity band (DR), model version, recommended action, and the model's measured limits ("How reliable is this model?")
+* Results made by an earlier model are kept unchanged and labelled, with "Screen again" for current results
 * Automatic referral of positive and borderline results; manual "refer anyway"
-* Specialist queue and case review with an append-only, timestamped review history
+* Specialist queue (overdue first; flagged conditions; waiting time; urgent 24 h / routine 72 h review targets, configurable) and case review with an append-only, timestamped review history; override any condition with a reason
 * Offline queue in IndexedDB: capture while offline, automatic sync with exponential backoff, per-item retry; specialist decisions pulled back to the device
-* Admin user management and aggregate analytics; About screen built from the model card
+* Admin user management, staff account creation, facility list, aggregate analytics with overdue reviews; About screen built from the model cards
 * Installable PWA, mobile-first (bottom tabs) with a desktop sidebar
 
 **Not included (honest limits):** offline *inference* (photos taken offline are analysed after they
-sync), glaucoma and cataract models, a native Android app, a load balancer, field testing.
+sync), a native Android app (the PWA installs on Android and iPhone instead), a load balancer, field testing.
+
+**Deviations from the proposal** (reasons in [docs/scope_table.md](docs/scope_table.md)): React Native on
+Android with on-device TensorFlow Lite became an installable PWA with server-side TFLite inference. Offline
+works for capture and queueing only: a photo taken offline is scored after it syncs.
 
 ## 4. Architecture
 
@@ -105,10 +123,10 @@ frontend/
   src/hooks/          data hooks     src/lib/         API client, auth, utils
   src/offline/        IndexedDB queue, backoff, sync
   e2e/                Playwright journeys
-models/dr/            model.tflite (served), model.h5 (source), model_card.json
-notebooks/            training notebook, Kaggle hold-out evaluation notebook
-scripts/              init_env, seed, benchmark, calibrate_threshold, export_tflite, e2e_server
-docs/                 scope table, testing report, risk policy, benchmarks, diagrams, screenshots, report
+models/<condition>/   model.tflite (served), model_card.json; models/dr/model.keras (source for the agreement test)
+notebooks/            DR v2 and ODIR training notebooks (with outputs), DR v1 notebook, hold-out notebook
+scripts/              init_env, seed, benchmark, dr_v2_metrics, extract_notebook_metrics, export_tflite, e2e_server
+docs/                 scope table, testing report, risk policy, metrics, evaluation evidence, benchmarks, diagrams, screenshots, report
 .github/workflows/     CI: backend tests on PostgreSQL, frontend checks, Docker build
 ```
 
@@ -117,13 +135,13 @@ docs/                 scope table, testing report, risk policy, benchmarks, diag
 | Component | Version |
 |---|---|
 | OS (development and tests) | Windows 11 Pro (10.0.26200) |
-| Python | 3.14.6 (Docker image uses 3.12; not yet built) |
+| Python | 3.14.6 (Docker image uses 3.12, built in CI) |
 | Node.js / npm | 24.22.1 / 11.19.1 |
 | Backend | FastAPI 0.162.0, Uvicorn 0.54.0, SQLAlchemy 2.1.6, Alembic 1.20.1, Pydantic 2.14.1, argon2-cffi 25.1.0, PyJWT 2.15.1, ai-edge-litert 2.3.0, NumPy 2.5.4, Pillow 13.0.0 |
 | Frontend | React 18.3.1, Vite 5.4.10, TypeScript 5.6.3 (strict), Tailwind 3.4.14, TanStack Query 5.59.20, React Hook Form 7.53.2, Zod 3.23.8, vite-plugin-pwa 0.20.5, Recharts 2.13.3 |
 | Testing | pytest 9.1.1, Vitest 2.1.4, Testing Library 16.0.1, Playwright 1.48.2, Lighthouse 12.2.1 |
 | ML (dev only) | TensorFlow 2.22.0rc0, scikit-learn 1.9.1 |
-| Database | SQLite (default); PostgreSQL 16 via `DATABASE_URL` (configured, not yet tested) |
+| Database | SQLite (default); PostgreSQL 16 via `DATABASE_URL` (backend test suite run against it in CI) |
 
 Full pinned lists: [backend/requirements.txt](backend/requirements.txt), [backend/requirements-dev.txt](backend/requirements-dev.txt), [frontend/package.json](frontend/package.json).
 
@@ -159,14 +177,16 @@ If PowerShell blocks `npm` scripts, use `npm.cmd` as shown. API documentation: h
 
 **Demo accounts** (synthetic data only): `admin@example.org`, `specialist@example.org`,
 `nurse@example.org`. Their passwords are generated by `scripts/init_env.py` and stored in your local
-`.env`; they are never committed. New health worker accounts can be created from the sign-up page.
+`.env`; they are never committed. The seed also creates three fictional facilities (Demo Health Centre A,
+Demo Health Centre B, Demo District Hospital). New health worker accounts come from the sign-up page and
+stay pending until the admin approves them on the Users page.
 
 **Switching to PostgreSQL:** set `DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db` in `.env`,
 `pip install "psycopg[binary]"`, then run `alembic upgrade head`.
 
 **Docker (deployment):** `docker compose up --build` serves the app on http://localhost:8080 with
-PostgreSQL. These files have not yet been built or run, because Docker is not installed on the
-development machine.
+PostgreSQL. CI builds both images on every push; the full stack has not been started locally because
+Docker is not installed on the development machine.
 
 **Hosted demo (Render, free plan):** [render.yaml](render.yaml) describes the whole deployment: PostgreSQL,
 the API (built from `backend/Dockerfile`) and the PWA as a static HTTPS site. In the Render dashboard choose
@@ -184,17 +204,20 @@ cd frontend; npx playwright install chromium firefox webkit; npx playwright test
 
 Continuous integration ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push: the backend suite
 against PostgreSQL 16 (after `alembic upgrade head`), frontend type-check, lint and Vitest, and `docker compose build`.
+First runs, all three jobs green:
+[run #1 (final-app)](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40503709691),
+[run #2 (main)](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40503744036).
 
-Latest recorded results (26 Oct 2026, development laptop):
+Latest recorded results (27 Oct 2026, development laptop):
 
 | Suite | Result |
 |---|---|
-| Backend pytest (unit, API integration, real-model tests) | 184 passed, 0 skipped |
-| Frontend Vitest (algorithms, API client, components, forms, routes) | 50 passed |
+| Backend pytest (119 unit/algorithm + 136 API integration, real models incl. parity and Keras-vs-TFLite agreement) | 255 passed, 0 skipped |
+| Frontend Vitest (algorithms, API client, components, forms, routes) | 69 passed |
 | TypeScript strict type-check / ESLint | clean / clean |
-| Playwright end-to-end (4 journeys x Chromium mobile + desktop, Firefox desktop, WebKit/iPhone; plus axe-core and throttled-performance checks on Chromium) | 19 passed (16 journeys + 2 accessibility + 1 performance), 3 skipped by design (those checks run on Chromium only) |
-| Browser performance (upload to result, Chromium) | median 0.50 s; 3.17 s with emulated 6x slower CPU + slow 3G |
-| Accessibility, axe-core WCAG 2.1 A/AA (15 screens, all roles, mobile + desktop) | 0 violations |
+| Playwright end-to-end (6 journeys incl. fake sign-up -> pending -> refused -> approved, x Chromium mobile + desktop, Firefox desktop, WebKit/iPhone; plus axe-core and throttled-performance checks on Chromium) | 27 passed (24 journeys + 2 accessibility + 1 performance), 3 skipped by design (those checks run on Chromium only) |
+| Browser performance (upload to result, Chromium; measured 26 Oct with the DR v1 model) | median 0.50 s; 3.17 s with emulated 6x slower CPU + slow 3G |
+| Accessibility, axe-core WCAG 2.1 A/AA (20 pages, all roles, mobile + desktop) | 0 violations |
 | Lighthouse, sign-in page (mobile / desktop) | 96/100/100/100 and 100/100/100/100 (performance/accessibility/best practices/SEO) |
 
 Strategies, results and the improvements they led to: [docs/testing_report.md](docs/testing_report.md).
@@ -205,20 +228,26 @@ cores: model 55 ms mean, full pipeline on a 1024px photo 74 ms mean; restricted 
 
 ## 9. Model provenance and evaluation
 
-* Data: Kaggle `ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy` (EyePACS, APTOS 2019,
-  Messidor-2; pre-augmented; no patient identifiers). No images are stored in this repository.
-* Training: [notebooks/model_notebook.ipynb](notebooks/model_notebook.ipynb) (MobileNetV2, frozen
-  backbone, SEED 42, group-aware 5-fold split, 8 epochs).
-* Model card: [models/dr/model_card.json](models/dr/model_card.json) (verified input spec, labels,
-  checksum, threshold and its source, limitations).
-* Reported metrics: validation results from the training notebook, not an independent hold-out, parsed from the notebook's saved outputs by
-  `scripts/extract_notebook_metrics.py` into [docs/metrics.json](docs/metrics.json) and the model card.
-  At 0.5 the model misses about 46% of DR cases in that fold (sensitivity 0.542), below the 85% target.
-* Not completed: the independent hold-out run
-  ([notebooks/kaggle_holdout_eval.ipynb](notebooks/kaggle_holdout_eval.ipynb)) and threshold calibration
-  (`scripts/calibrate_threshold.py`), which would raise sensitivity at the cost of more referrals.
-* Known limitations: image-level splits (no patient IDs), augmented near-duplicates, no external test
-  set, no smartphone-lens images, probabilities not calibrated.
+* DR data: Kaggle `ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy` (EyePACS, APTOS 2019,
+  Messidor-2; pre-augmented; no patient identifiers). Glaucoma and cataract: Kaggle
+  `andrewmvd/ocular-disease-recognition-odir5k`. No images are stored in this repository.
+* DR v2 training: [notebooks/dr_v2_finetune.ipynb](notebooks/dr_v2_finetune.ipynb) (run on Kaggle, 2 x T4,
+  224 min; 70/15/15 split by image group, train 165,319 / validation 35,425 / test 35,426). Its outputs are in
+  [docs/evaluation/dr_v2/](docs/evaluation/dr_v2/) (results, validation and test predictions, parity scores).
+* Every DR figure is recomputed from those predictions with the app's own code by
+  `scripts/dr_v2_metrics.py`, which stops if anything differs from the notebook; a pytest test repeats it.
+* The served `model.tflite` has the SHA-256 the notebook recorded
+  (`eb2603ab5b8ed412ac4462fc7fcad3cc6b8b84a7a7bf5d711ba24b673f05eb30`). On 24 of the notebook's test photos
+  the app's own pipeline reproduces the notebook's scores within 0.021 (tolerance 0.03), with no decision changed.
+* Glaucoma/cataract: [notebooks/odir_glaucoma_cataract.ipynb](notebooks/odir_glaucoma_cataract.ipynb), split by
+  patient (no patient in two splits), thresholds chosen on validation, test scored once with the exported file.
+* Known limitations: DR split by image (the notebook found as many groups as images, so augmented copies and a
+  patient's two eyes could not be grouped; the DR figures may be optimistic), no external test set, no
+  smartphone-lens images, scores are not calibrated probabilities, ODIR labels may be noisy and its positive
+  classes are small.
+* Reference only: Gulshan et al. (2016) reported 90.3% sensitivity / 98.1% specificity for referable DR on
+  different data, a much larger model and a high-specificity operating point; not a like-for-like comparison.
+  Our referable-DR (grade 2+) sensitivity on the test split is 0.869.
 
 ## 10. Security and privacy
 
@@ -231,16 +260,20 @@ app loads no third-party scripts); no TLS in local development; no penetration t
 
 ## 11. Use of AI assistance
 
+I used Claude to help me build this project.
+
 This project was designed and directed by Michael Maina Kimani. I wrote the proposal, chose the scope and the honesty rules (real trained models only, no invented results), trained and evaluated the diabetic retinopathy model on Kaggle, and made the decisions on what to build and what to cut.
 
 I used Claude (Anthropic), through Claude Code, to help write, refactor and test the backend and frontend code, the test suites and the documentation, working under my direction. I reviewed the results and I am responsible for the submitted work.
 
 ## 12. Known issues
 
-* Glaucoma and cataract are not available until models are trained (e.g. on ODIR-5K).
+* DR specificity (0.748) and both glaucoma targets are below the proposal's targets; glaucoma precision is
+  about 0.10. The result screens show these limits next to each result.
 * Offline mode queues photos but cannot analyse them on the device.
-* The `.tflite` model is a quantized export; scores differ from the Keras model by up to about 0.03.
-* PostgreSQL and Docker configurations are written but not yet run.
+* PostgreSQL runs in CI (backend tests) and Docker images are built in CI; the full Docker stack has not been
+  started locally.
+* Rate limits are in memory per process; behind several API instances they would need a shared store.
 * No usability study with health workers has been completed yet.
 * On the free Render plan the API sleeps after 15 minutes without use (the next request takes about a
   minute), its disk is wiped on restart (records and results stay in PostgreSQL, but older photos stop

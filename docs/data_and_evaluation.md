@@ -5,7 +5,7 @@ patient-separated development and test sets; external evaluation; and the baseli
 answer the research questions. It keeps the **research evaluation** (is the model good enough, and how
 sure are we?) separate from **software verification** ([testing_report.md](testing_report.md)).
 
-## 1. Dataset
+## 1. Dataset (diabetic retinopathy)
 
 | Item | Detail |
 |---|---|
@@ -16,40 +16,45 @@ sure are we?) separate from **software verification** ([testing_report.md](testi
 | Patient identifiers | **None.** Images of the same patient or eye cannot be linked |
 | Augmentation | The redistribution includes augmented copies. The notebook's group split strips common augmentation suffixes from file names to group copies, but found as many groups as images, so near-duplicates may not have been grouped |
 
-## 2. Split actually used (verified from the notebook's saved outputs)
+## 2. DR v2: split actually used (from the notebook's saved outputs)
+
+[../notebooks/dr_v2_finetune.ipynb](../notebooks/dr_v2_finetune.ipynb), run on Kaggle (2 x T4, 224 minutes):
 
 | Set | How it was made | Size |
 |---|---|---|
-| Training | `StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)`, groups = file-name base id, fold 1 train part | 188,936 images |
-| Validation | the same fold's held-out part; also used for early stopping during training | 47,234 images (27,581 no DR, 19,653 DR = 41.6%) |
+| Training | 70/15/15 split by image group (augmentation suffixes stripped), stratified, seed 42 | 165,319 images |
+| Validation | used for early stopping and to choose the threshold | 35,425 images |
+| Test | scored once, after the threshold was fixed | 35,426 images (14,740 DR present) |
 
-Model: MobileNetV2 (ImageNet weights, frozen) + small head, 8 epochs, class weights, early stopping on
-validation loss. At threshold 0.5 the notebook reported on this validation set: accuracy 0.790,
-precision 0.920, recall 0.542, F1 0.682.
+Model: MobileNetV2 (ImageNet) fine-tuned from `block_13_expand`, head GAP-Dropout-Dense(64)-Dropout-Dense(1),
+class weights, bilinear anti-aliased resize to 224 x 224, 10 epochs (best validation AUC 0.896).
 
-**Whether the shipped files are that model is being checked**: the hold-out notebook
-([../notebooks/kaggle_holdout_eval.ipynb](../notebooks/kaggle_holdout_eval.ipynb)) rebuilds the
-same fold, confirms size, class counts and row order, and checks that `models/dr/model.h5` reproduces
-those four numbers. Only if it does are the fold's metrics reported for the shipped model.
+**Limitation that matters most:** the notebook found 236,170 groups for 236,170 images, so augmented copies
+and a patient's two eyes could not be grouped; near-duplicates may sit in both training and test, and the
+figures may be optimistic. Label used everywhere: held-out test split by image (no patient IDs available;
+near-duplicates could not be excluded); not external validation; not clinically validated.
 
-**Consequences, stated as limitations:** splits are image-level (no patient IDs); augmented copies
-may sit on both sides; the validation fold influenced early stopping. Every metric is therefore an
-**optimistic estimate**, not a measure of clinical performance.
+## 3. Threshold and reporting
 
-## 3. Threshold calibration and reporting
-
-`scripts/calibrate_threshold.py` splits the fold's predictions in two (stratified, seed 42):
-
-* **tuning half**: picks the highest threshold that reaches 85% sensitivity (`select_threshold`, O(n log n));
-* **test half**: every reported number, with 95% bootstrap intervals (1,000 resamples) and AUC.
-
-It writes [metrics.json](metrics.json) and updates the model card the API serves. It reports the
-`.tflite` scores, because that is the file the app runs.
+* **Threshold:** the highest validation threshold with sensitivity >= 85%: 0.418.
+* **Test split, once:** sensitivity 0.851 (95% CI 0.845-0.857), specificity 0.748 (0.743-0.754),
+  precision 0.706, AUC 0.900. Sensitivity target met, specificity target not met.
+* **Recomputed, not copied:** `scripts/dr_v2_metrics.py` reads the notebook's validation and test
+  predictions ([evaluation/dr_v2/](evaluation/dr_v2/)) and recomputes the threshold and every figure with
+  the app's own `select_threshold` (O(n log n)), `metrics_at_threshold` and bootstrap code; it stops if
+  any value differs from the notebook. It writes [metrics.json](metrics.json) and the served model card.
+* **Same file, same input:** the served `.tflite` has the checksum the notebook recorded, and the app's
+  pipeline reproduces the notebook's scores on 24 test photos within 0.021 with no decision changed
+  ([testing_report.md](testing_report.md) section 6).
+* **History:** the first DR model (v0.3, frozen backbone, nearest-neighbour resize, threshold 0.5) reported
+  sensitivity 0.542 on its training-notebook validation fold
+  ([evaluation/dr_v1_metrics.json](evaluation/dr_v1_metrics.json)); its independent hold-out run never finished.
 
 ## 4. Baselines
 
-1. Flag everyone / flag no one, to show what the metrics mean at the extremes.
-2. Default threshold 0.5 versus the calibrated threshold, to show the sensitivity/specificity trade-off.
+1. The default threshold 0.5 versus the chosen 0.418 on the same test split: 0.5 gives sensitivity 0.799
+   and specificity 0.845, so the lower threshold buys sensitivity with false alarms.
+2. The previous model (v0.3): sensitivity 0.542 on its validation fold.
 3. Literature reference only: Gulshan et al. (2016), 90.3% sensitivity / 98.1% specificity, on
    different data, model and operating point, so not a like-for-like comparison.
 
@@ -59,7 +64,7 @@ It writes [metrics.json](metrics.json) and updates the model card the API serves
 |---|---|
 | RQ1 gaps in existing tools | literature review (proposal ch. 2); this prototype combines offline capture, multi-condition design and referral |
 | RQ2 architecture and sync for intermittent connectivity | idempotent sync with backoff; tests of lost replies and offline queues ([testing_report.md](testing_report.md)) |
-| RQ3 how accurately the model classifies DR | validation results from the training notebook, not an independent hold-out in [metrics.json](metrics.json): sensitivity 0.542, specificity 0.97 at 0.5; target not met; hold-out not completed |
+| RQ3 how accurately the models classify DR, glaucoma and cataract | DR: held-out test split by image, sensitivity 0.851, specificity 0.748 ([metrics.json](metrics.json)). Glaucoma: 0.762 / 0.721, precision 0.103. Cataract: 0.978 / 0.962 ([odir_metrics.json](odir_metrics.json)). No images from low-cost smartphone lenses were tested |
 | RQ4 how the referral workflow connects workers to specialists | end-to-end journeys: referral, review, decision pulled back; no clinical outcome study |
 
 ## 6. Glaucoma and cataract (ODIR-5K)
@@ -76,12 +81,20 @@ stratified), and no person appears in two splits (checked by an assertion and in
 * Threshold chosen on the validation split only (highest with >= 85% sensitivity); the test split is
   scored once, with the exported `.tflite`, with patient-level bootstrap intervals.
 * Binary output only: ODIR-5K has no severity grades, so no severity band is produced.
-* Results, when run: `odir_metrics.json` and each model card. **Not yet run.**
+* Results ([odir_metrics.json](odir_metrics.json), all notebook integrity checks passed):
+
+| Test split | Eyes (positive) | Patients | Threshold | Sensitivity | Specificity | Precision | AUC |
+|---|---|---|---|---|---|---|---|
+| Glaucoma | 1,040 (42) | 524 | 0.320 | 0.762 | 0.721 | 0.103 | 0.818 |
+| Cataract | 1,044 (46) | 525 | 0.541 | 0.978 | 0.962 | 0.542 | 0.991 |
+
+Glaucoma is below both targets and is limited evidence; cataract meets both but rests on 46 positives.
 
 ## 7. Qualified claims
 
 * Screening support only, not a diagnosis, not clinically validated.
-* Only diabetic retinopathy has a deployed model so far; glaucoma and cataract models depend on the ODIR-5K notebook run and will be reported with their real, possibly weak, results.
+* All three models are deployed with their real results; glaucoma is weak (precision about 0.10) and the app
+  says so next to every glaucoma result.
 * Lowering the threshold to reach the sensitivity target raises false alarms (more referrals); the
   borderline band adds referrals by design.
 * Synthetic images used in tests and benchmarks are code-path fixtures, never used to report model

@@ -20,16 +20,23 @@ context only. Do not name a country; only public datasets were used and there wa
 - Every deviation must be listed with its reason in `docs/scope_table.md`.
 
 ## 3. ML models and honesty rules
-- DR: real binary MobileNetV2 classifier (0 = no DR, 1 = DR present, ICDR grades 1-4), Kaggle
-  `ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy`. The committed notebook trained 8 epochs on a
-  StratifiedGroupKFold fold and saved the model files; whether the shipped files are that run is checked by
-  `notebooks/kaggle_holdout_eval.ipynb` (the author earlier believed it was a 2-epoch / 15k-image run).
-  Input 224x224, MobileNetV2 `preprocess_input`, nearest-neighbour resize (matches training).
-- **DR metrics** are validation results from the training notebook, not an independent hold-out (accuracy
-  0.790, precision 0.920, sensitivity 0.542, specificity 0.97, F1 0.682, 47,234 images, threshold 0.5), parsed by
-  `scripts/extract_notebook_metrics.py` into `docs/metrics.json` and the model card. Never call them a test set.
-  The 85% sensitivity target is not met. The hold-out run did not finish. Never estimate numbers.
-- Glaucoma and cataract: no trained models. They show `model_available=false` / "Model not available yet".
+- DR v2.0 (served): binary MobileNetV2 (0 = no DR, 1 = DR present, ICDR grades 1-4) fine-tuned from
+  `block_13_expand`, Kaggle `ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy`,
+  `notebooks/dr_v2_finetune.ipynb`. Input 224x224, BILINEAR anti-aliased resize, pixel / 127.5 - 1. The
+  resize comes from each model card (`input.interpolation` / `input.resize`); never hard-code it.
+- **DR metrics** (`docs/metrics.json`, written by `scripts/dr_v2_metrics.py`, which recomputes them from the
+  notebook's predictions with the app's code): threshold 0.418 chosen on validation; test split of 35,426
+  images: sensitivity 0.851, specificity 0.748, precision 0.706, AUC 0.900. Sensitivity target met,
+  **specificity target not met**. Always label them: "held-out test split by image (no patient IDs available;
+  near-duplicates could not be excluded); not external validation; not clinically validated".
+  Never estimate numbers; only use values in results.json, the model cards or the metrics files.
+- DR v0.3 (retired): validation-fold results only (sensitivity 0.542, threshold 0.5), kept as history in
+  `docs/evaluation/dr_v1_metrics.json`. Its independent hold-out run never finished; never call those figures a test set.
+- Glaucoma and cataract (served): ODIR-5K, binary only (no severity labels), patient-separated split.
+  Glaucoma: sensitivity 0.762, specificity 0.721, precision 0.103 on 1,040 eyes (42 positive): below both
+  targets, limited evidence; always show its precision. Cataract: 0.978 / 0.962 / 0.542 on 1,044 eyes
+  (46 positive): meets targets, limited evidence. ODIR labels are free-text keywords and may be noisy.
+- A condition without a valid model folder still shows `model_available=false` / "Model not available yet".
 - Severity band 1-5 for a binary model is an **estimate** from a documented, configurable `RiskPolicy`,
   labelled "Estimated severity band". It is not a clinical grade. Never claim calibration not measured.
 - No random, dummy, mocked or hard-coded probabilities outside clearly labelled test fixtures.
@@ -100,9 +107,13 @@ frontend/   docs/{diagrams,evaluation,benchmarks,report}/   notebooks/
 ## 12b. Current state (27 Oct 2026)
 Backend, frontend, E2E, docs, diagrams and the technical report PDF are done (see `docs/scope_table.md`);
 `final-app` is merged into `main`. The Streamlit prototype was retired (git tag `legacy-streamlit-prototype`).
-DR metrics = validation results from the training notebook, not an independent hold-out (docs/metrics.json).
-Latest test run: 184 backend, 50 Vitest, Playwright 19 passed + 3 skipped by design.
-Pending: ODIR notebook run, walkthrough video, usability test, physical-device test.
+All three models are installed (DR v2.0, glaucoma, cataract); metrics as in section 3. CI (backend on
+PostgreSQL 16, frontend checks, Docker build) ran green on GitHub for runs #1 and #2.
+Sign-up is pending until an admin approves; facilities come from an admin-managed list; specialists and
+admins are created or promoted by an admin. Review targets (urgent 24 h, routine 72 h) are a design decision.
+Latest test run and counts: see README section 8 and docs/testing_report.md.
+Pending: walkthrough video, usability test (SUS), physical-device test (iPhone 13 Pro after an HTTPS deploy),
+on-device inference and load balancer (proposal items not built).
 
 ## 13. Environment
 Windows + PowerShell. Python in project `.venv` only (never global). Pinned requirements.
