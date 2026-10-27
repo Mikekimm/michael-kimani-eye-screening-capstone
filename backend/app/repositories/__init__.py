@@ -11,7 +11,7 @@ from ..models import (
     AuditEvent, DiagnosisResult, PasswordResetToken, Patient, Referral, RefreshToken, ReviewEvent, Screening,
     SyncLog, User,
 )
-from ..models.enums import Role, ScreeningStatus
+from ..models.enums import AccountStatus, Role, ScreeningStatus
 
 T = TypeVar("T", bound=Base)
 
@@ -40,6 +40,10 @@ class UserRepository(Repository[User]):
 
     def list(self) -> Sequence[User]:
         return self.session.scalars(select(User).order_by(User.created_at)).all()
+
+    def active_admins(self) -> Sequence[User]:
+        return self.session.scalars(select(User).where(
+            User.role == Role.ADMIN, User.is_active.is_(True), User.status == AccountStatus.APPROVED)).all()
 
     def count_by_role(self) -> dict[str, int]:
         rows = self.session.execute(select(User.role, func.count()).group_by(User.role)).all()

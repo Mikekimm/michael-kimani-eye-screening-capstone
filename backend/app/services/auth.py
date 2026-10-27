@@ -60,7 +60,21 @@ class AuthService:
                                     facility=request.facility, registration_number=request.registration_number))
         self._audit.record(user.id, "user.registered", "user", user.id)
         self._session.commit()
+        self._notify_admins_of_sign_up(user)
         return user
+
+    def _notify_admins_of_sign_up(self, user: User) -> None:
+        """Admins hear about a new sign-up straight away instead of only when they next open the app."""
+        if self._reset_config is None:
+            return
+        link = f"{self._reset_config.app_base_url.rstrip('/')}/admin/users"
+        for admin in self._users.active_admins():
+            self._reset_config.sender.send(
+                to=admin.email, subject="New health worker account waiting for approval",
+                body=(f"Hello {admin.full_name},\n\n{user.full_name} ({user.email}) registered as a health worker.\n"
+                      f"Health facility: {user.facility}\nRegistration number: {user.registration_number}\n\n"
+                      "Check these against your staff list or the professional register, then approve or reject "
+                      f"the account here:\n{link}\n\nPatients never need an account; reject any sign-up you cannot confirm."))
 
     def login(self, email: str, password: str, client: str | None = None) -> TokenPair:
         key = LoginThrottle.key(email, client)

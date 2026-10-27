@@ -146,8 +146,9 @@ export function SignupPage() {
     <AuthLayout title="Create account">
       <Card className="p-4">
         <p className="mb-3 text-sm text-muted-foreground">
-          For health workers. Your clinic administrator approves new accounts before first sign-in. Specialist and
-          administrator access is granted by an administrator.
+          For health facility staff only. Your clinic administrator approves new accounts before first sign-in.
+          Specialist and administrator access is granted by an administrator. Patients do not need an account: the
+          health worker registers them and gives them a patient code.
         </p>
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">

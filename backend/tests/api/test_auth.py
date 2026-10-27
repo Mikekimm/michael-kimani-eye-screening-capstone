@@ -22,6 +22,14 @@ def test_public_sign_up_creates_pending_health_worker(client):
     assert "password" not in body and "password_hash" not in body
 
 
+def test_admins_are_emailed_when_someone_signs_up(client):
+    admin = create_user(client, Role.ADMIN)
+    client.post("/api/auth/register", json=NEW_USER)
+    mails = [m.read_text(encoding="utf-8") for m in _outbox(client)]
+    assert len(mails) == 1 and admin.email in mails[0]
+    assert NEW_USER["registration_number"] in mails[0] and NEW_USER["facility"] in mails[0]
+
+
 def test_pending_account_cannot_sign_in_until_an_admin_approves_it(client):
     created = client.post("/api/auth/register", json=NEW_USER).json()
     sign_in = {"email": NEW_USER["email"], "password": NEW_USER["password"]}
