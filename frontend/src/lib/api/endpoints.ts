@@ -19,8 +19,6 @@ export interface SignUpInput {
   email: string;
   full_name: string;
   password: string;
-  /** Free text, recorded for the administrator. */
-  facility: string;
   /** Grants nothing until an administrator approves the account. */
   requested_role: "health_worker" | "specialist";
 }
@@ -85,7 +83,7 @@ export function createApi(http: HttpClient) {
       users: () => http.request<User[]>("/admin/users"),
       createUser: (body: { email: string; full_name: string; password: string; role: Role }) =>
         http.request<User>("/admin/users", { method: "POST", json: body }),
-      updateUser: (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string }) =>
+      updateUser: (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string; facility?: string }) =>
         http.request<User>(`/admin/users/${id}`, { method: "PATCH", json: body }),
       analytics: () => http.request<Analytics>("/admin/analytics"),
     },

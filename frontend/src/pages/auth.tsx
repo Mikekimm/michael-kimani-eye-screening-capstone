@@ -25,7 +25,6 @@ export const signupSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
   password: newPassword,
   requested_role: z.enum(["health_worker", "specialist"]),
-  facility: z.string().trim().min(2, "Enter the health facility where you work.").max(120),
 });
 
 export const resetSchema = z.object({
@@ -117,7 +116,7 @@ export function SignupPage() {
   const [submitted, setSubmitted] = useState(false);
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { full_name: "", email: "", password: "", requested_role: "health_worker", facility: "" },
+    defaultValues: { full_name: "", email: "", password: "", requested_role: "health_worker" },
   });
   const { errors, isSubmitting } = form.formState;
 
@@ -138,7 +137,7 @@ export function SignupPage() {
       <AuthLayout title="Account created">
         <Card className="flex flex-col gap-3 p-4 text-sm" role="status">
           <p className="flex items-center gap-2 font-medium"><Clock aria-hidden className="h-5 w-5 text-primary" />Waiting for administrator approval</p>
-          <p>Your request is <strong>pending</strong>. An administrator will check who you are with your facility, then
+          <p>Your request is <strong>pending</strong>. An administrator will confirm who you are, then
             approve or reject it (they may also grant a different role). You cannot sign in until it is approved.</p>
           <Link to="/login" className="font-medium text-primary underline">Back to sign in</Link>
         </Card>
@@ -176,13 +175,6 @@ export function SignupPage() {
               <option value="health_worker">Health worker</option>
               <option value="specialist">Specialist</option>
             </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="facility">Health facility</Label>
-            <Input id="facility" autoComplete="organization" aria-invalid={!!errors.facility}
-              aria-describedby="facility-hint facility-error" {...form.register("facility")} />
-            <p id="facility-hint" className="text-xs text-muted-foreground">Recorded for the administrator, who checks it with you or the facility.</p>
-            <FieldError id="facility-error" message={errors.facility?.message} />
           </div>
           {serverError && <p role="alert" className="text-sm text-destructive">{serverError}</p>}
           <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating account..." : "Create account"}</Button>

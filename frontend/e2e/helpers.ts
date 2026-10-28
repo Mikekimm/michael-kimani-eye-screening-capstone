@@ -11,7 +11,6 @@ export async function signUp(page: Page, fullName: string, email: string, role: 
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
   await page.getByLabel("I am requesting access as").selectOption(role);
-  await page.getByLabel("Health facility").fill("E2E Health Centre");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByText("Waiting for administrator approval")).toBeVisible();
 }

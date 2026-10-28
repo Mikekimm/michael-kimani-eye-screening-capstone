@@ -132,7 +132,7 @@ export function UsersPage() {
 
   const [rejecting, setRejecting] = useState<string | null>(null);
 
-  const change = async (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string }) => {
+  const change = async (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string; facility?: string }) => {
     try {
       await update.mutateAsync({ id, ...body });
       toast("User updated.", "success");
@@ -145,7 +145,7 @@ export function UsersPage() {
   return (
     <>
       <PageHeader title="Users"
-        description="A sign-up is a request: it grants nothing until you approve it. Check the person with their facility (for example by phoning it) before approving; the app cannot verify who someone is. You can grant a different role than the one requested." />
+        description="A sign-up is a request: it grants nothing until you approve it. Confirm who the person is outside the app (for example by phoning their facility) before approving; the app cannot verify who someone is. You can grant a different role than the one requested and record their facility." />
       <CreateStaffAccount />
       {users.isPending && <ListSkeleton />}
       {users.isError && <ErrorState error={users.error} onRetry={() => void users.refetch()} />}
@@ -160,7 +160,7 @@ export function UsersPage() {
                   {u.status === "pending" && <Badge tone="medium">Waiting for approval</Badge>} {u.status === "rejected" && <Badge tone="high">Rejected</Badge>}</p>
                 <p className="text-xs text-muted-foreground">{u.email} · signed up {formatDate(u.created_at)}</p>
                 {u.facility && (
-                  <p className="text-xs text-muted-foreground">Facility: {u.facility} <span className="italic">(as typed, not verified)</span></p>
+                  <p className="text-xs text-muted-foreground">Facility: {u.facility} <span className="italic">(set by an administrator, not verified)</span></p>
                 )}
                 {u.status === "pending" && u.requested_role && (
                   <p className="text-xs">Requested role: <strong>{ROLE_LABEL[u.requested_role]}</strong> (grants nothing until approved)</p>
@@ -172,7 +172,7 @@ export function UsersPage() {
                 )}
               </div>
               {u.status === "pending" && !self && rejecting !== u.id && (
-                <PendingDecision user={u} busy={update.isPending} onApprove={(role) => void change(u.id, { status: "approved", role })}
+                <PendingDecision user={u} busy={update.isPending} onApprove={(role, facility) => void change(u.id, { status: "approved", role, ...(facility ? { facility } : {}) })}
                   onReject={() => setRejecting(u.id)} />
               )}
               <div className={u.status === "pending" ? "hidden" : "flex gap-2"}>
@@ -193,17 +193,21 @@ export function UsersPage() {
   );
 }
 
-/** Approve with the requested role (or another one the admin picks), or reject with a reason. */
+/** Approve with the requested role (or another one the admin picks) and, optionally, the person's facility;
+ * or reject with a reason. */
 function PendingDecision({ user, busy, onApprove, onReject }: {
-  user: User; busy: boolean; onApprove: (role: Role) => void; onReject: () => void;
+  user: User; busy: boolean; onApprove: (role: Role, facility: string) => void; onReject: () => void;
 }) {
   const [role, setRole] = useState<Role>(user.requested_role ?? "health_worker");
+  const [facility, setFacility] = useState(user.facility ?? "");
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select aria-label={`Role to grant ${user.full_name}`} className="w-40" value={role} onChange={(e) => setRole(e.target.value as Role)}>
         {(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
       </Select>
-      <Button size="sm" disabled={busy} onClick={() => onApprove(role)}>Approve</Button>
+      <Input aria-label={`Facility for ${user.full_name} (optional)`} className="w-48" placeholder="Facility (optional)"
+        maxLength={120} value={facility} onChange={(e) => setFacility(e.target.value)} />
+      <Button size="sm" disabled={busy} onClick={() => onApprove(role, facility.trim().length >= 2 ? facility.trim() : "")}>Approve</Button>
       <Button size="sm" variant="outline" disabled={busy} onClick={onReject}>Reject</Button>
     </div>
   );

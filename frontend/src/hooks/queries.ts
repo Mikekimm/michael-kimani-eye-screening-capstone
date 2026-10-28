@@ -102,7 +102,7 @@ export const useUpdateUser = () => {
   const api = useApi();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string }) =>
+    mutationFn: ({ id, ...body }: { id: string; role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string; facility?: string }) =>
       api.admin.updateUser(id, body),
     onSuccess: () => client.invalidateQueries({ queryKey: ["admin"] }),
   });

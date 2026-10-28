@@ -43,6 +43,9 @@ class UserService:
         if user.id == admin.id:
             # Prevents an admin locking everyone out by demoting or deactivating themselves.
             raise PermissionDeniedError("You cannot change your own role or status.")
+        if changes.facility is not None and changes.facility != user.facility:
+            self._audit.record(admin.id, "user.facility_set", "user", user.id)
+            user.facility = changes.facility
         if changes.role is not None and changes.role != user.role:
             self._audit.record(admin.id, f"user.role_changed:{user.role.value}->{changes.role.value}", "user", user.id)
             user.role = changes.role

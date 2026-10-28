@@ -31,6 +31,9 @@ test("fake sign-up stays pending, cannot sign in, and works only after an admin 
 
   await stranger.goto("/login");
   await stranger.getByLabel("Email").fill(email);
+  await stranger.getByLabel("Password", { exact: true }).fill("Wrong-password-1");
+  await stranger.getByRole("button", { name: "Sign in" }).click();
+  await expect(stranger.getByText("Incorrect email or password.")).toBeVisible(); // wrong password: generic message
   await stranger.getByLabel("Password", { exact: true }).fill(PASSWORD);
   await stranger.getByRole("button", { name: "Sign in" }).click();
   await expect(stranger.getByText("Your account is waiting for administrator approval.")).toBeVisible();
@@ -39,16 +42,39 @@ test("fake sign-up stays pending, cannot sign in, and works only after an admin 
 
   const admin = await adminSession(browser, info);
   const card = admin.locator("div.rounded-lg", { hasText: email }).last();
-  await expect(card).toContainText("E2E Health Centre");
-  await expect(card).toContainText("(as typed, not verified)");
   await expect(card).toContainText("Requested role: Health worker");
-  await expect(card).not.toContainText(/registration/i);
+  await expect(card).not.toContainText(/registration|Facility:/i); // sign-up collects no facility
+  await card.getByLabel(/Facility for/).fill("E2E Health Centre"); // optional, set by the admin
   await admin.screenshot({ path: path.join(SHOTS, `${info.project.name}-12-admin-pending-list.png`), fullPage: true });
   await card.getByRole("button", { name: "Approve" }).click();
   await expect(card.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  await expect(card).toContainText("Facility: E2E Health Centre");
 
   await stranger.getByRole("button", { name: "Sign in" }).click();
   await stranger.waitForURL((url) => !url.pathname.startsWith("/login"));
+});
+
+test("a second sign-up with a registered email is refused and changes nothing", async ({ browser }, info) => {
+  const email = `dup.${info.project.name}@example.org`;
+  const first = await session(browser, info);
+  await signUp(first, "Original Name", email);
+
+  const second = await session(browser, info);
+  await second.goto("/signup");
+  await second.getByLabel("Full name").fill("Different Name");
+  await second.getByLabel("Email").fill(email.toUpperCase());
+  await second.getByLabel("Password", { exact: true }).fill("Another-pass-2");
+  await second.getByLabel("I am requesting access as").selectOption("specialist");
+  await second.getByRole("button", { name: "Create account" }).click();
+  await expect(second.getByRole("alert")).toContainText("already registered");
+
+  const admin = await adminSession(browser, info);
+  const cards = admin.locator("div.rounded-lg", { hasText: email });
+  await expect(cards.first()).toContainText("Original Name");
+  await expect(admin.getByText("Different Name")).toHaveCount(0);
+  await expect(cards.last()).toContainText("Requested role: Health worker"); // not changed to specialist
+  const login = await second.request.post("/api/auth/login", { data: { email, password: "Another-pass-2" } });
+  expect(login.status()).toBe(401); // the second password was never stored
 });
 
 test("an administrator rejects a sign-up with a reason and the person still cannot sign in", async ({ browser }, info) => {

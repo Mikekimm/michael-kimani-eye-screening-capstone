@@ -102,26 +102,25 @@ describe("LoginPage", () => {
 
 describe("SignupPage", () => {
   const valid = { full_name: "Amina", email: "a@example.org", password: "long-enough-1",
-    requested_role: "specialist", facility: "Hill Health Centre" };
+    requested_role: "specialist" };
 
   it("explains that a sign-up is a request an administrator approves", () => {
     renderWithProviders(<SignupPage />, { route: "/signup" });
     expect(screen.getByText(/the role you ask for grants nothing until then/)).toBeInTheDocument();
   });
 
-  it("asks only for name, email, password, requested role and a free-text facility", () => {
+  it("asks only for name, email, password and requested role", () => {
     renderWithProviders(<SignupPage />, { route: "/signup" });
-    for (const label of ["Full name", "Email", "Password", "I am requesting access as", "Health facility"]) {
+    for (const label of ["Full name", "Email", "Password", "I am requesting access as"]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
-    expect(screen.getByLabelText("Health facility").tagName).toBe("INPUT");
+    expect(screen.queryByLabelText(/facility/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/registration/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Administrator" })).not.toBeInTheDocument();
   });
 
-  it("rejects weak passwords, a missing facility and the admin role", () => {
+  it("rejects weak passwords and the admin role", () => {
     expect(signupSchema.safeParse({ ...valid, password: "onlyletters" }).success).toBe(false);
-    expect(signupSchema.safeParse({ ...valid, facility: "" }).success).toBe(false);
     expect(signupSchema.safeParse({ ...valid, requested_role: "admin" }).success).toBe(false);
     expect(signupSchema.safeParse(valid).success).toBe(true);
   });
@@ -133,7 +132,6 @@ describe("SignupPage", () => {
     await userEvent.type(screen.getByLabelText("Email"), valid.email);
     await userEvent.type(screen.getByLabelText("Password"), valid.password);
     await userEvent.selectOptions(screen.getByLabelText("I am requesting access as"), "specialist");
-    await userEvent.type(screen.getByLabelText("Health facility"), valid.facility);
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
     expect(await screen.findByText("Waiting for administrator approval")).toBeInTheDocument();
     expect(api.auth.register).toHaveBeenCalledWith(valid);

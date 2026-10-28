@@ -10,8 +10,7 @@ from app.models.enums import Role
 
 from .conftest import PASSWORD, create_user, login
 
-NEW_USER = {"email": "nurse@example.org", "full_name": "Amina Nurse", "password": "s3cure-pass-word1",
-            "facility": "Hill Health Centre"}
+NEW_USER = {"email": "nurse@example.org", "full_name": "Amina Nurse", "password": "s3cure-pass-word1"}
 
 
 def test_public_sign_up_creates_pending_health_worker(client):
@@ -20,7 +19,7 @@ def test_public_sign_up_creates_pending_health_worker(client):
     body = response.json()
     assert body["role"] == "health_worker"
     assert body["status"] == "pending"
-    assert body["facility"] == "Hill Health Centre" and body["requested_role"] == "health_worker"
+    assert body["facility"] is None and body["requested_role"] == "health_worker"
     assert "registration_number" not in body
     assert "password" not in body and "password_hash" not in body
 
@@ -30,7 +29,6 @@ def test_admins_are_emailed_when_someone_signs_up(client):
     client.post("/api/auth/register", json=NEW_USER)
     mails = [m.read_text(encoding="utf-8") for m in _outbox(client)]
     assert len(mails) == 1 and admin.email in mails[0]
-    assert "Hill Health Centre" in mails[0] and "not verified" in mails[0]
     assert "Requested role: health worker" in mails[0]
 
 
@@ -63,10 +61,20 @@ def test_wrong_password_on_a_pending_account_does_not_reveal_that_it_exists(clie
     assert response.status_code == 401
 
 
-def test_sign_up_requires_a_facility(client):
-    for missing in ("facility",):
-        body = {k: v for k, v in NEW_USER.items() if k != missing}
-        assert client.post("/api/auth/register", json=body).status_code == 422
+def test_sign_up_has_no_facility_field(client):
+    response = client.post("/api/auth/register", json={**NEW_USER, "facility": "Hill Health Centre"})
+    assert response.status_code == 422  # sign-up asks only name, email, password and requested role
+
+
+def test_admin_can_set_the_facility_when_approving(client):
+    admin = login(client, create_user(client, Role.ADMIN))
+    user_id = client.post("/api/auth/register", json=NEW_USER).json()["id"]
+    response = client.patch(f"/api/admin/users/{user_id}", headers=admin,
+                            json={"status": "approved", "facility": "Hill Health Centre"})
+    assert response.status_code == 200
+    assert response.json()["facility"] == "Hill Health Centre" and response.json()["status"] == "approved"
+    for session in client.container.database.session():
+        assert session.query(AuditEvent).filter_by(action="user.facility_set", entity_id=user_id).count() == 1
 
 
 def test_accounts_created_by_an_admin_are_approved_immediately(client):
@@ -93,6 +101,32 @@ def test_duplicate_email_is_rejected_case_insensitively(client):
     client.post("/api/auth/register", json=NEW_USER)
     response = client.post("/api/auth/register", json={**NEW_USER, "email": "NURSE@example.org"})
     assert response.status_code == 409
+    assert "already registered" in response.json()["message"]
+
+
+@pytest.mark.parametrize("status", ["pending", "approved"])
+def test_duplicate_sign_up_never_changes_the_existing_account(client, status):
+    admin = login(client, create_user(client, Role.ADMIN))
+    original = client.post("/api/auth/register", json=NEW_USER).json()
+    if status == "approved":
+        client.patch(f"/api/admin/users/{original['id']}", headers=admin, json={"status": "approved"})
+    for session in client.container.database.session():
+        before = session.query(User).filter_by(email=NEW_USER["email"]).one()
+        snapshot = (before.id, before.full_name, before.password_hash, before.role, before.status, before.requested_role)
+
+    again = client.post("/api/auth/register", json={"email": "Nurse@Example.org", "full_name": "Someone Else",
+                                                     "password": "other-pass-word2", "requested_role": "specialist"})
+    assert again.status_code == 409
+
+    for session in client.container.database.session():
+        rows = session.query(User).filter(User.email.ilike(NEW_USER["email"])).all()
+        assert len(rows) == 1  # never a second account
+        after = rows[0]
+        assert (after.id, after.full_name, after.password_hash, after.role, after.status, after.requested_role) == snapshot
+    old = client.post("/api/auth/login", json={"email": NEW_USER["email"], "password": NEW_USER["password"]})
+    new = client.post("/api/auth/login", json={"email": NEW_USER["email"], "password": "other-pass-word2"})
+    assert new.status_code == 401  # the duplicate's password was never stored
+    assert old.status_code == (200 if status == "approved" else 403)
 
 
 def test_sign_up_validation_errors(client):

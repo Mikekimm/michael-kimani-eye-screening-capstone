@@ -32,12 +32,11 @@ class ORMModel(BaseModel):
 class RegisterRequest(BaseModel):
     """Public sign-up: a request for access, not access. The account stays pending and cannot sign in
     until an admin approves it; ``requested_role`` grants nothing by itself (admins are never requestable).
-    The facility is free text recorded for the administrator to check."""
+    It asks only for name, email, password and the requested role; the admin may record a facility when approving."""
     model_config = ConfigDict(extra="forbid")
     email: EmailStr
     full_name: FullName
     password: Password
-    facility: FacilityName
     requested_role: Literal[Role.HEALTH_WORKER, Role.SPECIALIST] = Role.HEALTH_WORKER
 
 
@@ -76,15 +75,16 @@ class UserOut(ORMModel):
     status: AccountStatus
     status_reason: str | None = None
     requested_role: Role | None = None   # what they asked for at sign-up; grants nothing until approved
-    facility: str | None = None          # free text recorded for the administrator; not verified
+    facility: str | None = None          # set by an admin (optional); free text, not verified
     created_at: datetime
 
 
 class UserUpdate(BaseModel):
     """Admin-only changes to another account. Rejecting a registration needs a reason. Approving without a
-    ``role`` grants the role the person requested."""
+    ``role`` grants the role the person requested. ``facility`` (optional) sets or corrects where they work."""
     model_config = ConfigDict(extra="forbid")
     role: Role | None = None
+    facility: FacilityName | None = None
     is_active: bool | None = None
     status: AccountStatus | None = None
     status_reason: Note | None = None
