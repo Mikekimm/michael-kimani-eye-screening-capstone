@@ -13,9 +13,10 @@ Auth = Annotated[AuthService, Depends(get_auth_service)]
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def register(body: RegisterRequest, auth: Auth):
-    """Public sign-up. Creates a health worker account that waits for an admin's approval."""
-    return auth.register(body)
+def register(body: RegisterRequest, auth: Auth, request: Request):
+    """Public sign-up. Creates a health worker account that waits for an admin's approval.
+    Limited per client address (HTTP 429 when exceeded)."""
+    return auth.register(body, client=request.client.host if request.client else None)
 
 
 @router.post("/login", response_model=TokenPair)

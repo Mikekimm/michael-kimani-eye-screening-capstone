@@ -1,14 +1,20 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
+import { z } from "zod";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { PageHeader } from "@/components/AppShell";
 import { EmptyState, ErrorState, ListSkeleton, describeError } from "@/components/feedback";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Select, buttonVariants } from "@/components/ui/primitives";
+import {
+  Badge, Button, Card, CardContent, CardHeader, CardTitle, FieldError, Input, Label, Select, Textarea, buttonVariants,
+} from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/useAuth";
-import { useAnalytics, useUpdateUser, useUsers } from "@/hooks/queries";
-import type { AccountStatus, Role } from "@/lib/api/types";
-import { ROLE_LABEL, formatDate, percent } from "@/lib/utils";
+import { useAnalytics, useCreateUser, useUpdateUser, useUsers } from "@/hooks/queries";
+import type { AccountStatus, Role, User } from "@/lib/api/types";
+import { CONDITION_LABEL, ROLE_LABEL, formatDate, percent } from "@/lib/utils";
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -20,7 +26,6 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
   );
 }
 
-const CONDITION_NAME: Record<string, string> = { dr: "Diabetic retinopathy", glaucoma: "Glaucoma", cataract: "Cataract" };
 
 function PendingApprovalsNotice() {
   const users = useUsers();
@@ -45,10 +50,12 @@ export function AnalyticsPage() {
     <>
       <PageHeader title="Analytics" description="Aggregate counts only. No images, patient codes or names." />
       <PendingApprovalsNotice />
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         <StatTile label="Screenings" value={String(a.total_screenings)} />
         <StatTile label="Referral rate" value={a.referral_rate === null ? "-" : percent(a.referral_rate)} />
         <StatTile label="Open referrals" value={String(a.open_referrals)} />
+        <StatTile label="Overdue reviews" value={String(a.overdue_referrals)}
+          hint={`targets: urgent ${a.review_targets_hours.urgent} h, routine ${a.review_targets_hours.routine} h`} />
         <StatTile label="Median time to review" value={a.median_review_turnaround_hours === null ? "-" : `${a.median_review_turnaround_hours} h`} />
       </div>
 
@@ -88,9 +95,9 @@ export function AnalyticsPage() {
           <CardHeader><CardTitle>Positive results by condition</CardTitle></CardHeader>
           <CardContent>
             <ul className="flex flex-col gap-1 text-sm">
-              {Object.keys(CONDITION_NAME).map((c) => (
+              {Object.keys(CONDITION_LABEL).map((c) => (
                 <li key={c} className="flex justify-between">
-                  <span>{CONDITION_NAME[c]}</span>
+                  <span>{CONDITION_LABEL[c]}</span>
                   <span className="tabular-nums">{c in a.positives_per_condition ? a.positives_per_condition[c] : c === "dr" ? 0 : "no model"}</span>
                 </li>
               ))}
@@ -123,10 +130,13 @@ export function UsersPage() {
   const update = useUpdateUser();
   const toast = useToast();
 
-  const change = async (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus }) => {
+  const [rejecting, setRejecting] = useState<string | null>(null);
+
+  const change = async (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string; facility?: string }) => {
     try {
       await update.mutateAsync({ id, ...body });
       toast("User updated.", "success");
+      setRejecting(null);
     } catch (error) {
       toast(describeError(error), "error");
     }
@@ -135,7 +145,8 @@ export function UsersPage() {
   return (
     <>
       <PageHeader title="Users"
-        description="Approve new health workers after checking their facility and registration number. Assign roles." />
+        description="A sign-up is a request: it grants nothing until you approve it. Confirm who the person is outside the app (for example by phoning their facility) before approving; the app cannot verify who someone is. You can grant a different role than the one requested and record their facility." />
+      <CreateStaffAccount />
       {users.isPending && <ListSkeleton />}
       {users.isError && <ErrorState error={users.error} onRetry={() => void users.refetch()} />}
       {users.isSuccess && users.data.length === 0 && <EmptyState title="No users" />}
@@ -147,18 +158,24 @@ export function UsersPage() {
               <div className="flex-1">
                 <p className="text-sm font-medium">{u.full_name} {self && <Badge tone="info">You</Badge>} {!u.is_active && <Badge tone="high">Deactivated</Badge>}
                   {u.status === "pending" && <Badge tone="medium">Waiting for approval</Badge>} {u.status === "rejected" && <Badge tone="high">Rejected</Badge>}</p>
-                <p className="text-xs text-muted-foreground">{u.email} · joined {formatDate(u.created_at)}</p>
-                {(u.facility || u.registration_number) && (
-                  <p className="text-xs text-muted-foreground">{u.facility ?? "facility not given"} · registration no. {u.registration_number ?? "not given"}</p>
+                <p className="text-xs text-muted-foreground">{u.email} · signed up {formatDate(u.created_at)}</p>
+                {u.facility && (
+                  <p className="text-xs text-muted-foreground">Facility: {u.facility} <span className="italic">(set by an administrator, not verified)</span></p>
+                )}
+                {u.status === "pending" && u.requested_role && (
+                  <p className="text-xs">Requested role: <strong>{ROLE_LABEL[u.requested_role]}</strong> (grants nothing until approved)</p>
+                )}
+                {u.status === "rejected" && u.status_reason && <p className="text-xs text-risk-high">Rejected: {u.status_reason}</p>}
+                {rejecting === u.id && (
+                  <RejectForm user={u} busy={update.isPending} onCancel={() => setRejecting(null)}
+                    onReject={(reason) => void change(u.id, { status: "rejected", status_reason: reason })} />
                 )}
               </div>
-              {u.status === "pending" && !self && (
-                <div className="flex gap-2">
-                  <Button size="sm" disabled={update.isPending} onClick={() => void change(u.id, { status: "approved" })}>Approve</Button>
-                  <Button size="sm" variant="outline" disabled={update.isPending} onClick={() => void change(u.id, { status: "rejected" })}>Reject</Button>
-                </div>
+              {u.status === "pending" && !self && rejecting !== u.id && (
+                <PendingDecision user={u} busy={update.isPending} onApprove={(role, facility) => void change(u.id, { status: "approved", role, ...(facility ? { facility } : {}) })}
+                  onReject={() => setRejecting(u.id)} />
               )}
-              <div className="flex gap-2">
+              <div className={u.status === "pending" ? "hidden" : "flex gap-2"}>
                 <Select aria-label={`Role for ${u.full_name}`} className="w-44" value={u.role} disabled={self || update.isPending}
                   onChange={(e) => void change(u.id, { role: e.target.value as Role })}>
                   {(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
@@ -173,5 +190,106 @@ export function UsersPage() {
         })}
       </div>
     </>
+  );
+}
+
+/** Approve with the requested role (or another one the admin picks) and, optionally, the person's facility;
+ * or reject with a reason. */
+function PendingDecision({ user, busy, onApprove, onReject }: {
+  user: User; busy: boolean; onApprove: (role: Role, facility: string) => void; onReject: () => void;
+}) {
+  const [role, setRole] = useState<Role>(user.requested_role ?? "health_worker");
+  const [facility, setFacility] = useState(user.facility ?? "");
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Select aria-label={`Role to grant ${user.full_name}`} className="w-40" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+        {(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+      </Select>
+      <Input aria-label={`Facility for ${user.full_name} (optional)`} className="w-48" placeholder="Facility (optional)"
+        maxLength={120} value={facility} onChange={(e) => setFacility(e.target.value)} />
+      <Button size="sm" disabled={busy} onClick={() => onApprove(role, facility.trim().length >= 2 ? facility.trim() : "")}>Approve</Button>
+      <Button size="sm" variant="outline" disabled={busy} onClick={onReject}>Reject</Button>
+    </div>
+  );
+}
+
+function RejectForm({ user, busy, onReject, onCancel }: {
+  user: User; busy: boolean; onReject: (reason: string) => void; onCancel: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | undefined>();
+  const id = `reject-${user.id}`;
+  return (
+    <div className="mt-2 flex flex-col gap-1">
+      <Label htmlFor={id}>Reason for rejecting (sent to {user.full_name})</Label>
+      <Textarea id={id} value={reason} aria-invalid={!!error} aria-describedby={`${id}-error`}
+        onChange={(e) => setReason(e.target.value)} placeholder="e.g. Not on the facility's staff list" />
+      <FieldError id={`${id}-error`} message={error} />
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" disabled={busy}
+          onClick={() => (reason.trim() ? onReject(reason.trim()) : setError("Give a reason."))}>Confirm rejection</Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
+const staffSchema = z.object({
+  full_name: z.string().trim().min(2, "Enter the full name."),
+  email: z.string().trim().email("Enter a valid email address."),
+  password: z.string().min(8, "Use at least 8 characters.").max(128)
+    .refine((v) => /[A-Za-z]/.test(v) && /\d/.test(v), "Use at least one letter and one number."),
+  role: z.enum(["health_worker", "specialist", "admin"]),
+});
+
+/** Specialists and admins never sign up themselves: an admin creates them here (or promotes an account). */
+function CreateStaffAccount() {
+  const create = useCreateUser();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const form = useForm<z.infer<typeof staffSchema>>({
+    resolver: zodResolver(staffSchema), defaultValues: { full_name: "", email: "", password: "", role: "specialist" },
+  });
+  const { errors, isSubmitting } = form.formState;
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      await create.mutateAsync(values);
+      toast("Account created. Share the temporary password privately; they can change it with Forgot password.", "success");
+      form.reset();
+      setOpen(false);
+    } catch (error) {
+      form.setError("root", { message: describeError(error) });
+    }
+  });
+  if (!open) {
+    return <Button className="mb-3 w-fit" variant="outline" onClick={() => setOpen(true)}>Create a staff account</Button>;
+  }
+  const fields = [["full_name", "Full name", "text"], ["email", "Email", "email"], ["password", "Temporary password", "text"]] as const;
+  return (
+    <Card className="mb-3">
+      <CardHeader><CardTitle>New staff account</CardTitle></CardHeader>
+      <CardContent>
+        <form onSubmit={onSubmit} noValidate className="grid gap-3 sm:grid-cols-2">
+          {fields.map(([name, label, type]) => (
+            <div key={name} className="flex flex-col gap-1">
+              <Label htmlFor={`staff-${name}`}>{label}</Label>
+              <Input id={`staff-${name}`} type={type} aria-invalid={!!errors[name]} aria-describedby={`staff-${name}-error`} {...form.register(name)} />
+              <FieldError id={`staff-${name}-error`} message={errors[name]?.message} />
+            </div>
+          ))}
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="staff-role">Role</Label>
+            <Select id="staff-role" {...form.register("role")}>
+              {(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+            </Select>
+          </div>
+          {errors.root && <p role="alert" className="text-sm text-destructive sm:col-span-2">{errors.root.message}</p>}
+          <div className="flex gap-2 sm:col-span-2">
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create account"}</Button>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

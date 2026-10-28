@@ -1,15 +1,14 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
 
 from ...models.enums import Eye
-from ...schemas import ScreeningCreated, ScreeningOut
+from ...schemas import AskSpecialistRequest, DailyCountsOut, DiscardRequest, ScreeningCreated, ScreeningOut
 from ...services.image_store import MEDIA_TYPES
-from ...services.presenters import screening_out
 from ...services.screenings import ScreeningService
-from ..deps import ClinicalUser, HealthWorker, get_screening_service
+from ..deps import ClinicalUser, HealthWorker, Presenter, get_screening_service
 
 router = APIRouter(prefix="/screenings", tags=["screenings"])
 Screenings = Annotated[ScreeningService, Depends(get_screening_service)]
@@ -19,6 +18,7 @@ Screenings = Annotated[ScreeningService, Depends(get_screening_service)]
 async def create_screening(
     user: HealthWorker,
     screenings: Screenings,
+    presenter: Presenter,
     response: Response,
     image: Annotated[UploadFile, File(description="Fundus photo, JPEG or PNG")],
     patient_id: Annotated[str, Form()],
@@ -28,32 +28,50 @@ async def create_screening(
     patient_consent: Annotated[bool, Form(description="The patient agreed to the photo and the screening")] = False,
     x_sync_attempt: Annotated[int, Header(ge=1, le=1000)] = 1,
 ):
-    """Runs every available condition model. Requires ``patient_consent=true``. Re-sending the same
-    client_uuid returns the original record with 200 instead of creating a duplicate."""
+    """Runs every available condition model on a photo that passes the quality gate (otherwise 422 and
+    nothing is stored). Requires ``patient_consent=true``. Nothing is sent to a specialist: the result
+    carries a recommendation and the health worker decides. Re-sending the same client_uuid returns the
+    original record with 200 instead of creating a duplicate."""
     data = await image.read()
     screening, duplicate = screenings.create(
         user, patient_id=patient_id, eye=eye, client_uuid=client_uuid, captured_at=captured_at,
         content_type=image.content_type, data=data, sync_attempt=x_sync_attempt, patient_consent=patient_consent)
     if duplicate:
         response.status_code = status.HTTP_200_OK
-    return screening_out(screening, ScreeningCreated, duplicate=duplicate)
+    return presenter.screening(screening, ScreeningCreated, duplicate=duplicate)
 
 
 @router.get("", response_model=list[ScreeningOut])
-def list_screenings(user: HealthWorker, screenings: Screenings,
-                    limit: Annotated[int, Query(ge=1, le=200)] = 50):
-    return [screening_out(s) for s in screenings.list_mine(user, limit=limit)]
+def list_screenings(user: HealthWorker, screenings: Screenings, presenter: Presenter,
+                    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+                    day: Annotated[date | None, Query(description="One calendar day in the clinic's time zone")] = None):
+    return [presenter.screening(s) for s in screenings.list_mine(user, limit=limit, on_day=day)]
+
+
+@router.get("/daily-counts", response_model=DailyCountsOut)
+def daily_counts(user: HealthWorker, screenings: Screenings, days: Annotated[int, Query(ge=1, le=90)] = 14):
+    """This health worker's screenings per day in the clinic's time zone (TIME_ZONE setting)."""
+    today, counts = screenings.daily_counts(user, days)
+    return DailyCountsOut(time_zone=screenings.time_zone, today=today, days=counts)
 
 
 @router.get("/{screening_id}", response_model=ScreeningOut)
-def get_screening(screening_id: str, user: ClinicalUser, screenings: Screenings):
-    return screening_out(screenings.get(user, screening_id))
+def get_screening(screening_id: str, user: ClinicalUser, screenings: Screenings, presenter: Presenter):
+    return presenter.screening(screenings.get(user, screening_id))
 
 
-@router.post("/{screening_id}/refer", response_model=ScreeningOut)
-def refer_screening(screening_id: str, user: HealthWorker, screenings: Screenings):
-    """Send a non-referred screening to the specialist queue (reason: manual)."""
-    return screening_out(screenings.refer(user, screening_id))
+@router.post("/{screening_id}/ask-specialist", response_model=ScreeningOut)
+def ask_specialist(screening_id: str, body: AskSpecialistRequest, user: HealthWorker, screenings: Screenings,
+                   presenter: Presenter):
+    """Send the case to the specialist queue with the health worker's question (once per screening)."""
+    return presenter.screening(screenings.ask_specialist(user, screening_id, body.question))
+
+
+@router.post("/{screening_id}/discard", status_code=status.HTTP_204_NO_CONTENT)
+def discard_screening(screening_id: str, body: DiscardRequest, user: HealthWorker, screenings: Screenings):
+    """Soft delete with a reason, by the health worker who made it. The photo file is deleted; the record
+    and the audit entry stay."""
+    screenings.discard(user, screening_id, body.reason)
 
 
 @router.get("/{screening_id}/image", response_class=FileResponse)

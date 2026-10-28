@@ -1,19 +1,26 @@
 """Pydantic v2 request/response schemas: the public API contract, separate from ORM entities."""
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator, model_validator
+from pydantic import (
+    AfterValidator, BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator, model_validator,
+)
 
 from ..core import patient_codes
 from ..models.enums import (
-    AccountStatus, Eye, ReferralReason, ReviewAction, RiskLevel, Role, ScreeningStatus, Sex, SyncOutcome,
+    AccountStatus, Eye, ReferralAdvice, ReferralReason, ReviewAction, RiskLevel, Role, ScreeningStatus, Sex, SyncOutcome,
 )
 
-Password = Annotated[str, StringConstraints(min_length=8, max_length=128)]
+def _password_rules(value: str) -> str:
+    if not any(c.isalpha() for c in value) or not any(c.isdigit() for c in value):
+        raise ValueError("Use at least 8 characters with at least one letter and one number.")
+    return value
+
+
+Password = Annotated[str, StringConstraints(min_length=8, max_length=128), AfterValidator(_password_rules)]
 Note = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
 FullName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)]
-Facility = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)]
-RegistrationNumber = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=64)]
+FacilityName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)]
 
 
 class ORMModel(BaseModel):
@@ -23,14 +30,14 @@ class ORMModel(BaseModel):
 # ---------- auth and users ----------
 
 class RegisterRequest(BaseModel):
-    """Public sign-up. There is deliberately no ``role`` field: everyone starts as a health worker,
-    and the account stays pending until an admin checks the facility and registration number."""
+    """Public sign-up: a request for access, not access. The account stays pending and cannot sign in
+    until an admin approves it; ``requested_role`` grants nothing by itself (admins are never requestable).
+    It asks only for name, email, password and the requested role; the admin may record a facility when approving."""
     model_config = ConfigDict(extra="forbid")
     email: EmailStr
     full_name: FullName
     password: Password
-    facility: Facility
-    registration_number: RegistrationNumber
+    requested_role: Literal[Role.HEALTH_WORKER, Role.SPECIALIST] = Role.HEALTH_WORKER
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -66,17 +73,27 @@ class UserOut(ORMModel):
     role: Role
     is_active: bool
     status: AccountStatus
-    facility: str | None
-    registration_number: str | None
+    status_reason: str | None = None
+    requested_role: Role | None = None   # what they asked for at sign-up; grants nothing until approved
+    facility: str | None = None          # set by an admin (optional); free text, not verified
     created_at: datetime
 
 
 class UserUpdate(BaseModel):
-    """Admin-only changes to another account."""
+    """Admin-only changes to another account. Rejecting a registration needs a reason. Approving without a
+    ``role`` grants the role the person requested. ``facility`` (optional) sets or corrects where they work."""
     model_config = ConfigDict(extra="forbid")
     role: Role | None = None
+    facility: FacilityName | None = None
     is_active: bool | None = None
     status: AccountStatus | None = None
+    status_reason: Note | None = None
+
+    @model_validator(mode="after")
+    def _reason_for_rejection(self) -> "UserUpdate":
+        if self.status == AccountStatus.REJECTED and not self.status_reason:
+            raise ValueError("Give a reason when rejecting a registration.")
+        return self
 
 
 class AdminUserCreate(BaseModel):
@@ -86,8 +103,7 @@ class AdminUserCreate(BaseModel):
     full_name: FullName
     password: Password
     role: Role = Role.HEALTH_WORKER
-    facility: Facility | None = None
-    registration_number: RegistrationNumber | None = None
+    facility: FacilityName | None = None
 
 
 # ---------- patients ----------
@@ -137,7 +153,7 @@ class ConditionResultOut(ORMModel):
     severity_band: int | None
     risk_level: RiskLevel | None
     recommendation: str
-    auto_refer: bool
+    refer_suggested: bool
 
 
 class QualityOut(BaseModel):
@@ -172,7 +188,13 @@ class ScreeningOut(ORMModel):
     created_by_name: str
     quality: QualityOut
     results: list[ConditionResultOut]
+    referral_advice: ReferralAdvice      # the app's recommendation; the health worker decides
     referral_reason: ReferralReason | None
+    referral_question: str | None = None  # the health worker's note when they asked a specialist
+    referred_at: datetime | None = None
+    review_priority: str | None = None      # "urgent" or "routine" while a referral is open
+    review_due_at: datetime | None = None
+    review_overdue: bool = False
     reviews: list[ReviewEventOut]
     disclaimer: str
 
@@ -182,6 +204,24 @@ class ScreeningCreated(ScreeningOut):
 
 
 # ---------- reviews ----------
+
+class AskSpecialistRequest(BaseModel):
+    """The health worker sends a case to the specialist queue with a short question."""
+    model_config = ConfigDict(extra="forbid")
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=1000)]
+
+
+class DiscardRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+
+
+class DailyCountsOut(BaseModel):
+    """Screenings per calendar day in the clinic's time zone (``time_zone``), newest day last."""
+    time_zone: str
+    today: str
+    days: list["DailyCount"]
+
 
 class ReviewRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -207,9 +247,16 @@ class QueueItemOut(BaseModel):
     patient_code: str
     eye: Eye
     referral_reason: ReferralReason
-    highest_band: int | None
+    flagged_conditions: list[str]   # conditions whose result triggered the referral (positive or borderline)
+    highest_band: int | None        # only DR has severity bands
     created_at: datetime
     created_by_name: str
+    created_by_facility: str | None = None
+    question: str | None = None
+    waiting_since: datetime
+    priority: str                   # urgent (signs detected) or routine (borderline / manual)
+    due_at: datetime
+    overdue: bool
 
 
 # ---------- sync ----------
@@ -272,10 +319,13 @@ class DailyCount(BaseModel):
 
 class AnalyticsOut(BaseModel):
     total_screenings: int
-    screenings_per_day: list[DailyCount]
+    screenings_per_day: list[DailyCount]   # last 30 days in ``time_zone``, zero-filled
+    time_zone: str
     positives_per_condition: dict[str, int]
     referral_rate: float | None
     open_referrals: int
+    overdue_referrals: int
+    review_targets_hours: dict[str, int]
     median_review_turnaround_hours: float | None
     model_versions_in_use: dict[str, int]
     users_by_role: dict[str, int]

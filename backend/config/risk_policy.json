@@ -1,12 +1,15 @@
 {
-  "_comment": "Every number that turns a model score into a screening decision lives here. Reasoning: docs/risk_policy.md. The decision threshold itself comes from each model's model_card.json. severity_bands=false gives a binary result with no 1-5 band (used where the training data has no severity grades).",
+  "_comment": "Every number that turns a model score into a screening recommendation lives here. Reasoning: docs/risk_policy.md. The decision threshold itself comes from each model's model_card.json. refer_when_positive / refer_when_uncertain decide whether such a result SUGGESTS asking a specialist; nothing is sent automatically, the health worker decides. referral_advice.low_quality_photo is the recommendation when every model is negative but the photo has quality warnings. severity_bands=false gives a binary result with no 1-5 band (used where the training data has no severity grades).",
+  "referral_advice": {
+    "low_quality_photo": "consider"
+  },
   "default": {
     "uncertainty_margin": 0.1,
     "refer_when_positive": true,
     "refer_when_uncertain": true,
     "recommendations": {
       "low": "No signs detected. Recommend routine screening at the next scheduled visit.",
-      "medium": "Borderline result. The case is sent to a specialist for review; consider a retake if the image was poor.",
+      "medium": "Borderline result. Consider asking a specialist; retake the photo if it was poor.",
       "high": "Signs detected. Refer the patient to an eye specialist."
     }
   },
@@ -14,15 +17,15 @@
     "dr": {
       "recommendations": {
         "low": "No signs of diabetic retinopathy detected. Recommend routine annual diabetic eye screening.",
-        "medium": "Borderline diabetic retinopathy score. Sent for specialist review.",
-        "high": "Signs of diabetic retinopathy detected. Refer to an eye specialist."
+        "medium": "Borderline diabetic retinopathy score. Consider asking a specialist.",
+        "high": "Signs of diabetic retinopathy detected. Referral to an eye specialist is recommended."
       }
     },
     "glaucoma": {
       "severity_bands": false,
       "recommendations": {
         "low": "No signs of glaucoma detected. Continue routine eye checks.",
-        "medium": "Borderline glaucoma result. Sent for specialist review.",
+        "medium": "Borderline glaucoma result. Consider asking a specialist.",
         "high": "Signs suggestive of glaucoma detected. Refer to an eye specialist for assessment."
       }
     },
@@ -30,7 +33,7 @@
       "severity_bands": false,
       "recommendations": {
         "low": "No signs of cataract detected.",
-        "medium": "Borderline cataract result. Sent for specialist review.",
+        "medium": "Borderline cataract result. Consider asking a specialist.",
         "high": "Signs suggestive of cataract detected. Refer to an eye specialist for assessment."
       }
     }

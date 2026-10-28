@@ -19,21 +19,26 @@ sequenceDiagram
   alt duplicate (reply was lost earlier)
     API-->>App: 200 original record (duplicate = true)
   else new
-    API->>ML: validate type/size, quality gate
+    API->>ML: validate type/size, quality gate, fundus check
     alt unusable image
-      ML-->>API: blocking issue
-      API-->>App: 422 plain-language reason
+      ML-->>API: blocking issue (blank, too small, not a fundus photo)
+      API-->>App: 422 plain-language reason, nothing saved
     else usable
-      ML->>ML: score with every registered model, then RiskPolicy gives band, action, auto_refer
+      ML->>ML: score with every registered model, then RiskPolicy gives band, action, refer_suggested
       ML-->>API: one outcome per condition (unavailable models flagged)
-      API->>DB: screening + diagnosis_results (+ referral if auto_refer) + sync_log + audit
-      API-->>App: 201 result
+      API->>DB: screening + diagnosis_results + sync_log + audit (no referral yet)
+      API-->>App: 201 result + ReferralAdvisor recommendation
     end
   end
-  App-->>HW: Result cards and recommended action
+  App-->>HW: Result cards and recommendation (no referral needed / refer recommended / uncertain)
+  opt health worker decides to ask
+    HW->>API: POST /api/screenings/{id}/ask-specialist (question)
+    API->>DB: referral (reason, question, review target) + audit
+    API-->>HW: Awaiting specialist
+  end
 
   SP->>API: GET /api/reviews/queue
-  API-->>SP: Open referrals, oldest first
+  API-->>SP: Cases health workers sent, with their question, overdue first
   SP->>API: POST /api/reviews/{id} (approve | override + reason | request_retake | comment)
   API->>DB: INSERT review_event (never UPDATE or DELETE), close referral
   App->>API: GET /api/sync/pull?since=last_pull

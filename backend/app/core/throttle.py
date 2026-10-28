@@ -17,10 +17,14 @@ class TooManyAttemptsError(AppError):
 
 
 class LoginThrottle:
-    def __init__(self, max_failures: int, window_seconds: float, clock: Callable[[], float] = time.monotonic):
+    """Also limits public sign-ups (one attempt is recorded per sign-up, with its own message)."""
+
+    def __init__(self, max_failures: int, window_seconds: float, clock: Callable[[], float] = time.monotonic,
+                 message: str = "Too many failed sign-in attempts."):
         self._max = max_failures
         self._window = window_seconds
         self._clock = clock
+        self._message = message
         self._failures: dict[str, deque[float]] = defaultdict(deque)
         self._lock = Lock()
 
@@ -35,7 +39,7 @@ class LoginThrottle:
             if len(recent) >= self._max:
                 wait = int(recent[0] + self._window - self._clock()) + 1
                 raise TooManyAttemptsError(
-                    f"Too many failed sign-in attempts. Try again in {max(1, wait // 60)} minute(s).",
+                    f"{self._message} Try again in {max(1, wait // 60)} minute(s).",
                     details={"retry_after_seconds": wait})
 
     def record_failure(self, key: str) -> None:

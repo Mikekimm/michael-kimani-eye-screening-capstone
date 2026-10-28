@@ -1,14 +1,15 @@
 import { CloudOff, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import { PageHeader } from "@/components/AppShell";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/feedback";
 import { ScreeningListItem } from "@/components/ScreeningListItem";
-import { Badge, Button, Card } from "@/components/ui/primitives";
-import { useScreenings } from "@/hooks/queries";
+import { Badge, Button, Card, Input, Label } from "@/components/ui/primitives";
+import { useDailyCounts, useScreenings } from "@/hooks/queries";
 import { useOnline } from "@/hooks/useOnline";
 import { useSync } from "@/hooks/useSync";
 import type { QueueItem, QueueStatus } from "@/offline/repository";
-import { EYE_LABEL, formatDateTime } from "@/lib/utils";
+import { EYE_LABEL, cn, formatDate, formatDateTime } from "@/lib/utils";
 
 const STATUS: Record<QueueStatus, { label: string; tone: "neutral" | "low" | "medium" | "high" | "info" }> = {
   pending: { label: "Waiting to sync", tone: "medium" },
@@ -47,10 +48,33 @@ function QueueRow({ item }: { item: QueueItem }) {
   );
 }
 
+/** Screenings per day for the last week (server-side, clinic time zone); tapping a day filters the list. */
+function DailyCounts({ day, onPick }: { day: string; onPick: (day: string) => void }) {
+  const daily = useDailyCounts(7);
+  if (!daily.data) return null;
+  return (
+    <div className="mb-3">
+      <ol className="grid grid-cols-7 gap-1" aria-label={`Screenings per day (${daily.data.time_zone})`}>
+        {daily.data.days.map((d) => (
+          <li key={d.day}>
+            <button type="button" onClick={() => onPick(d.day === day ? "" : d.day)} aria-pressed={d.day === day}
+              className={cn("flex w-full flex-col items-center rounded-md border p-1 text-xs", d.day === day && "border-primary bg-primary/10")}>
+              <span className="font-semibold tabular-nums" data-testid={`count-${d.day}`}>{d.count}</span>
+              <span className="text-muted-foreground">{formatDate(`${d.day}T12:00:00`).replace(/,? \d{4}$/, "")}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-1 text-[11px] text-muted-foreground">Days follow the clinic time zone ({daily.data.time_zone}).</p>
+    </div>
+  );
+}
+
 export function HistoryPage() {
   const online = useOnline();
   const { items, syncing, syncNow, lastReport } = useSync();
-  const screenings = useScreenings(100);
+  const [day, setDay] = useState("");
+  const screenings = useScreenings(100, day || undefined);
   const outstanding = items.filter((i) => i.status !== "synced");
 
   return (
@@ -74,10 +98,20 @@ export function HistoryPage() {
       </section>
 
       <section>
-        <h2 className="mb-2 font-semibold">Screenings</h2>
+        <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+          <h2 className="font-semibold">Screenings{day && <> on {formatDate(`${day}T12:00:00`)}</>}</h2>
+          <div className="flex items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="history-day" className="text-xs">Day</Label>
+              <Input id="history-day" type="date" className="h-9 w-40" value={day} onChange={(e) => setDay(e.target.value)} />
+            </div>
+            {day && <Button size="sm" variant="ghost" onClick={() => setDay("")}>All days</Button>}
+          </div>
+        </div>
+        <DailyCounts day={day} onPick={setDay} />
         {screenings.isPending && <ListSkeleton />}
         {screenings.isError && <ErrorState error={screenings.error} onRetry={() => void screenings.refetch()} />}
-        {screenings.isSuccess && screenings.data.length === 0 && <EmptyState title="No screenings yet" />}
+        {screenings.isSuccess && screenings.data.length === 0 && <EmptyState title={day ? "No screenings on this day" : "No screenings yet"} />}
         <div className="flex flex-col gap-2">{screenings.data?.map((s) => <ScreeningListItem key={s.id} screening={s} />)}</div>
       </section>
     </>

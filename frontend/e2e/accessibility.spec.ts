@@ -15,7 +15,7 @@ const OUT = path.join(here, "..", "..", "docs", "accessibility");
 const PASSWORD = process.env.E2E_PASSWORD!;
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 
-interface PageResult { role: string; route: string; violations: { id: string; impact: string | null; nodes: number; help: string }[] }
+interface PageResult { role: string; route: string; violations: { id: string; impact: string | null; nodes: number; help: string; targets: string[] }[] }
 
 /** Audits `route`, or the page as it currently is when `route` starts with "(" (e.g. a wizard step). */
 async function audit(page: Page, role: string, route: string, results: PageResult[]) {
@@ -23,7 +23,8 @@ async function audit(page: Page, role: string, route: string, results: PageResul
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(300); // let skeletons resolve
   const { violations } = await new AxeBuilder({ page }).withTags(TAGS).analyze();
-  results.push({ role, route, violations: violations.map((v) => ({ id: v.id, impact: v.impact ?? null, nodes: v.nodes.length, help: v.help })) });
+  results.push({ role, route, violations: violations.map((v) => ({ id: v.id, impact: v.impact ?? null, nodes: v.nodes.length, help: v.help,
+    targets: v.nodes.map((n) => n.target.join(" ")) })) });
 }
 
 async function signIn(page: Page, email: string) {
@@ -67,11 +68,14 @@ test("every screen meets WCAG 2.1 A/AA checks (axe-core)", async ({ page, browse
   await expect(page.getByAltText("Captured fundus photo preview")).toBeVisible();
   await audit(page, "health_worker", "(screen: capture step with preview)", results);
   await page.getByLabel(/The patient agreed/).check();
-  await page.getByRole("button", { name: "Analyse photo" }).click();
+  await page.getByRole("button", { name: "Analyse", exact: true }).click();
   await page.waitForURL("**/screenings/*");
   const screeningPath = new URL(page.url()).pathname;
-  const refer = page.getByRole("button", { name: "Refer to a specialist anyway" });
-  if (await refer.isVisible()) await refer.click();
+  await page.getByRole("button", { name: "Ask a specialist" }).click();
+  await audit(page, "health_worker", "(result: ask a specialist form)", results);
+  await page.getByLabel("Your question for the specialist").fill("Accessibility run: please check.");
+  await page.getByRole("button", { name: "Send to specialist" }).click();
+  await expect(page.getByTestId("status-label").first()).toHaveText("Awaiting specialist");
   for (const route of ["/", "/patients", "/patients/new", patientPath, screeningPath, "/history", "/about"]) {
     await audit(page, "health_worker", route, results);
   }

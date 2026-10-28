@@ -1,0 +1,77 @@
+# Render Blueprint: the hosted demo (free plan). Render dashboard -> New -> Blueprint -> pick this repository.
+#   retina-screening-db   PostgreSQL 16 (free databases expire after 30 days; enough for assessment)
+#   retina-screening-api  FastAPI + LiteRT model, built from backend/Dockerfile; sleeps after 15 min idle,
+#                         so the first request after a pause takes about a minute
+#   retina-screening      the installable PWA as a static site (always on, HTTPS)
+# Values marked "sync: false" are typed into the Render dashboard once; they are never stored in git.
+# Uploaded photos live on the API's local disk, which the free plan wipes on restart: records and results are
+# kept in PostgreSQL, but older photos stop displaying after a restart (see README, Known issues).
+
+databases:
+  - name: retina-screening-db
+    plan: free
+    databaseName: screening
+    user: screening
+
+services:
+  - type: web
+    name: retina-screening-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: retina-screening-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_HOST
+        fromService:
+          name: retina-screening
+          type: web
+          property: host
+      - key: UPLOAD_DIR
+        value: /app/data/uploads
+      # Demo accounts created on first start (scripts/seed.py); choose the passwords in the dashboard.
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_SPECIALIST_EMAIL
+        sync: false
+      - key: SEED_SPECIALIST_PASSWORD
+        sync: false
+      - key: SEED_HEALTH_WORKER_EMAIL
+        sync: false
+      - key: SEED_HEALTH_WORKER_PASSWORD
+        sync: false
+      # Real email for password resets and approvals (e.g. Gmail: smtp.gmail.com, port 587, an App Password).
+      # Leave SMTP_HOST empty and emails are only written to the server's outbox folder.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_SENDER
+        sync: false
+
+  - type: web
+    name: retina-screening
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci --no-audit --no-fund && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_HOST
+        fromService:
+          name: retina-screening-api
+          type: web
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

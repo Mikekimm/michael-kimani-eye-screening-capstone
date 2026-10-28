@@ -55,7 +55,7 @@ class ScreeningPipeline:
         self._max_upload_bytes = max_upload_bytes
         self._allowed_types = allowed_types
         self._quality_checker = quality_checker or ImageQualityChecker()
-        self._preprocessors: dict[tuple[int, int], ImagePreprocessor] = {}
+        self._preprocessors: dict[tuple[tuple[int, int], str], ImagePreprocessor] = {}
 
     def validate_upload(self, content_type: str | None, data: bytes) -> Image.Image:
         """Checks the declared type, the size, and that the bytes really decode as JPEG/PNG."""
@@ -97,7 +97,10 @@ class ScreeningPipeline:
         if model is None:
             return ConditionOutcome(condition, display, model_available=False)
         size = getattr(model, "input_size", (224, 224))
-        preprocessor = self._preprocessors.setdefault(size, ImagePreprocessor(target_size=size))
+        key = (size, model.card.interpolation)  # each model gets the resize it was trained with
+        if key not in self._preprocessors:
+            self._preprocessors[key] = ImagePreprocessor(target_size=size, interpolation=key[1])
+        preprocessor = self._preprocessors[key]
         probability = model.predict_proba(preprocessor.to_batch(image))
         if not 0.0 <= probability <= 1.0:
             raise RuntimeError(f"{condition} model returned an invalid score {probability!r}")

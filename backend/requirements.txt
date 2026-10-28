@@ -13,3 +13,4 @@ python-multipart==0.0.32
 pillow==13.0.0
 numpy==2.5.4
 ai-edge-litert==2.3.0
+tzdata==2026.5  # IANA time zones for TIME_ZONE (Windows and slim images have none)

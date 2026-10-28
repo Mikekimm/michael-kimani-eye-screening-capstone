@@ -25,7 +25,7 @@ class AccessPolicy:
         raise NotFoundError("Patient not found.")
 
     def check_screening(self, user: User, screening: Screening | None) -> Screening:
-        if screening is None:
+        if screening is None or screening.discarded_at is not None:
             raise NotFoundError("Screening not found.")
         if user.role == Role.HEALTH_WORKER and screening.created_by_id == user.id:
             return screening

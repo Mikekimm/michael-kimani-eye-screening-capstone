@@ -18,7 +18,7 @@ def _worker_with_patient(client):
     return headers, register_patient(client, headers)
 
 
-def test_real_model_returns_one_result_per_condition(client):
+def test_real_models_return_one_result_per_condition(client):
     headers, patient = _worker_with_patient(client)
     response = upload(client, headers, patient["id"])
     assert response.status_code == 201, response.text
@@ -26,20 +26,50 @@ def test_real_model_returns_one_result_per_condition(client):
     results = {r["condition"]: r for r in body["results"]}
     assert [r["condition"] for r in body["results"]] == ["dr", "glaucoma", "cataract"]  # product order
 
-    dr = results["dr"]
-    assert dr["model_available"] is True
-    assert dr["model_version"] == "mobilenetv2-dr-binary-0.3"
-    assert 0.0 <= dr["probability"] <= 1.0
-    assert 1 <= dr["severity_band"] <= 5
-    assert dr["positive"] == (dr["probability"] >= dr["threshold"])
+    for condition in ("dr", "glaucoma", "cataract"):
+        result = results[condition]
+        assert result["model_available"] is True
+        assert result["model_version"] == client.container.registry.get(condition).version
+        assert 0.0 <= result["probability"] <= 1.0
+        assert result["positive"] == (result["probability"] >= result["threshold"])
 
-    for condition in ("glaucoma", "cataract"):
-        missing = results[condition]
-        assert missing["model_available"] is False
-        assert missing["probability"] is None and missing["severity_band"] is None
-        assert "not available yet" in missing["recommendation"].lower()
+    assert 1 <= results["dr"]["severity_band"] <= 5
+    # ODIR-5K has no severity grades, so glaucoma and cataract are binary only
+    assert results["glaucoma"]["severity_band"] is None and results["cataract"]["severity_band"] is None
 
     assert "not a diagnosis" in body["disclaimer"].lower()
+
+
+def test_specialist_can_override_a_glaucoma_result(client):
+    headers, patient = _worker_with_patient(client)
+    screening = upload(client, headers, patient["id"]).json()
+    assert screening["status"] == "completed"  # nothing is sent automatically
+    asked = client.post(f"/api/screenings/{screening['id']}/ask-specialist", headers=headers,
+                        json={"question": "Is the optic disc cupped?"})
+    assert asked.status_code == 200
+    _, specialist = auth_headers(client, Role.SPECIALIST)
+    queued = next(i for i in client.get("/api/reviews/queue", headers=specialist).json()
+                  if i["screening_id"] == screening["id"])
+    flagged = {r["condition"] for r in screening["results"] if r["refer_suggested"]}
+    assert set(queued["flagged_conditions"]) == flagged
+
+    response = client.post(f"/api/reviews/{screening['id']}", headers=specialist, json={
+        "action": "override", "condition": "glaucoma", "override_positive": False, "note": "Disc looks normal."})
+    assert response.status_code == 201, response.text
+    event = response.json()["reviews"][-1]
+    assert event["condition"] == "glaucoma" and event["override_positive"] is False
+
+
+def test_condition_without_a_model_is_reported_as_not_available(stub_client):
+    """The stub registry has no glaucoma or cataract model, which is how a missing folder behaves."""
+    headers, patient = _worker_with_patient(stub_client)
+    body = upload(stub_client, headers, patient["id"]).json()
+    for result in body["results"]:
+        if result["condition"] == "dr":
+            continue
+        assert result["model_available"] is False
+        assert result["probability"] is None and result["severity_band"] is None
+        assert "not available yet" in result["recommendation"].lower()
 
 
 def test_same_image_gives_same_score(client):
@@ -67,6 +97,20 @@ def test_another_users_client_uuid_is_a_conflict(client):
     key = str(uuid.uuid4())
     upload(client, headers, patient["id"], client_uuid=key)
     assert upload(client, other_headers, other_patient["id"], client_uuid=key).status_code == 409
+
+
+def test_non_eye_image_is_refused_and_nothing_is_saved(client):
+    headers, patient = _worker_with_patient(client)
+    page = Image.new("RGB", (390, 844), (255, 255, 255))  # like a phone screenshot
+    for y in range(80, 800, 40):
+        page.paste((80, 80, 80), (20, y, 360, y + 12))
+    response = upload(client, headers, patient["id"], data=encode(page, "PNG"), content_type="image/png")
+    assert response.status_code == 422
+    assert "does not look like a retinal fundus photograph" in response.json()["message"]
+    for session in client.container.database.session():
+        assert session.query(Screening).count() == 0
+    uploads = client.container.settings.upload_dir
+    assert not uploads.exists() or not any(uploads.iterdir())
 
 
 def test_blank_image_is_rejected_with_reason(client):
@@ -136,14 +180,18 @@ def test_image_is_served_only_to_authorised_users(client):
     assert client.get(f"/api/screenings/{screening['id']}/image", headers=stranger).status_code == 404
 
 
-def test_models_endpoint_reports_availability_and_labelled_validation_metrics(client):
+def test_models_endpoint_reports_availability_and_labelled_test_metrics(client):
     _, headers = auth_headers(client, Role.HEALTH_WORKER)
     models = {m["condition"]: m for m in client.get("/api/models", headers=headers).json()}
-    assert models["dr"]["available"] and models["dr"]["version"] == "mobilenetv2-dr-binary-0.3"
-    assert models["dr"]["metrics"]["sensitivity"] == 0.542
-    assert "not an independent hold-out" in models["dr"]["metrics_status"]
+    assert models["dr"]["available"] and models["dr"]["version"] == "mobilenetv2-dr-binary-2.0"
+    assert models["dr"]["threshold"] == 0.41817495226860046
+    assert "held-out test split by image" in models["dr"]["metrics_status"]
+    assert "below the 80% specificity target" in models["dr"]["metrics_status"]
     assert models["dr"]["limitations"]
-    assert not models["glaucoma"]["available"] and not models["cataract"]["available"]
+    for condition in ("glaucoma", "cataract"):
+        assert models[condition]["available"]
+        assert "patient-separated held-out test split" in models[condition]["metrics_status"]
+    assert "below the 85% sensitivity" in models["glaucoma"]["metrics_status"]
 
 
 def test_patient_history_lists_screenings(client):

@@ -20,7 +20,7 @@
     --destructive: 2 64% 42%;
     --destructive-foreground: 0 0% 100%;
     --risk-low: 152 45% 30%;
-    --risk-medium: 35 85% 34%;
+    --risk-medium: 35 85% 30%; /* 34% failed WCAG AA (4.3:1) on its own 10% tint */
     --risk-high: 2 64% 42%;
     --risk-none: 210 8% 45%;
   }

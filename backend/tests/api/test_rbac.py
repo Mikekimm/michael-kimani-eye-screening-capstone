@@ -17,11 +17,16 @@ ROUTES = {
     "admin.users": ("get", "/api/admin/users", None),
     "admin.update": ("patch", "/api/admin/users/x", {"role": "admin"}),
     "admin.analytics": ("get", "/api/admin/analytics", None),
+    "admin.create_user": ("post", "/api/admin/users", {"email": "s@example.org", "full_name": "Sp",
+                                                       "password": "pass-word-1", "role": "specialist"}),
+    "screenings.ask": ("post", "/api/screenings/x/ask-specialist", {"question": "Please check"}),
+    "screenings.discard": ("post", "/api/screenings/x/discard", {"reason": "wrong photo"}),
 }
 ALLOWED = {
-    Role.HEALTH_WORKER: {"patients.list", "patients.create", "screenings.list", "sync.push", "sync.pull"},
+    Role.HEALTH_WORKER: {"patients.list", "patients.create", "screenings.list", "screenings.ask",
+                         "screenings.discard", "sync.push", "sync.pull"},
     Role.SPECIALIST: {"reviews.queue", "reviews.create"},
-    Role.ADMIN: {"admin.users", "admin.update", "admin.analytics"},
+    Role.ADMIN: {"admin.users", "admin.update", "admin.analytics", "admin.create_user"},
 }
 
 

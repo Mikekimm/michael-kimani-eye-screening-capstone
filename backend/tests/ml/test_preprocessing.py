@@ -46,3 +46,15 @@ def test_truncated_real_image_raises(fundus_png):
 def test_unknown_interpolation_rejected():
     with pytest.raises(ValueError):
         ImagePreprocessor(interpolation="magic")
+
+
+def test_float_bilinear_resize_does_not_round_to_8_bits(fundus_image):
+    batch = ImagePreprocessor(interpolation="bilinear").to_batch(fundus_image)
+    pixels = (batch + 1.0) * 127.5
+    assert batch.shape == (1, 224, 224, 3) and batch.dtype == np.float32
+    assert not np.allclose(pixels, np.round(pixels))  # kept in float, like tf.image.resize
+
+
+def test_nearest_resize_only_copies_existing_pixel_values(fundus_image):
+    pixels = (ImagePreprocessor(interpolation="nearest").to_batch(fundus_image) + 1.0) * 127.5
+    assert np.allclose(pixels, np.round(pixels), atol=1e-4)

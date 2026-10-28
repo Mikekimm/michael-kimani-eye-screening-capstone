@@ -37,6 +37,9 @@ def _demo_code(body: str) -> str:
     return f"{patient_codes.PREFIX}{body}{patient_codes.check_character(body)}"
 
 
+# Fictional name: the deployment context is primary health centres in general, not a named place.
+DEMO_FACILITY = "Demo Health Centre A"
+
 SYNTHETIC_PATIENTS = [
     (_demo_code("DEMA2"), 1961, Sex.FEMALE, True),
     (_demo_code("DEMB3"), 1975, Sex.MALE, True),
@@ -64,7 +67,8 @@ def main() -> int:
             user = users.by_email(email)
             if user is None:
                 user = users.add(User(email=email.lower(), full_name=name, role=role,
-                                      password_hash=hasher.hash(password)))
+                                      password_hash=hasher.hash(password),
+                                      facility=DEMO_FACILITY))
                 print(f"created {role.value}: {email}")
             else:
                 print(f"exists  {role.value}: {email}")

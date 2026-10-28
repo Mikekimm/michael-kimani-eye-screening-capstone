@@ -1,4 +1,4 @@
-"""Boundary tests for every severity band, the uncertain zone and the auto-refer rule."""
+"""Boundary tests for every severity band, the uncertain zone and the referral suggestion."""
 import json
 
 import pytest
@@ -30,9 +30,9 @@ def test_band_boundaries(probability, band):
     (0.55, True, True, True, RiskLevel.MEDIUM),
     (0.95, True, False, True, RiskLevel.HIGH),      # confident positive
 ])
-def test_decision_and_auto_refer(probability, positive, uncertain, refer, risk):
+def test_decision_and_referral_suggestion(probability, positive, uncertain, refer, risk):
     result = POLICY.assess(probability)
-    assert (result.positive, result.uncertain, result.auto_refer, result.risk_level) == (positive, uncertain, refer, risk)
+    assert (result.positive, result.uncertain, result.refer_suggested, result.risk_level) == (positive, uncertain, refer, risk)
     assert result.recommendation == {"low": "L", "medium": "M", "high": "H"}[risk.value]
 
 
@@ -53,10 +53,10 @@ def test_bands_follow_a_calibrated_threshold():
     assert low_threshold.assess(0.45).positive
 
 
-def test_auto_refer_switches_are_configurable():
+def test_referral_suggestion_switches_are_configurable():
     no_uncertain_referral = RiskPolicy(threshold=0.5, uncertainty_margin=0.1, refer_when_uncertain=False)
-    assert not no_uncertain_referral.assess(0.45).auto_refer
-    assert no_uncertain_referral.assess(0.55).auto_refer  # still positive
+    assert not no_uncertain_referral.assess(0.45).refer_suggested
+    assert no_uncertain_referral.assess(0.55).refer_suggested  # still positive
 
 
 @pytest.mark.parametrize("bad", [-0.01, 1.01])
@@ -95,3 +95,20 @@ def test_shipped_config_disables_bands_for_glaucoma_and_cataract_only():
     assert factory.for_condition("dr", 0.5).severity_bands is True
     assert factory.for_condition("glaucoma", 0.5).severity_bands is False
     assert factory.for_condition("cataract", 0.5).severity_bands is False
+
+
+class _Result:
+    def __init__(self, positive, uncertain, suggested):
+        self.positive, self.uncertain, self.refer_suggested = positive, uncertain, suggested
+
+
+def test_referral_advice_combines_conditions_and_photo_quality():
+    from app.ml.risk_policy import ReferralAdvisor
+    from app.models.enums import ReferralAdvice
+    advisor = ReferralAdvisor()
+    clear, borderline, negative = _Result(True, False, True), _Result(False, True, True), _Result(False, False, False)
+    assert advisor.advise([negative, clear], False) == ReferralAdvice.RECOMMENDED
+    assert advisor.advise([negative, borderline], False) == ReferralAdvice.CONSIDER
+    assert advisor.advise([negative, negative], False) == ReferralAdvice.NONE
+    assert advisor.advise([negative], True) == ReferralAdvice.CONSIDER  # low-quality photo
+    assert ReferralAdvisor(low_quality_advice=ReferralAdvice.NONE).advise([negative], True) == ReferralAdvice.NONE

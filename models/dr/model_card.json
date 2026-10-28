@@ -1,9 +1,9 @@
 {
   "condition": "dr",
   "display_name": "Diabetic retinopathy",
-  "version": "mobilenetv2-dr-binary-0.3",
+  "version": "mobilenetv2-dr-binary-2.0",
   "file": "model.tflite",
-  "sha256": "cb627a5d2c52e8b6376d9a00350f4293ca2849a073f36109a0ea92796b6b3be6",
+  "sha256": "eb2603ab5b8ed412ac4462fc7fcad3cc6b8b84a7a7bf5d711ba24b673f05eb30",
   "task": "binary",
   "labels": {
     "0": "No DR",
@@ -18,8 +18,9 @@
     ],
     "dtype": "float32",
     "color": "RGB",
-    "resize": "nearest-neighbour to 224x224 (matches Keras flow_from_dataframe default)",
-    "normalisation": "MobileNetV2 preprocess_input: pixel / 127.5 - 1, range [-1, 1]"
+    "interpolation": "bilinear",
+    "resize": "bilinear, anti-aliased, to 224x224 (tf.image.resize antialias=True in training)",
+    "normalisation": "pixel / 127.5 - 1"
   },
   "output": {
     "shape": [
@@ -28,32 +29,50 @@
     ],
     "meaning": "sigmoid score for DR present, in [0, 1]"
   },
-  "threshold": 0.5,
-  "threshold_source": "default 0.5, not yet calibrated (scripts/calibrate_threshold.py writes the calibrated value once hold-out predictions exist)",
-  "architecture": "MobileNetV2 (ImageNet weights, frozen) -> GlobalAveragePooling2D -> Dropout(0.3) -> Dense(64, relu) -> Dropout(0.2) -> Dense(1, sigmoid); Adam lr 1e-4; class weights; early stopping on validation loss; SEED 42 (verified in notebooks/model_notebook.ipynb)",
+  "threshold": 0.41817495226860046,
+  "threshold_source": "highest validation threshold with sensitivity >= 0.85; the test split was not used for any choice",
+  "architecture": "MobileNetV2 (ImageNet) fine-tuned from block_13_expand; head GAP-Dropout(0.3)-Dense(64)-Dropout(0.2)-Dense(1, sigmoid); class weights; early stopping on validation AUC; seed 42",
   "training": {
     "dataset": "Kaggle ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy (EyePACS + APTOS 2019 + Messidor-2 redistribution, pre-augmented, no patient identifiers)",
-    "run": "notebooks/model_notebook.ipynb trains for 8 epochs on a StratifiedGroupKFold split (188,936 train / 47,234 validation) and saves dr_screening_model.h5 and .tflite; its validation metrics at 0.5 were accuracy 0.790, precision 0.920, recall 0.542, F1 0.682. Whether the shipped files are that run is checked by notebooks/kaggle_holdout_eval.ipynb (pending).",
-    "licence_note": "Underlying data is for non-commercial / academic use; no images are stored in this repository.",
-    "export": "model.tflite is about 2.6 MB (quantized export); its scores differ from model.h5 by up to 0.034 on test inputs"
+    "split": "by image group (augmentation suffixes stripped), stratified, seed 42: train 165,319 / validation 35,425 / test 35,426",
+    "epochs_run": 10,
+    "notebook": "notebooks/dr_v2_finetune.ipynb",
+    "export": "float32 TFLite; max |Keras - TFLite| 9.8e-06",
+    "licence_note": "Underlying data is for non-commercial / academic use; no images are stored in this repository."
   },
   "metrics": {
-    "accuracy": 0.79,
-    "precision": 0.92,
-    "sensitivity": 0.542,
-    "specificity": 0.97,
-    "f1": 0.682,
-    "auc": null,
-    "test_images": 47234,
-    "evaluation_set": "validation fold from the training notebook (not an independent hold-out)",
+    "sensitivity": 0.8512890094979647,
+    "specificity": 0.7479938122401625,
+    "precision": 0.7064917515905635,
+    "f1": 0.772160856589028,
+    "accuracy": 0.7909727318918308,
+    "auc": 0.9002506922989231,
+    "test_images": 35426,
+    "evaluation_set": "held-out test split by image",
+    "confidence_intervals": {
+      "sensitivity": {
+        "estimate": 0.8512890094979647,
+        "low": 0.8451102442333785,
+        "high": 0.8568537991858888
+      },
+      "specificity": {
+        "estimate": 0.7479938122401625,
+        "low": 0.7426749975829063,
+        "high": 0.7536993618872667
+      },
+      "precision": {
+        "estimate": 0.7064917515905635,
+        "low": 0.7017709153188173,
+        "high": 0.7115200381651843
+      }
+    },
     "source": "docs/metrics.json"
   },
-  "metrics_status": "validation results from the training notebook, not an independent hold-out: 47,234 images, threshold 0.5; does NOT meet the 85% sensitivity target (sensitivity 0.542)",
+  "metrics_status": "held-out test split by image (no patient IDs available; near-duplicates could not be excluded); not external validation; not clinically validated; 35,426 test images; meets the 85% sensitivity target; below the 80% specificity target",
   "limitations": [
     "Screening support only. Not a diagnosis and not clinically validated.",
-    "No independent hold-out evaluation: the reported figures are validation results from the training notebook, and at threshold 0.5 sensitivity (0.542) is below the 85% target, so many DR cases would be missed.",
-    "The dataset has no patient identifiers, so splits are image-level and any future metric is an optimistic estimate.",
-    "The dataset contains augmented near-duplicates; leakage between training and evaluation images cannot be ruled out.",
+    "Specificity 0.748 is below the 80% target: 25% of eyes without DR are flagged for specialist review.",
+    "The notebook found 236,170 image groups for 236,170 images: augmented copies and the two eyes of one patient could not be grouped, so near-duplicates may sit in both train and test and these figures may be optimistic.",
     "No external evaluation; images from low-cost smartphone fundus lenses were never tested.",
     "The 1-5 severity band is estimated from a binary score by a configurable policy; it is not an ICDR grade."
   ]

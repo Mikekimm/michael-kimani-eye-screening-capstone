@@ -1,4 +1,4 @@
-import { ArrowLeft, CloudUpload, Loader2 } from "lucide-react";
+import { ArrowLeft, CloudUpload, Loader2, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
@@ -55,6 +55,8 @@ export function ScreenPage() {
     offlinePatient ? { clientUuid: offlinePatient, code: params.get("code") ?? "new patient" } : null);
   const [eye, setEye] = useState<Eye | null>(null);
   const [image, setImage] = useState<File | null>(null);
+  const [guideKey, setGuideKey] = useState(0); // a new key resets the capture guide (no photo, no preview)
+  const [rejection, setRejection] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +67,14 @@ export function ScreenPage() {
     await refresh();
     toast("Saved on this device. It will be analysed when it syncs.", "info");
     navigate("/history");
+  };
+
+  /** Throws the chosen photo away (nothing was uploaded) and shows the capture buttons again. */
+  const cancelPhoto = (reason: string | null = null) => {
+    setImage(null);
+    setRejection(reason);
+    setError(null);
+    setGuideKey((k) => k + 1);
   };
 
   const submit = async () => {
@@ -81,10 +91,12 @@ export function ScreenPage() {
         patientId: patient.id, eye, image, clientUuid: crypto.randomUUID(), capturedAt: new Date().toISOString(), fileName: image.name,
         patientConsent: consent,
       });
-      navigate(`/screenings/${screening.id}`, { replace: true });
+      navigate(`/screenings/${screening.id}`, { replace: true, state: { fresh: true } });
     } catch (err) {
       if (err instanceof NetworkError || (err instanceof ApiError && err.status >= 500)) {
         await saveOffline();
+      } else if (err instanceof ApiError && err.code === "unusable_image") {
+        cancelPhoto(err.message); // not a usable fundus photo: no result, nothing saved
       } else {
         setError(describeError(err));
       }
@@ -127,20 +139,30 @@ export function ScreenPage() {
         <Card className="flex flex-col gap-3 p-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">{patient!.code} · {EYE_LABEL[eye!]}</h2>
-            <Button variant="ghost" size="sm" onClick={() => { setEye(null); setImage(null); setConsent(false); setError(null); }}>Change eye</Button>
+            <Button variant="ghost" size="sm" onClick={() => { setEye(null); setConsent(false); cancelPhoto(); }}>Change eye</Button>
           </div>
-          <ImageCaptureGuide onImage={setImage} />
-          <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
-            <input type="checkbox" className="mt-1 h-4 w-4" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-            The patient agreed to have this eye photographed and screened, and to the result being shared with a specialist if needed.
-          </label>
-          {error && (
-            <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>
+          <ImageCaptureGuide key={guideKey} onImage={(file) => { setImage(file); if (file) setRejection(null); }} rejection={rejection} />
+          {image && (
+            <>
+              <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+                <input type="checkbox" className="mt-1 h-4 w-4" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                The patient agreed to have this eye photographed and screened, and to the result being shared with a specialist if needed.
+              </label>
+              {error && (
+                <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <Button size="lg" variant="outline" disabled={busy} onClick={() => cancelPhoto()}>
+                  <X aria-hidden className="h-4 w-4" />Cancel
+                </Button>
+                <Button size="lg" disabled={!consent || busy} onClick={() => void submit()}>
+                  {busy ? <><Loader2 aria-hidden className="h-4 w-4 animate-spin" />Analysing...</>
+                    : online && patient!.id ? "Analyse" : <><CloudUpload aria-hidden className="h-4 w-4" />Save for sync</>}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Cancel throws this photo away; nothing is uploaded or saved.</p>
+            </>
           )}
-          <Button size="lg" disabled={!image || !consent || busy} onClick={() => void submit()}>
-            {busy ? <><Loader2 aria-hidden className="h-4 w-4 animate-spin" />Uploading and analysing...</>
-              : online && patient!.id ? "Analyse photo" : <><CloudUpload aria-hidden className="h-4 w-4" />Save for sync</>}
-          </Button>
           {(!online || !patient!.id) && (
             <p className="text-xs text-muted-foreground">
               {online ? "This patient has not synced yet, so" : "You are offline, so"} the photo is saved on this device and analysed after it syncs. No result is shown until then.

@@ -26,6 +26,7 @@ def main() -> int:
         "UPLOAD_DIR": str(DATA / "e2e-uploads"),
         "EMAIL_OUTBOX_DIR": str(DATA / "e2e-outbox"),
         "JWT_SECRET": secrets.token_hex(32),
+        "SIGNUP_MAX_PER_WINDOW": "100",  # every E2E sign-up comes from 127.0.0.1
         "SEED_ADMIN_EMAIL": os.environ["E2E_ADMIN_EMAIL"],
         "SEED_ADMIN_PASSWORD": os.environ["E2E_PASSWORD"],
         "SEED_SPECIALIST_EMAIL": os.environ["E2E_SPECIALIST_EMAIL"],

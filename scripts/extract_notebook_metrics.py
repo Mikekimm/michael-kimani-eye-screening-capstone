@@ -1,5 +1,6 @@
-"""Copy the DR validation metrics printed by the training notebook into docs/metrics.json and the
-model card, parsing the notebook's saved outputs so no number is typed by hand.
+"""Copy the DR v1 validation metrics printed by its training notebook into docs/evaluation/dr_v1_metrics.json,
+parsing the notebook's saved outputs so no number is typed by hand. v1 is retired (DR v2 replaced it, see
+scripts/dr_v2_metrics.py); this file keeps its figures as history and does not touch the model card.
 
 These are VALIDATION results from the training notebook (the fold also used for early stopping),
 not an independent hold-out or test set. The independent hold-out run did not finish.
@@ -13,8 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK = ROOT / "notebooks" / "model_notebook.ipynb"
-METRICS = ROOT / "docs" / "metrics.json"
-CARD = ROOT / "models" / "dr" / "model_card.json"
+METRICS = ROOT / "docs" / "evaluation" / "dr_v1_metrics.json"
 TARGET_SENSITIVITY, TARGET_SPECIFICITY = 0.85, 0.80
 LABEL = "validation results from the training notebook, not an independent hold-out"
 
@@ -76,18 +76,6 @@ def main() -> int:
         "reference_only": "Gulshan et al. (2016): 90.3% sensitivity / 98.1% specificity on different data, model and operating point.",
     }
     METRICS.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-
-    card = json.loads(CARD.read_text(encoding="utf-8"))
-    card["metrics"] = {**report["metrics"], "auc": None, "test_images": images,
-                       "evaluation_set": "validation fold from the training notebook (not an independent hold-out)",
-                       "source": "docs/metrics.json"}
-    card["metrics_status"] = status
-    card["limitations"] = [line for line in card["limitations"] if "has not been measured yet" not in line]
-    if not any("independent hold-out" in line for line in card["limitations"]):
-        card["limitations"].insert(1, "No independent hold-out evaluation: the reported figures are validation "
-                                      "results from the training notebook, and at threshold 0.5 sensitivity "
-                                      f"({m['sensitivity']:.3f}) is below the 85% target, so many DR cases would be missed.")
-    CARD.write_text(json.dumps(card, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report["metrics"]), "|", status)
     return 0
 

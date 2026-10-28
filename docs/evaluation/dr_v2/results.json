@@ -1,0 +1,127 @@
+{
+  "model": "MobileNetV2 (ImageNet) fine-tuned from block_13_expand; head GAP-Dropout(0.3)-Dense(64)-Dropout(0.2)-Dense(1, sigmoid)",
+  "dataset": "Kaggle ascanipek/eyepacs-aptos-messidor-diabetic-retinopathy",
+  "label": "binary: 0 = no DR (ICDR 0), 1 = DR present (ICDR 1-4)",
+  "input": {
+    "size": 224,
+    "resize": "bilinear, anti-aliased",
+    "normalisation": "pixel / 127.5 - 1"
+  },
+  "split": {
+    "method": "by image group (augmentation suffixes stripped), stratified, seed 42",
+    "train": 165319,
+    "validation": 35425,
+    "test": 35426,
+    "test_positives": 14740,
+    "groups": 236170,
+    "group_overlap": 0
+  },
+  "training": {
+    "head_epochs": 2,
+    "max_fine_tune_epochs": 8,
+    "steps_per_epoch": 1500,
+    "batch": 64,
+    "epochs_run": 10,
+    "best_val_auc_monitor": 0.8955332040786743,
+    "class_weight": {
+      "0": 0.8562734373381399,
+      "1": 1.201708221269172
+    },
+    "minutes": 168.3
+  },
+  "threshold": {
+    "value": 0.41817495226860046,
+    "rule": "highest validation threshold with sensitivity >= 0.85",
+    "validation_at_threshold": {
+      "threshold": 0.41817495226860046,
+      "sensitivity": 0.8500576701268743,
+      "specificity": 0.7521028715072996,
+      "precision": 0.7095769383247438,
+      "accuracy": 0.7928581510232886,
+      "f1": 0.7734905543894309,
+      "tp": 12529,
+      "fp": 5128,
+      "tn": 15558,
+      "fn": 2210
+    }
+  },
+  "test": {
+    "auc": 0.9002506922989232,
+    "at_threshold": {
+      "threshold": 0.41817495226860046,
+      "sensitivity": 0.8512890094979647,
+      "specificity": 0.7479938122401625,
+      "precision": 0.7064917515905635,
+      "accuracy": 0.7909727318918308,
+      "f1": 0.772160856589028,
+      "tp": 12548,
+      "fp": 5213,
+      "tn": 15473,
+      "fn": 2192,
+      "sensitivity_95ci": [
+        0.8451100617289768,
+        0.8571054443822195
+      ],
+      "specificity_95ci": [
+        0.7424760311263379,
+        0.7537965500351456
+      ]
+    },
+    "at_0.5": {
+      "threshold": 0.5,
+      "sensitivity": 0.7991180461329715,
+      "specificity": 0.844677559702214,
+      "precision": 0.7856856990394877,
+      "accuracy": 0.8257212217015751,
+      "f1": 0.7923449482039554,
+      "tp": 11779,
+      "fp": 3213,
+      "tn": 17473,
+      "fn": 2961
+    },
+    "per_grade_flagged": {
+      "0": {
+        "images": 20686,
+        "flagged": 0.2520061877598376
+      },
+      "1": {
+        "images": 4046,
+        "flagged": 0.8047454275827979
+      },
+      "2": {
+        "images": 6759,
+        "flagged": 0.8020417221482468
+      },
+      "3": {
+        "images": 1704,
+        "flagged": 0.9847417840375586
+      },
+      "4": {
+        "images": 2231,
+        "flagged": 0.9829672792469745
+      }
+    },
+    "referable_dr": {
+      "sensitivity": 0.8688984477276978,
+      "specificity_vs_grade0": 0.7479938122401625,
+      "auc_grade0_vs_grade2plus": 0.911838770276758
+    }
+  },
+  "validation_auc": 0.9013854720661867,
+  "targets": {
+    "sensitivity": 0.85,
+    "specificity": 0.8,
+    "sensitivity_met": true,
+    "specificity_met": false
+  },
+  "export": {
+    "tflite_sha256": "eb2603ab5b8ed412ac4462fc7fcad3cc6b8b84a7a7bf5d711ba24b673f05eb30",
+    "tflite_bytes": 9193316,
+    "max_abs_keras_tflite_diff": 9.775161743164062e-06
+  },
+  "environment": {
+    "tensorflow": "2.20.0",
+    "gpus": 2,
+    "smoke_test": false
+  }
+}

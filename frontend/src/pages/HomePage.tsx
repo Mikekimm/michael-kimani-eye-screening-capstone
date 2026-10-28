@@ -6,7 +6,7 @@ import { EmptyState, ErrorState, ListSkeleton } from "@/components/feedback";
 import { ScreeningListItem } from "@/components/ScreeningListItem";
 import { buttonVariants, Card } from "@/components/ui/primitives";
 import { useAuth } from "@/hooks/useAuth";
-import { useScreenings } from "@/hooks/queries";
+import { useDailyCounts, useScreenings } from "@/hooks/queries";
 import { useSync } from "@/hooks/useSync";
 
 function Stat({ label, value }: { label: string; value: number | string }) {
@@ -22,8 +22,8 @@ export function HomePage() {
   const { user } = useAuth();
   const screenings = useScreenings(20);
   const { counts } = useSync();
+  const daily = useDailyCounts(1); // today in the clinic's time zone, counted by the server
   const list = screenings.data ?? [];
-  const today = new Date().toDateString();
 
   return (
     <>
@@ -33,7 +33,7 @@ export function HomePage() {
         <Link to="/patients/new" className={buttonVariants({ variant: "outline", size: "lg" })}><UserPlus aria-hidden className="h-5 w-5" />New patient</Link>
       </div>
       <div className="mb-6 grid grid-cols-3 gap-2">
-        <Stat label="Screened today" value={screenings.isSuccess ? list.filter((s) => new Date(s.created_at).toDateString() === today).length : "-"} />
+        <Stat label="Screened today" value={daily.data ? daily.data.days.at(-1)?.count ?? 0 : "-"} />
         <Stat label="Awaiting specialist" value={screenings.isSuccess ? list.filter((s) => s.status === "referred").length : "-"} />
         <Stat label="Waiting to sync" value={counts.pending + counts.syncing + counts.failed} />
       </div>

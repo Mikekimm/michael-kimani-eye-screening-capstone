@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { HOME_FOR, hasConsented, recordConsent } from "@/components/AppShell";
 import { Disclaimer, describeError } from "@/components/feedback";
-import { Button, Card, FieldError, Input, Label } from "@/components/ui/primitives";
+import { Button, Card, FieldError, Input, Label, Select } from "@/components/ui/primitives";
 import { useAuth } from "@/hooks/useAuth";
 import { useApi } from "@/lib/services";
 
@@ -16,16 +16,19 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Enter your password."),
 });
 
+// Same rule as the server: at least 8 characters with a letter and a number.
+const newPassword = z.string().min(8, "Use at least 8 characters.").max(128)
+  .refine((v) => /[A-Za-z]/.test(v) && /\d/.test(v), "Use at least one letter and one number.");
+
 export const signupSchema = z.object({
   full_name: z.string().trim().min(2, "Enter your full name."),
   email: z.string().trim().email("Enter a valid email address."),
-  password: z.string().min(8, "Use at least 8 characters.").max(128),
-  facility: z.string().trim().min(2, "Enter the health facility where you work."),
-  registration_number: z.string().trim().min(3, "Enter your professional registration number."),
+  password: newPassword,
+  requested_role: z.enum(["health_worker", "specialist"]),
 });
 
 export const resetSchema = z.object({
-  password: z.string().min(8, "Use at least 8 characters.").max(128),
+  password: newPassword,
   confirm: z.string(),
 }).refine((v) => v.password === v.confirm, { path: ["confirm"], message: "The passwords do not match." });
 
@@ -113,7 +116,7 @@ export function SignupPage() {
   const [submitted, setSubmitted] = useState(false);
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { full_name: "", email: "", password: "", facility: "", registration_number: "" },
+    defaultValues: { full_name: "", email: "", password: "", requested_role: "health_worker" },
   });
   const { errors, isSubmitting } = form.formState;
 
@@ -133,9 +136,9 @@ export function SignupPage() {
     return (
       <AuthLayout title="Account created">
         <Card className="flex flex-col gap-3 p-4 text-sm" role="status">
-          <p className="flex items-center gap-2 font-medium"><Clock aria-hidden className="h-5 w-5 text-primary" />Waiting for approval</p>
-          <p>Your clinic administrator will check your facility and registration number, then approve your account.
-            You can sign in once it is approved.</p>
+          <p className="flex items-center gap-2 font-medium"><Clock aria-hidden className="h-5 w-5 text-primary" />Waiting for administrator approval</p>
+          <p>Your request is <strong>pending</strong>. An administrator will confirm who you are, then
+            approve or reject it (they may also grant a different role). You cannot sign in until it is approved.</p>
           <Link to="/login" className="font-medium text-primary underline">Back to sign in</Link>
         </Card>
       </AuthLayout>
@@ -146,9 +149,9 @@ export function SignupPage() {
     <AuthLayout title="Create account">
       <Card className="p-4">
         <p className="mb-3 text-sm text-muted-foreground">
-          For health facility staff only. Your clinic administrator approves new accounts before first sign-in.
-          Specialist and administrator access is granted by an administrator. Patients do not need an account: the
-          health worker registers them and gives them a patient code.
+          For health facility staff only. Signing up sends a request: an administrator approves it before your first
+          sign-in, and the role you ask for grants nothing until then. Patients do not need an account: the health
+          worker registers them and gives them a patient code.
         </p>
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
@@ -167,16 +170,11 @@ export function SignupPage() {
             <FieldError id="password-error" message={errors.password?.message} />
           </div>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="facility">Health facility</Label>
-            <Input id="facility" placeholder="e.g. Kisoro Health Centre IV" aria-invalid={!!errors.facility}
-              aria-describedby="facility-error" {...form.register("facility")} />
-            <FieldError id="facility-error" message={errors.facility?.message} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="registration_number">Professional registration number</Label>
-            <Input id="registration_number" placeholder="e.g. nursing council number" aria-invalid={!!errors.registration_number}
-              aria-describedby="registration-error" {...form.register("registration_number")} />
-            <FieldError id="registration-error" message={errors.registration_number?.message} />
+            <Label htmlFor="requested_role">I am requesting access as</Label>
+            <Select id="requested_role" {...form.register("requested_role")}>
+              <option value="health_worker">Health worker</option>
+              <option value="specialist">Specialist</option>
+            </Select>
           </div>
           {serverError && <p role="alert" className="text-sm text-destructive">{serverError}</p>}
           <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating account..." : "Create account"}</Button>
@@ -296,7 +294,7 @@ export function ConsentPage() {
         <p className="flex items-center gap-2 font-medium"><ShieldCheck aria-hidden className="h-5 w-5 text-primary" />How to use this tool safely</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>It gives <strong>screening support</strong>, not a diagnosis. A specialist confirms every referral.</li>
-          <li>Only diabetic retinopathy has a trained model. Glaucoma and cataract show "Model not available yet".</li>
+          <li>Each condition has its own trained model with known limits (see About). Glaucoma results are weak: most glaucoma flags are false alarms.</li>
           <li>The severity band is an <strong>estimate</strong> from the model score, not a clinical grade.</li>
           <li>Use patient codes, not names. Only capture images with the patient's consent.</li>
           <li>Offline, photos are saved on this device and analysed after they sync.</li>

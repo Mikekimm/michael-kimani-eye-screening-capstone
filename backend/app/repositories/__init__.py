@@ -1,4 +1,5 @@
 """Repositories: the only layer that builds SQL queries. Services depend on these, not on SQLAlchemy."""
+from __future__ import annotations  # "list" is also a method name on the repositories; keeps annotations lazy on 3.12
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Generic, TypeVar
@@ -11,7 +12,7 @@ from ..models import (
     AuditEvent, DiagnosisResult, PasswordResetToken, Patient, Referral, RefreshToken, ReviewEvent, Screening,
     SyncLog, User,
 )
-from ..models.enums import AccountStatus, Role, ScreeningStatus
+from ..models.enums import AccountStatus, ReferralReason, Role, ScreeningStatus
 
 T = TypeVar("T", bound=Base)
 
@@ -96,6 +97,9 @@ _SCREENING_GRAPH = (
 )
 
 
+_KEPT = Screening.discarded_at.is_(None)  # discarded screenings are hidden from every list and count
+
+
 class ScreeningRepository(Repository[Screening]):
     model = Screening
 
@@ -107,8 +111,12 @@ class ScreeningRepository(Repository[Screening]):
             select(Screening).options(*_SCREENING_GRAPH).where(Screening.client_uuid == client_uuid))
 
     def list(self, created_by_id: str | None = None, patient_id: str | None = None,
-             limit: int = 50) -> Sequence[Screening]:
-        stmt = select(Screening).options(*_SCREENING_GRAPH).order_by(Screening.created_at.desc())
+             limit: int = 50, day_start: datetime | None = None, day_end: datetime | None = None) -> Sequence[Screening]:
+        """Newest first; discarded screenings never appear. ``day_start``/``day_end`` limit to one local day."""
+        stmt = (select(Screening).options(*_SCREENING_GRAPH).where(_KEPT)
+                .order_by(Screening.created_at.desc()))
+        if day_start is not None:
+            stmt = stmt.where(Screening.created_at >= day_start, Screening.created_at < day_end)
         if created_by_id:
             stmt = stmt.where(Screening.created_by_id == created_by_id)
         if patient_id:
@@ -118,12 +126,19 @@ class ScreeningRepository(Repository[Screening]):
     def review_queue(self) -> Sequence[Screening]:
         """Open referrals, oldest first, so nobody waits longest by accident."""
         stmt = (select(Screening).options(*_SCREENING_GRAPH).join(Referral)
-                .where(Referral.is_open.is_(True)).order_by(Screening.created_at.asc()))
+                .where(Referral.is_open.is_(True), _KEPT).order_by(Screening.created_at.asc()))
         return self.session.scalars(stmt).all()
+
+    def created_times(self, created_by_id: str | None, since: datetime) -> list[datetime]:
+        """Creation times of kept screenings since ``since`` (one user's, or everyone's for analytics)."""
+        stmt = select(Screening.created_at).where(_KEPT, Screening.created_at >= since)
+        if created_by_id:
+            stmt = stmt.where(Screening.created_by_id == created_by_id)
+        return list(self.session.scalars(stmt))
 
     def changed_since(self, created_by_id: str, since: datetime) -> Sequence[Screening]:
         stmt = (select(Screening).options(*_SCREENING_GRAPH)
-                .where(Screening.created_by_id == created_by_id, Screening.updated_at > since)
+                .where(Screening.created_by_id == created_by_id, Screening.updated_at > since, _KEPT)
                 .order_by(Screening.updated_at.asc()))
         return self.session.scalars(stmt).all()
 
@@ -156,25 +171,26 @@ class AnalyticsRepository:
         self.session = session
 
     def total_screenings(self) -> int:
-        return self.session.scalar(select(func.count()).select_from(Screening)) or 0
-
-    def screenings_per_day(self, limit_days: int = 30) -> list[tuple[str, int]]:
-        day = func.date(Screening.created_at)
-        rows = self.session.execute(
-            select(day, func.count()).group_by(day).order_by(day.desc()).limit(limit_days)).all()
-        return [(str(d), c) for d, c in reversed(rows)]
+        return self.session.scalar(select(func.count()).select_from(Screening).where(_KEPT)) or 0
 
     def positives_per_condition(self) -> dict[str, int]:
         rows = self.session.execute(
-            select(DiagnosisResult.condition, func.count())
-            .where(DiagnosisResult.positive.is_(True)).group_by(DiagnosisResult.condition)).all()
+            select(DiagnosisResult.condition, func.count()).join(Screening)
+            .where(DiagnosisResult.positive.is_(True), _KEPT).group_by(DiagnosisResult.condition)).all()
         return dict(rows)
 
     def referral_count(self) -> int:
-        return self.session.scalar(select(func.count()).select_from(Referral)) or 0
+        return self.session.scalar(select(func.count()).select_from(Referral).join(Screening).where(_KEPT)) or 0
 
     def open_referral_count(self) -> int:
-        return self.session.scalar(select(func.count()).select_from(Referral).where(Referral.is_open.is_(True))) or 0
+        return self.session.scalar(select(func.count()).select_from(Referral).join(Screening)
+                                   .where(Referral.is_open.is_(True), _KEPT)) or 0
+
+    def open_referrals(self) -> list[tuple[datetime, ReferralReason]]:
+        """(referred at, reason) for every open referral; used to count overdue reviews."""
+        return [tuple(row) for row in self.session.execute(
+            select(Referral.created_at, Referral.reason).join(Screening)
+            .where(Referral.is_open.is_(True), _KEPT)).all()]
 
     def first_review_delays(self) -> list[tuple[datetime, datetime]]:
         """(referral created, first decisive review) pairs for closed referrals."""

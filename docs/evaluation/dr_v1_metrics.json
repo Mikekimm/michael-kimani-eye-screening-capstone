@@ -1,0 +1,34 @@
+{
+  "status": "validation results from the training notebook, not an independent hold-out: 47,234 images, threshold 0.5; does NOT meet the 85% sensitivity target (sensitivity 0.542)",
+  "source": "notebooks/model_notebook.ipynb, saved outputs of the evaluation cell (classification_report)",
+  "evaluation_set": "validation fold of the training run (StratifiedGroupKFold, seed 42), also used for early stopping",
+  "threshold": 0.5,
+  "metrics": {
+    "accuracy": 0.79,
+    "precision": 0.92,
+    "sensitivity": 0.542,
+    "specificity": 0.97,
+    "f1": 0.682
+  },
+  "precision_of_values": "accuracy, precision, sensitivity and F1 to 3 decimals; specificity to 2 decimals (from the classification report)",
+  "auc": null,
+  "class_counts": {
+    "no_dr": 27581,
+    "dr_present": 19653,
+    "total": 47234
+  },
+  "targets": {
+    "sensitivity": 0.85,
+    "specificity": 0.8,
+    "sensitivity_met": false,
+    "specificity_met": true
+  },
+  "caveats": [
+    "Not an independent hold-out or test set: the same fold guided early stopping.",
+    "The independent hold-out evaluation (notebooks/kaggle_holdout_eval.ipynb) did not finish.",
+    "Image-level data with no patient identifiers and augmented near-duplicates: optimistic.",
+    "Measured with the Keras model in the training session; the served .tflite is a quantized export that differs by up to about 0.03 in score.",
+    "No threshold calibration was performed; the app uses the default 0.5."
+  ],
+  "reference_only": "Gulshan et al. (2016): 90.3% sensitivity / 98.1% specificity on different data, model and operating point."
+}

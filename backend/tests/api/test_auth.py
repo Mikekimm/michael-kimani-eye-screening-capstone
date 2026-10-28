@@ -3,13 +3,14 @@ password reset by email, validation errors."""
 import re
 from datetime import datetime, timedelta, timezone
 
-from app.models import PasswordResetToken, User
+import pytest
+
+from app.models import AuditEvent, PasswordResetToken, User
 from app.models.enums import Role
 
 from .conftest import PASSWORD, create_user, login
 
-NEW_USER = {"email": "nurse@example.org", "full_name": "Amina Nurse", "password": "s3cure-pass-word",
-            "facility": "Kisoro Health Centre IV", "registration_number": "NC-2024-0153"}
+NEW_USER = {"email": "nurse@example.org", "full_name": "Amina Nurse", "password": "s3cure-pass-word1"}
 
 
 def test_public_sign_up_creates_pending_health_worker(client):
@@ -18,7 +19,8 @@ def test_public_sign_up_creates_pending_health_worker(client):
     body = response.json()
     assert body["role"] == "health_worker"
     assert body["status"] == "pending"
-    assert body["facility"] == NEW_USER["facility"] and body["registration_number"] == NEW_USER["registration_number"]
+    assert body["facility"] is None and body["requested_role"] == "health_worker"
+    assert "registration_number" not in body
     assert "password" not in body and "password_hash" not in body
 
 
@@ -27,7 +29,7 @@ def test_admins_are_emailed_when_someone_signs_up(client):
     client.post("/api/auth/register", json=NEW_USER)
     mails = [m.read_text(encoding="utf-8") for m in _outbox(client)]
     assert len(mails) == 1 and admin.email in mails[0]
-    assert NEW_USER["registration_number"] in mails[0] and NEW_USER["facility"] in mails[0]
+    assert "Requested role: health worker" in mails[0]
 
 
 def test_pending_account_cannot_sign_in_until_an_admin_approves_it(client):
@@ -35,7 +37,7 @@ def test_pending_account_cannot_sign_in_until_an_admin_approves_it(client):
     sign_in = {"email": NEW_USER["email"], "password": NEW_USER["password"]}
     waiting = client.post("/api/auth/login", json=sign_in)
     assert waiting.status_code == 403
-    assert "waiting for approval" in waiting.json()["message"]
+    assert waiting.json()["message"] == "Your account is waiting for administrator approval."
 
     admin = login(client, create_user(client, Role.ADMIN))
     approved = client.patch(f"/api/admin/users/{created['id']}", headers=admin, json={"status": "approved"})
@@ -46,7 +48,8 @@ def test_pending_account_cannot_sign_in_until_an_admin_approves_it(client):
 def test_rejected_account_cannot_sign_in(client):
     created = client.post("/api/auth/register", json=NEW_USER).json()
     admin = login(client, create_user(client, Role.ADMIN))
-    client.patch(f"/api/admin/users/{created['id']}", headers=admin, json={"status": "rejected"})
+    client.patch(f"/api/admin/users/{created['id']}", headers=admin,
+                 json={"status": "rejected", "status_reason": "Not on the facility staff list."})
     response = client.post("/api/auth/login", json={"email": NEW_USER["email"], "password": NEW_USER["password"]})
     assert response.status_code == 403
     assert "not approved" in response.json()["message"]
@@ -58,10 +61,20 @@ def test_wrong_password_on_a_pending_account_does_not_reveal_that_it_exists(clie
     assert response.status_code == 401
 
 
-def test_sign_up_requires_facility_and_registration_number(client):
-    for missing in ("facility", "registration_number"):
-        body = {k: v for k, v in NEW_USER.items() if k != missing}
-        assert client.post("/api/auth/register", json=body).status_code == 422
+def test_sign_up_has_no_facility_field(client):
+    response = client.post("/api/auth/register", json={**NEW_USER, "facility": "Hill Health Centre"})
+    assert response.status_code == 422  # sign-up asks only name, email, password and requested role
+
+
+def test_admin_can_set_the_facility_when_approving(client):
+    admin = login(client, create_user(client, Role.ADMIN))
+    user_id = client.post("/api/auth/register", json=NEW_USER).json()["id"]
+    response = client.patch(f"/api/admin/users/{user_id}", headers=admin,
+                            json={"status": "approved", "facility": "Hill Health Centre"})
+    assert response.status_code == 200
+    assert response.json()["facility"] == "Hill Health Centre" and response.json()["status"] == "approved"
+    for session in client.container.database.session():
+        assert session.query(AuditEvent).filter_by(action="user.facility_set", entity_id=user_id).count() == 1
 
 
 def test_accounts_created_by_an_admin_are_approved_immediately(client):
@@ -88,6 +101,32 @@ def test_duplicate_email_is_rejected_case_insensitively(client):
     client.post("/api/auth/register", json=NEW_USER)
     response = client.post("/api/auth/register", json={**NEW_USER, "email": "NURSE@example.org"})
     assert response.status_code == 409
+    assert "already registered" in response.json()["message"]
+
+
+@pytest.mark.parametrize("status", ["pending", "approved"])
+def test_duplicate_sign_up_never_changes_the_existing_account(client, status):
+    admin = login(client, create_user(client, Role.ADMIN))
+    original = client.post("/api/auth/register", json=NEW_USER).json()
+    if status == "approved":
+        client.patch(f"/api/admin/users/{original['id']}", headers=admin, json={"status": "approved"})
+    for session in client.container.database.session():
+        before = session.query(User).filter_by(email=NEW_USER["email"]).one()
+        snapshot = (before.id, before.full_name, before.password_hash, before.role, before.status, before.requested_role)
+
+    again = client.post("/api/auth/register", json={"email": "Nurse@Example.org", "full_name": "Someone Else",
+                                                     "password": "other-pass-word2", "requested_role": "specialist"})
+    assert again.status_code == 409
+
+    for session in client.container.database.session():
+        rows = session.query(User).filter(User.email.ilike(NEW_USER["email"])).all()
+        assert len(rows) == 1  # never a second account
+        after = rows[0]
+        assert (after.id, after.full_name, after.password_hash, after.role, after.status, after.requested_role) == snapshot
+    old = client.post("/api/auth/login", json={"email": NEW_USER["email"], "password": NEW_USER["password"]})
+    new = client.post("/api/auth/login", json={"email": NEW_USER["email"], "password": "other-pass-word2"})
+    assert new.status_code == 401  # the duplicate's password was never stored
+    assert old.status_code == (200 if status == "approved" else 403)
 
 
 def test_sign_up_validation_errors(client):
@@ -239,7 +278,63 @@ def test_the_person_is_emailed_when_an_admin_approves_or_rejects_them(client):
     approved = client.post("/api/auth/register", json=NEW_USER).json()
     rejected = client.post("/api/auth/register", json={**NEW_USER, "email": "other@example.org"}).json()
     client.patch(f"/api/admin/users/{approved['id']}", headers=admin, json={"status": "approved"})
-    client.patch(f"/api/admin/users/{rejected['id']}", headers=admin, json={"status": "rejected"})
+    client.patch(f"/api/admin/users/{rejected['id']}", headers=admin,
+                 json={"status": "rejected", "status_reason": "Could not confirm you work at this facility."})
     mails = [m.read_text(encoding="utf-8") for m in _outbox(client)]
     assert any(NEW_USER["email"] in m and "approved" in m for m in mails)
-    assert any("other@example.org" in m and "not approved" in m for m in mails)
+    assert any("other@example.org" in m and "not approved" in m and "Could not confirm you work at this facility." in m
+               for m in mails)
+
+
+def test_requested_role_grants_nothing_until_an_admin_approves(client):
+    created = client.post("/api/auth/register", json={**NEW_USER, "requested_role": "specialist"}).json()
+    assert created["requested_role"] == "specialist" and created["role"] == "health_worker"
+    sign_in = {"email": NEW_USER["email"], "password": NEW_USER["password"]}
+    assert client.post("/api/auth/login", json=sign_in).status_code == 403
+
+    admin = login(client, create_user(client, Role.ADMIN))
+    approved = client.patch(f"/api/admin/users/{created['id']}", headers=admin, json={"status": "approved"}).json()
+    assert approved["role"] == "specialist"
+    token = client.post("/api/auth/login", json=sign_in).json()["access_token"]
+    specialist = {"Authorization": f"Bearer {token}"}
+    assert client.get("/api/reviews/queue", headers=specialist).status_code == 200
+    assert client.get("/api/patients", headers=specialist).status_code == 403
+
+
+def test_admin_can_approve_with_a_different_role(client):
+    created = client.post("/api/auth/register", json={**NEW_USER, "requested_role": "specialist"}).json()
+    admin = login(client, create_user(client, Role.ADMIN))
+    approved = client.patch(f"/api/admin/users/{created['id']}", headers=admin,
+                            json={"status": "approved", "role": "health_worker"}).json()
+    assert approved["role"] == "health_worker" and approved["status"] == "approved"
+
+
+def test_admin_role_cannot_be_requested_and_registration_numbers_are_gone(client):
+    assert client.post("/api/auth/register", json={**NEW_USER, "requested_role": "admin"}).status_code == 422
+    assert client.post("/api/auth/register", json={**NEW_USER, "registration_number": "NC-1"}).status_code == 422
+
+
+def test_password_needs_a_letter_and_a_number(client):
+    for weak in ("onlyletters", "1234567890"):
+        assert client.post("/api/auth/register", json={**NEW_USER, "password": weak}).status_code == 422
+
+
+def test_sign_ups_are_rate_limited_per_device(client):
+    limit = client.container.settings.signup_max_per_window
+    codes = [client.post("/api/auth/register", json={**NEW_USER, "email": f"n{i}@example.org"}).status_code
+             for i in range(limit + 1)]
+    assert codes[:limit] == [201] * limit and codes[-1] == 429
+
+
+def test_rejecting_needs_a_reason_and_every_decision_is_audited(client):
+    created = client.post("/api/auth/register", json=NEW_USER).json()
+    admin_user = create_user(client, Role.ADMIN)
+    admin = login(client, admin_user)
+    url = f"/api/admin/users/{created['id']}"
+    assert client.patch(url, headers=admin, json={"status": "rejected"}).status_code == 422
+    rejected = client.patch(url, headers=admin, json={"status": "rejected", "status_reason": "Unknown at facility."})
+    assert rejected.json()["status_reason"] == "Unknown at facility."
+    client.patch(url, headers=admin, json={"status": "approved"})
+    for session in client.container.database.session():
+        actions = [e.action for e in session.query(AuditEvent).filter_by(actor_id=admin_user.id, entity_id=created["id"])]
+    assert actions == ["user.rejected", "user.approved"]

@@ -11,13 +11,19 @@ the positive/negative call:
 Conditions whose training data has no severity grades (glaucoma and cataract from ODIR-5K) set
 ``severity_bands: false``: they get a binary result (positive / borderline / negative) and no band.
 
+A policy only *suggests* referral (``refer_suggested``); ``ReferralAdvisor`` turns the suggestions of all
+conditions and the photo quality into one recommendation for the health worker, who decides whether to ask
+a specialist. Nothing is sent automatically.
+
 Every number comes from ``config/risk_policy.json`` and the model card; see docs/risk_policy.md.
 """
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
-from ..models.enums import RiskLevel
+from ..models.enums import ReferralAdvice, RiskLevel
 
 
 @dataclass(frozen=True)
@@ -27,7 +33,7 @@ class RiskAssessment:
     severity_band: int | None   # None when the condition has no severity banding
     risk_level: RiskLevel
     recommendation: str
-    auto_refer: bool
+    refer_suggested: bool
 
 
 @dataclass(frozen=True)
@@ -54,9 +60,9 @@ class RiskPolicy:
         risk = RiskLevel.LOW if band <= 2 else RiskLevel.MEDIUM if band == 3 else RiskLevel.HIGH
         if not self.severity_bands:
             band = None  # the risk level still follows the same positive / borderline / negative rule
-        auto_refer = (positive and self.refer_when_positive) or (uncertain and self.refer_when_uncertain)
+        refer_suggested = (positive and self.refer_when_positive) or (uncertain and self.refer_when_uncertain)
         return RiskAssessment(positive, uncertain, band, risk,
-                              self.recommendations.get(risk.value, ""), auto_refer)
+                              self.recommendations.get(risk.value, ""), refer_suggested)
 
     def _band(self, probability: float, uncertain: bool) -> int:
         if uncertain:
@@ -67,16 +73,42 @@ class RiskPolicy:
         return 4 if probability < (upper + 1.0) / 2 else 5
 
 
+class ScoredResult(Protocol):
+    positive: bool | None
+    uncertain: bool | None
+    refer_suggested: bool
+
+
+@dataclass(frozen=True)
+class ReferralAdvisor:
+    """One recommendation per screening: a clear positive -> "recommended"; a borderline result or a photo
+    with quality warnings -> ``low_quality_advice`` / "consider"; otherwise "none"."""
+    low_quality_advice: ReferralAdvice = ReferralAdvice.CONSIDER
+
+    def advise(self, results: Iterable[ScoredResult], has_quality_warnings: bool) -> ReferralAdvice:
+        suggesting = [r for r in results if r.refer_suggested]
+        if any(r.positive and not r.uncertain for r in suggesting):
+            return ReferralAdvice.RECOMMENDED
+        if suggesting:
+            return ReferralAdvice.CONSIDER
+        return self.low_quality_advice if has_quality_warnings else ReferralAdvice.NONE
+
+
 class RiskPolicyFactory:
     """Builds a per-condition RiskPolicy from the JSON config plus the model's own threshold."""
 
     def __init__(self, config: dict):
+        self._config = config
         self._default = config.get("default", {})
         self._overrides = config.get("conditions", {})
 
     @classmethod
     def from_file(cls, path: Path) -> "RiskPolicyFactory":
         return cls(json.loads(Path(path).read_text(encoding="utf-8")))
+
+    def advisor(self) -> ReferralAdvisor:
+        advice = self._config.get("referral_advice", {}).get("low_quality_photo", ReferralAdvice.CONSIDER.value)
+        return ReferralAdvisor(low_quality_advice=ReferralAdvice(advice))
 
     def for_condition(self, condition: str, threshold: float) -> RiskPolicy:
         merged = {**self._default, **self._overrides.get(condition, {})}

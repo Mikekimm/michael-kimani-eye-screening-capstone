@@ -11,13 +11,13 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle, FieldError, La
 import { useToast } from "@/components/ui/toast";
 import { useReviewQueue, useScreening, useSubmitReview } from "@/hooks/queries";
 import type { Screening } from "@/lib/api/types";
-import { EYE_LABEL, formatDateTime } from "@/lib/utils";
+import { CONDITION_LABEL, EYE_LABEL, formatDateTime, waitingFor } from "@/lib/utils";
 
 export function ReviewQueuePage() {
   const queue = useReviewQueue();
   return (
     <>
-      <PageHeader title="Review queue" description="Referred screenings, oldest first." />
+      <PageHeader title="Review queue" description="Cases health workers sent you, with their question. Overdue first, then the longest waiting." />
       {queue.isPending && <ListSkeleton />}
       {queue.isError && <ErrorState error={queue.error} onRetry={() => void queue.refetch()} />}
       {queue.isSuccess && queue.data.length === 0 && <EmptyState title="No cases waiting" description="New referrals appear here after health workers sync." />}
@@ -27,12 +27,20 @@ export function ReviewQueuePage() {
             <Card className="flex items-center gap-3 p-3 hover:bg-muted/50">
               <div className="flex flex-1 flex-col gap-1">
                 <p className="text-sm font-medium">{item.patient_code} · {EYE_LABEL[item.eye]}</p>
-                <p className="text-xs text-muted-foreground">{formatDateTime(item.created_at)} · from {item.created_by_name}</p>
-                <div className="flex gap-1">
+                <p className="text-xs text-muted-foreground">
+                  from {item.created_by_name}{item.created_by_facility ? `, ${item.created_by_facility}` : ""} · waiting{" "}
+                  {waitingFor(item.waiting_since)} (since {formatDateTime(item.waiting_since)})
+                </p>
+                {item.question && <p className="text-sm">"{item.question}"</p>}
+                <div className="flex flex-wrap gap-1">
                   <Badge tone={item.referral_reason === "positive" ? "high" : "medium"}>
                     {item.referral_reason === "uncertain" ? "Borderline" : item.referral_reason === "manual" ? "Manual referral" : "Signs detected"}
                   </Badge>
-                  {item.highest_band && <Badge>Band {item.highest_band}</Badge>}
+                  {item.flagged_conditions.map((c) => <Badge key={c}>{CONDITION_LABEL[c] ?? c}</Badge>)}
+                  {item.highest_band && <Badge>DR band {item.highest_band}</Badge>}
+                  <Badge tone={item.overdue ? "high" : "neutral"}>
+                    {item.overdue ? `Overdue (${item.priority} target passed)` : `${item.priority === "urgent" ? "Urgent" : "Routine"}: due ${formatDateTime(item.due_at)}`}
+                  </Badge>
                 </div>
               </div>
               <ChevronRight aria-hidden className="h-4 w-4 text-muted-foreground" />
@@ -47,10 +55,14 @@ export function ReviewQueuePage() {
 export const reviewSchema = z
   .object({
     action: z.enum(["approve", "override", "request_retake", "comment"]),
+    condition: z.string(),
     override_positive: z.enum(["", "true", "false"]),
     note: z.string().trim().max(2000),
   })
   .superRefine((value, ctx) => {
+    if (value.action === "override" && !value.condition) {
+      ctx.addIssue({ code: "custom", path: ["condition"], message: "Choose the condition to correct." });
+    }
     if (value.action === "override" && value.override_positive === "") {
       ctx.addIssue({ code: "custom", path: ["override_positive"], message: "Choose the corrected result." });
     }
@@ -64,20 +76,24 @@ type ReviewForm = z.infer<typeof reviewSchema>;
 function ReviewPanel({ screening }: { screening: Screening }) {
   const submit = useSubmitReview(screening.id);
   const toast = useToast();
-  const form = useForm<ReviewForm>({ resolver: zodResolver(reviewSchema), defaultValues: { action: "approve", override_positive: "", note: "" } });
+  // Only results that a model actually produced can be overridden (the server enforces the same rule)
+  const scored = screening.results.filter((r) => r.model_available);
+  const empty: ReviewForm = { action: "approve", condition: scored[0]?.condition ?? "", override_positive: "", note: "" };
+  const form = useForm<ReviewForm>({ resolver: zodResolver(reviewSchema), defaultValues: empty });
   const action = form.watch("action");
+  const condition = form.watch("condition");
+  const conditionName = (CONDITION_LABEL[condition] ?? condition).toLowerCase();
   const { errors, isSubmitting } = form.formState;
-  const drAvailable = screening.results.some((r) => r.condition === "dr" && r.model_available);
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       await submit.mutateAsync({
         action: values.action,
         note: values.note || undefined,
-        ...(values.action === "override" ? { condition: "dr", override_positive: values.override_positive === "true" } : {}),
+        ...(values.action === "override" ? { condition: values.condition, override_positive: values.override_positive === "true" } : {}),
       });
       toast("Review saved.", "success");
-      form.reset({ action: "comment", override_positive: "", note: "" });
+      form.reset({ ...empty, action: "comment" });
     } catch (error) {
       form.setError("root", { message: describeError(error) });
     }
@@ -92,21 +108,30 @@ function ReviewPanel({ screening }: { screening: Screening }) {
             <Label htmlFor="action">Decision</Label>
             <Select id="action" {...form.register("action")}>
               <option value="approve">Approve the screening result</option>
-              {drAvailable && <option value="override">Override the DR result</option>}
+              {scored.length > 0 && <option value="override">Override a model result</option>}
               <option value="request_retake">Request a new photo</option>
               <option value="comment">Add a comment only</option>
             </Select>
           </div>
           {action === "override" && (
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="override_positive">Corrected diabetic retinopathy result</Label>
-              <Select id="override_positive" aria-invalid={!!errors.override_positive} aria-describedby="override-error" {...form.register("override_positive")}>
-                <option value="">Choose...</option>
-                <option value="true">Signs of DR present</option>
-                <option value="false">No signs of DR</option>
-              </Select>
-              <FieldError id="override-error" message={errors.override_positive?.message} />
-            </div>
+            <>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="condition">Condition to correct</Label>
+                <Select id="condition" aria-invalid={!!errors.condition} aria-describedby="condition-error" {...form.register("condition")}>
+                  {scored.map((r) => <option key={r.condition} value={r.condition}>{r.display_name || CONDITION_LABEL[r.condition]}</option>)}
+                </Select>
+                <FieldError id="condition-error" message={errors.condition?.message} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="override_positive">Corrected {conditionName} result</Label>
+                <Select id="override_positive" aria-invalid={!!errors.override_positive} aria-describedby="override-error" {...form.register("override_positive")}>
+                  <option value="">Choose...</option>
+                  <option value="true">Signs of {conditionName} present</option>
+                  <option value="false">No signs of {conditionName}</option>
+                </Select>
+                <FieldError id="override-error" message={errors.override_positive?.message} />
+              </div>
+            </>
           )}
           <div className="flex flex-col gap-1">
             <Label htmlFor="note">{action === "override" ? "Reason (required)" : action === "approve" ? "Note (optional)" : "Note"}</Label>

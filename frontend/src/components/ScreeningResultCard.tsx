@@ -1,6 +1,6 @@
 import { CircleCheck, CircleHelp, CircleOff, TriangleAlert } from "lucide-react";
 
-import type { ConditionResult } from "@/lib/api/types";
+import type { ConditionResult, ModelInfo } from "@/lib/api/types";
 import { percent } from "@/lib/utils";
 
 import { SeverityMeter } from "./SeverityMeter";
@@ -13,8 +13,27 @@ function headline(result: ConditionResult) {
   return { text: "No signs detected", tone: "low" as const, Icon: CircleCheck };
 }
 
+/** How far to trust this result: the model's measured test figures, shown only if it is the same model version. */
+function ModelReliability({ result, model }: { result: ConditionResult; model: ModelInfo }) {
+  if (model.version !== result.model_version) return null;
+  const m = model.metrics;
+  if (!m) return <p className="text-xs text-muted-foreground">Model performance: {model.metrics_status}.</p>;
+  const falseAlarms = Math.round((1 - m.precision) * 10);
+  return (
+    <div data-testid={`reliability-${result.condition}`} className="rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
+      <p>
+        <strong className="text-foreground">How reliable is this model?</strong> When measured, it found {percent(m.sensitivity)} of
+        cases (sensitivity), cleared {percent(m.specificity)} of healthy eyes (specificity), and{" "}
+        {falseAlarms > 0 ? `about ${falseAlarms} in 10 of its positive flags were false alarms` : "almost none of its positive flags were false alarms"}{" "}
+        (precision {percent(m.precision)}).
+      </p>
+      <p className="mt-1">{model.metrics_status}.</p>
+    </div>
+  );
+}
+
 /** One condition's outcome. Unavailable models are shown explicitly, never as a negative result. */
-export function ScreeningResultCard({ result }: { result: ConditionResult }) {
+export function ScreeningResultCard({ result, model }: { result: ConditionResult; model?: ModelInfo }) {
   const { text, tone, Icon } = headline(result);
   return (
     <Card data-testid={`result-${result.condition}`}>
@@ -49,6 +68,7 @@ export function ScreeningResultCard({ result }: { result: ConditionResult }) {
           </>
         )}
         <p className="text-sm font-medium">{result.recommendation}</p>
+        {result.model_available && model && <ModelReliability result={result} model={model} />}
       </CardContent>
     </Card>
   );

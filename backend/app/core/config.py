@@ -6,8 +6,9 @@ so behaviour can be changed by configuration instead of code edits. ML decision 
 """
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -27,11 +28,15 @@ class DatabaseSettings(BaseSettings):
 
     @field_validator("database_url")
     @classmethod
-    def _anchor_relative_sqlite_path(cls, value: str) -> str:
-        """sqlite:///data/app.db means <repo>/data/app.db no matter which folder a command runs from."""
+    def _normalise_database_url(cls, value: str) -> str:
+        """sqlite:///data/app.db means <repo>/data/app.db no matter which folder a command runs from.
+        Hosting providers hand out postgres:// or postgresql:// URLs; the app's driver is psycopg 3."""
         prefix = "sqlite:///"
         if value.startswith(prefix) and not Path(value.removeprefix(prefix)).is_absolute():
             return prefix + (REPO_ROOT / value.removeprefix(prefix)).as_posix()
+        for scheme in ("postgres://", "postgresql://"):
+            if value.startswith(scheme):
+                return "postgresql+psycopg://" + value.removeprefix(scheme)
         return value
 
 
@@ -46,6 +51,21 @@ class Settings(DatabaseSettings):
     refresh_token_days: int = 7
     login_max_failures: int = 5
     login_window_seconds: int = 15 * 60
+    signup_max_per_window: int = 5          # public sign-ups per client address per window
+    signup_window_seconds: int = 60 * 60
+
+    # Specialist review targets (a design decision; the proposal sets no time limit). See docs/risk_policy.md.
+    review_target_urgent_hours: int = 24
+    review_target_routine_hours: int = 72
+
+    # Day boundary for "screened today" and per-day counts (IANA name). A setting, not a deployment claim.
+    time_zone: str = "Africa/Kigali"
+
+    @field_validator("time_zone")
+    @classmethod
+    def _known_time_zone(cls, value: str) -> str:
+        ZoneInfo(value)  # raises for an unknown zone, so a typo fails at start-up
+        return value
 
     models_dir: Path = REPO_ROOT / "models"
     risk_policy_path: Path = BACKEND_ROOT / "config" / "risk_policy.json"
@@ -59,6 +79,10 @@ class Settings(DatabaseSettings):
     # model folder is reported as "model not available yet".
     conditions: tuple[str, ...] = ("dr", "glaucoma", "cataract")
 
+    # Hosted deployment (render.yaml): the PWA's host name, e.g. retina-screening.onrender.com. When set, it is
+    # allowed by CORS and used for links in emails.
+    frontend_host: str | None = None
+
     # Password reset by email. Without SMTP_HOST, messages are written to email_outbox_dir instead.
     app_base_url: str = "http://localhost:5173"   # where the reset link points (the PWA)
     password_reset_minutes: int = 30
@@ -69,6 +93,16 @@ class Settings(DatabaseSettings):
     smtp_password: str | None = None
     smtp_sender: str = "Retinal Screening <no-reply@example.org>"
     smtp_starttls: bool = True
+
+    @model_validator(mode="after")
+    def _use_frontend_host(self) -> "Settings":
+        if self.frontend_host:
+            origin = f"https://{self.frontend_host.removeprefix('https://').rstrip('/')}"
+            if origin not in self.cors_origins:
+                self.cors_origins = [*self.cors_origins, origin]
+            if self.app_base_url == "http://localhost:5173":
+                self.app_base_url = origin
+        return self
 
     @field_validator("jwt_secret")
     @classmethod

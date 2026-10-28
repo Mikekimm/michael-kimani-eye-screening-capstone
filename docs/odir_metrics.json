@@ -1,0 +1,114 @@
+{
+  "glaucoma": {
+    "metrics": {
+      "sensitivity": 0.7619047619047619,
+      "specificity": 0.7214428857715431,
+      "precision": 0.1032258064516129,
+      "f1": 0.18181818181818182,
+      "accuracy": 0.7230769230769231,
+      "auc": 0.8182794159748067,
+      "test_images": 1040,
+      "test_positives": 42,
+      "test_patients": 524,
+      "confidence_intervals": {
+        "sensitivity": {
+          "estimate": 0.7619047619047619,
+          "low": 0.6457986111111111,
+          "high": 0.8717948717948718
+        },
+        "specificity": {
+          "estimate": 0.7214428857715431,
+          "low": 0.6873111450302686,
+          "high": 0.7545319084317224
+        },
+        "precision": {
+          "estimate": 0.1032258064516129,
+          "low": 0.06430157438632264,
+          "high": 0.14675846197200737
+        }
+      },
+      "at_default_threshold_0_5": {
+        "threshold": 0.5,
+        "sensitivity": 0.47619047619047616,
+        "specificity": 0.9028056112224448,
+        "precision": 0.17094017094017094,
+        "f1": 0.25157232704402516,
+        "accuracy": 0.885576923076923,
+        "tp": 20,
+        "fp": 97,
+        "tn": 901,
+        "fn": 22
+      },
+      "source": "notebooks/odir_glaucoma_cataract.ipynb (test split scored once with the exported TFLite file)"
+    },
+    "status": "measured on a patient-separated held-out test split (1040 eyes, 42 positive, 524 patients); limited evidence, not clinically validated; below the 85% sensitivity / 80% specificity targets",
+    "threshold": 0.3198474049568176,
+    "trustworthy": true,
+    "meets_targets": false
+  },
+  "cataract": {
+    "metrics": {
+      "sensitivity": 0.9782608695652174,
+      "specificity": 0.9619238476953907,
+      "precision": 0.5421686746987951,
+      "f1": 0.6976744186046511,
+      "accuracy": 0.9626436781609196,
+      "auc": 0.9909601812320293,
+      "test_images": 1044,
+      "test_positives": 46,
+      "test_patients": 525,
+      "confidence_intervals": {
+        "sensitivity": {
+          "estimate": 0.9782608695652174,
+          "low": 0.9189051296194154,
+          "high": 1.0
+        },
+        "specificity": {
+          "estimate": 0.9619238476953907,
+          "low": 0.9477360619816099,
+          "high": 0.9746707193515705
+        },
+        "precision": {
+          "estimate": 0.5421686746987951,
+          "low": 0.4179057245418477,
+          "high": 0.6626541047912581
+        }
+      },
+      "at_default_threshold_0_5": {
+        "threshold": 0.5,
+        "sensitivity": 0.9782608695652174,
+        "specificity": 0.9619238476953907,
+        "precision": 0.5421686746987951,
+        "f1": 0.6976744186046511,
+        "accuracy": 0.9626436781609196,
+        "tp": 45,
+        "fp": 38,
+        "tn": 960,
+        "fn": 1
+      },
+      "source": "notebooks/odir_glaucoma_cataract.ipynb (test split scored once with the exported TFLite file)"
+    },
+    "status": "measured on a patient-separated held-out test split (1044 eyes, 46 positive, 525 patients); limited evidence, not clinically validated; meets the 85%/80% targets",
+    "threshold": 0.5412700772285461,
+    "trustworthy": true,
+    "meets_targets": true
+  },
+  "class_counts": {
+    "glaucoma": {
+      "eyes": 6926,
+      "positive_eyes": 282,
+      "negative_eyes": 6644,
+      "patients": 3492,
+      "positive_patients": 177,
+      "excluded_ambiguous": 49
+    },
+    "cataract": {
+      "eyes": 6974,
+      "positive_eyes": 312,
+      "negative_eyes": 6662,
+      "patients": 3498,
+      "positive_patients": 211,
+      "excluded_ambiguous": 1
+    }
+  }
+}
