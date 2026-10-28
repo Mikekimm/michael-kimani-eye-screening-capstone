@@ -4,7 +4,7 @@ name: CI
 
 on:
   push:
-    branches: [main, final-app]
+    branches: [main, final-app, wip-final-fixes]
   pull_request:
 
 jobs:
