@@ -60,10 +60,22 @@ export async function analysePhoto(page: Page, file: string) {
   await page.getByRole("button", { name: "Analyse", exact: true }).click();
 }
 
-/** On a result page: "Ask a specialist" with a question. */
-export async function askSpecialist(page: Page, question: string) {
-  await page.getByRole("button", { name: "Ask a specialist" }).click();
+/** The ask form: make sure at least one condition is ticked (flagged ones are pre-ticked), then the question. */
+export async function fillAskForm(page: Page, question: string, priority?: "routine" | "urgent") {
+  const boxes = page.getByRole("group", { name: "What is your question about?" }).getByRole("checkbox");
+  if ((await boxes.evaluateAll((els) => els.filter((e) => (e as HTMLInputElement).checked).length)) === 0) await boxes.first().check();
   await page.getByLabel("Your question for the specialist").fill(question);
+  if (priority) await page.getByLabel("How soon?").selectOption(priority);
+}
+
+/** The button that opens the ask form: "Ask a specialist", or "Add a question" when the risk policy already
+ * queued the case automatically (uncertain result). */
+export const askButton = (page: Page) => page.getByRole("button", { name: /^(Ask a specialist|Add a question)$/ });
+
+/** On a result page: "Ask a specialist" (or "Add a question") with a question. */
+export async function askSpecialist(page: Page, question: string, priority?: "routine" | "urgent") {
+  await askButton(page).click();
+  await fillAskForm(page, question, priority);
   await page.getByRole("button", { name: "Send to specialist" }).click();
   await expect(page.getByTestId("status-label").first()).toHaveText("Awaiting specialist");
 }
