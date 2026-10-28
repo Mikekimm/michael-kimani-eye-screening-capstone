@@ -1,11 +1,11 @@
-# Progress notes (28 October 2026, late evening)
+# Progress notes (28 October 2026, after the admin-overview merge)
 
 Hand-over notes for picking the work up again. Read this first.
 
 ## 1. What is on `main`
-- `main` = **`e2ad2a5533acf9c4c349c079bd19873c48976d42`** ("Merge branch 'specialty-routing'"), pushed 28 Oct.
-  Earlier merge: `85ccc53` (wip-final-fixes). CI run #8 on `main` (e2ad2a5): all three jobs green (backend tests on
-  PostgreSQL 16, frontend checks, Docker build).
+- `main` = **`b34a084745cca8afa8593b1286ee0fb0fa97b777`** ("Merge branch 'admin-overview'"), pushed 28 Oct.
+  CI run #10 on `main` (b34a084): all three jobs green (backend tests on PostgreSQL 16, frontend checks, Docker build).
+- Earlier merges: `e2ad2a5533acf9c4c349c079bd19873c48976d42` (specialty-routing; CI #8 green), `85ccc53` (wip-final-fixes).
 - Contents: DR v2 + ODIR glaucoma/cataract models, fundus check (hard stop), capture flow, soft delete, demo reset
   (keeps approved own accounts), sign-up request without a facility, duplicate-email protection, Kigali daily
   counts, and from `specialty-routing`:
@@ -17,24 +17,30 @@ Hand-over notes for picking the work up again. Read this first.
   - auto-refresh every 30 s (`VITE_REFRESH_SECONDS`) for the specialist queue, home and history;
   - docs: proposal compliance and sequence-diagram mapping in `docs/scope_table.md`, shared asynchronous queue,
     specialists do not prescribe, SMS/email future work; README section 11 and report AI-use statement.
-- Migration head: `c4e8a2f61b37`. After pulling, run `alembic upgrade head` (or `scripts/reset_demo_data.py --yes`).
+- From `admin-overview`: Analytics home shows approved, active health workers / specialists / admins and the
+  sign-up requests waiting for approval (links to Users); local emails (password-reset links) are also printed to
+  the backend console when no `SMTP_HOST` is set (README explains SMTP); `scripts/create_admin.py` creates a personal
+  admin from `PERSONAL_ADMIN_EMAIL` / `PERSONAL_ADMIN_PASSWORD` in the git-ignored `.env` (never printed or committed).
+  The long health-worker E2E journey has a 120 s timeout (slow laptop under load; noted in `docs/testing_report.md`).
+- Migration head: `c4e8a2f61b37` (unchanged by admin-overview). After pulling, run `alembic upgrade head` (or `scripts/reset_demo_data.py --yes`).
 
 ## 2. Final test counts (28 Oct, the code now on `main`)
 | Suite | Result |
 |---|---|
-| Backend pytest, Python 3.14 | 299 passed (137 unit/algorithm + 162 API) |
-| Backend pytest, Python 3.12 (as in CI) | 298 passed, 1 skipped (Keras test without TensorFlow) |
-| Vitest | 84 passed |
+| Backend pytest, Python 3.14 | 302 passed |
+| Backend pytest, Python 3.12 / PostgreSQL 16 (CI #10) | green |
+| Vitest | 85 passed |
 | TypeScript type-check / ESLint | clean / clean |
-| Playwright, 4 profiles (Chromium mobile + desktop, Firefox, WebKit) | 51 passed, 3 skipped by design, 0 failed |
+| Playwright, 4 profiles (Chromium mobile + desktop, Firefox, WebKit) | 51 passed, 3 skipped by design, 0 failed, 0 did not run (16.2 min; two earlier runs had 1 mobile-webkit timeout, fixed by the 120 s limit) |
 | Browser round trip (run alone) | 0.60 s; 4.15 s on an emulated slow phone + slow 3G (was 0.44 / 2.73 s before routing; not optimised) |
 | Report PDF | 5 pages |
 
 ## 3. Current branch
-`main`. Branches `specialty-routing` and `wip-final-fixes` are merged and kept (local; `wip-final-fixes` also on
+`main`. Branches `admin-overview`, `specialty-routing` and `wip-final-fixes` are merged and kept (local; `wip-final-fixes` also on
 GitHub). No branch or tag was deleted.
 
 ## 4. Still to do, in order
+0. Optional: put `PERSONAL_ADMIN_EMAIL` / `PERSONAL_ADMIN_PASSWORD` in `.env` and run `scripts/create_admin.py`.
 1. Rotate the secret from the screenshot uploaded on 28 Oct (the file was deleted).
 2. Reset the demo data (`scripts/reset_demo_data.py --yes`, backend stopped) and record the walkthrough video
    (`docs/video_script.md`, demo order and demo-only credentials).
