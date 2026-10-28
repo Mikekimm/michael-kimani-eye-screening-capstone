@@ -23,6 +23,8 @@ export function percent(value: number, digits = 0): string {
 export const EYE_LABEL = { left: "Left eye", right: "Right eye" } as const;
 
 export const CONDITION_LABEL: Record<string, string> = { dr: "Diabetic retinopathy", glaucoma: "Glaucoma", cataract: "Cataract" };
+/** Specialist specialties; "general" matches every case. */
+export const SPECIALTY_LABEL: Record<string, string> = { ...CONDITION_LABEL, general: "General (all cases)" };
 
 export const ROLE_LABEL = { health_worker: "Health worker", specialist: "Specialist", admin: "Administrator" } as const;
 

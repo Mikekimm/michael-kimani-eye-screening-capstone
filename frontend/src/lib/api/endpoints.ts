@@ -1,6 +1,7 @@
 import type { HttpClient } from "./http";
 import type {
-  AccountStatus, Analytics, DailyCounts, Eye, ModelInfo, Patient, PatientInput, QueueItem, ReviewInput, Role, Screening, SyncItemResult,
+  AccountStatus, Analytics, AskSpecialistInput, DailyCounts, Eye, ModelInfo, Patient, PatientInput, QueueItem, ReviewInput, Role,
+  Screening, Specialty, SyncItemResult,
   SyncPullResponse, TokenPair, User,
 } from "./types";
 
@@ -48,9 +49,10 @@ export function createApi(http: HttpClient) {
     screenings: {
       list: (limit = 50, day?: string) => http.request<Screening[]>("/screenings", { query: { limit, day } }),
       dailyCounts: (days = 14) => http.request<DailyCounts>("/screenings/daily-counts", { query: { days } }),
+      newDecisions: () => http.request<{ count: number; screening_ids: string[] }>("/screenings/new-decisions"),
       get: (id: string) => http.request<Screening>(`/screenings/${id}`),
-      askSpecialist: (id: string, question: string) =>
-        http.request<Screening>(`/screenings/${id}/ask-specialist`, { method: "POST", json: { question } }),
+      askSpecialist: (id: string, body: AskSpecialistInput) =>
+        http.request<Screening>(`/screenings/${id}/ask-specialist`, { method: "POST", json: body }),
       discard: (id: string, reason: string) =>
         http.request<void>(`/screenings/${id}/discard`, { method: "POST", json: { reason } }),
       image: (id: string) => http.request<Blob>(`/screenings/${id}/image`, { responseType: "blob" }),
@@ -69,6 +71,7 @@ export function createApi(http: HttpClient) {
     },
     reviews: {
       queue: () => http.request<QueueItem[]>("/reviews/queue"),
+      take: (screeningId: string) => http.request<Screening>(`/reviews/${screeningId}/take`, { method: "POST" }),
       submit: (screeningId: string, body: ReviewInput) =>
         http.request<Screening>(`/reviews/${screeningId}`, { method: "POST", json: body }),
     },
@@ -83,7 +86,7 @@ export function createApi(http: HttpClient) {
       users: () => http.request<User[]>("/admin/users"),
       createUser: (body: { email: string; full_name: string; password: string; role: Role }) =>
         http.request<User>("/admin/users", { method: "POST", json: body }),
-      updateUser: (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string; facility?: string }) =>
+      updateUser: (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string; facility?: string; specialties?: Specialty[] }) =>
         http.request<User>(`/admin/users/${id}`, { method: "PATCH", json: body }),
       analytics: () => http.request<Analytics>("/admin/analytics"),
     },

@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronRight } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useParams } from "react-router-dom";
 import { z } from "zod";
@@ -9,22 +10,27 @@ import { EmptyState, ErrorState, ListSkeleton, describeError } from "@/component
 import { ScreeningView } from "@/components/ScreeningView";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, FieldError, Label, Select, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-import { useReviewQueue, useScreening, useSubmitReview } from "@/hooks/queries";
-import type { Screening } from "@/lib/api/types";
+import { useAuth } from "@/hooks/useAuth";
+import { useReviewQueue, useScreening, useSubmitReview, useTakeCase } from "@/hooks/queries";
+import type { QueueItem, Screening } from "@/lib/api/types";
 import { CONDITION_LABEL, EYE_LABEL, formatDateTime, waitingFor } from "@/lib/utils";
 
-export function ReviewQueuePage() {
-  const queue = useReviewQueue();
+function TakeButton({ screeningId }: { screeningId: string }) {
+  const take = useTakeCase(screeningId);
+  const toast = useToast();
   return (
-    <>
-      <PageHeader title="Review queue" description="Cases health workers sent you, with their question. Overdue first, then the longest waiting." />
-      {queue.isPending && <ListSkeleton />}
-      {queue.isError && <ErrorState error={queue.error} onRetry={() => void queue.refetch()} />}
-      {queue.isSuccess && queue.data.length === 0 && <EmptyState title="No cases waiting" description="New referrals appear here after health workers sync." />}
-      <div className="flex flex-col gap-2">
-        {queue.data?.map((item) => (
-          <Link key={item.screening_id} to={`/reviews/${item.screening_id}`}>
-            <Card className="flex items-center gap-3 p-3 hover:bg-muted/50">
+    <Button size="sm" variant="outline" disabled={take.isPending}
+      onClick={() => take.mutate(undefined, { onSuccess: () => toast("Case taken. Other specialists see it as yours.", "success"),
+        onError: (error) => toast(describeError(error), "error") })}>
+      Take this case
+    </Button>
+  );
+}
+
+function QueueCard({ item }: { item: QueueItem }) {
+  return (
+    <Card className="flex items-center gap-3 p-3" data-testid="queue-card">
+      <Link to={`/reviews/${item.screening_id}`} className="flex flex-1 items-center gap-3 hover:opacity-80">
               <div className="flex flex-1 flex-col gap-1">
                 <p className="text-sm font-medium">{item.patient_code} · {EYE_LABEL[item.eye]}</p>
                 <p className="text-xs text-muted-foreground">
@@ -36,17 +42,48 @@ export function ReviewQueuePage() {
                   <Badge tone={item.referral_reason === "positive" ? "high" : "medium"}>
                     {item.referral_reason === "uncertain" ? "Borderline" : item.referral_reason === "manual" ? "Manual referral" : "Signs detected"}
                   </Badge>
-                  {item.flagged_conditions.map((c) => <Badge key={c}>{CONDITION_LABEL[c] ?? c}</Badge>)}
+                  {(item.conditions.length ? item.conditions : item.flagged_conditions).map((c) => <Badge key={c}>{CONDITION_LABEL[c] ?? c}</Badge>)}
                   {item.highest_band && <Badge>DR band {item.highest_band}</Badge>}
                   <Badge tone={item.overdue ? "high" : "neutral"}>
                     {item.overdue ? `Overdue (${item.priority} target passed)` : `${item.priority === "urgent" ? "Urgent" : "Routine"}: due ${formatDateTime(item.due_at)}`}
                   </Badge>
+                  {item.assigned_to_name && (
+                    <Badge tone="info">{item.assigned_to_me ? "Taken by you" : `Taken by ${item.assigned_to_name}`}</Badge>
+                  )}
                 </div>
               </div>
               <ChevronRight aria-hidden className="h-4 w-4 text-muted-foreground" />
-            </Card>
-          </Link>
-        ))}
+      </Link>
+      {!item.assigned_to_name && <TakeButton screeningId={item.screening_id} />}
+    </Card>
+  );
+}
+
+export function ReviewQueuePage() {
+  const queue = useReviewQueue();
+  const [tab, setTab] = useState<"mine" | "all">("mine");
+  const mine = queue.data?.filter((item) => item.matches_my_specialties) ?? [];
+  const shown = tab === "mine" ? mine : queue.data ?? [];
+  return (
+    <>
+      <PageHeader title="Review queue"
+        description="Cases health workers sent, with their question. Your specialties first; overdue first, then the longest waiting." />
+      <div role="tablist" aria-label="Which cases" className="mb-3 flex gap-2">
+        <Button role="tab" aria-selected={tab === "mine"} size="sm" variant={tab === "mine" ? "primary" : "outline"} onClick={() => setTab("mine")}>
+          My specialties ({mine.length})
+        </Button>
+        <Button role="tab" aria-selected={tab === "all"} size="sm" variant={tab === "all" ? "primary" : "outline"} onClick={() => setTab("all")}>
+          All cases ({queue.data?.length ?? 0})
+        </Button>
+      </div>
+      {queue.isPending && <ListSkeleton />}
+      {queue.isError && <ErrorState error={queue.error} onRetry={() => void queue.refetch()} />}
+      {queue.isSuccess && shown.length === 0 && (
+        <EmptyState title="No cases waiting"
+          description={tab === "mine" ? "Nothing for your specialties. Check All cases." : "New cases appear here after health workers sync."} />
+      )}
+      <div className="flex flex-col gap-2">
+        {shown.map((item) => <QueueCard key={item.screening_id} item={item} />)}
       </div>
     </>
   );
@@ -147,6 +184,26 @@ function ReviewPanel({ screening }: { screening: Screening }) {
   );
 }
 
+/** Take the case, or review it if it is yours; a case taken by another specialist is read-only here. */
+function CaseActions({ screening }: { screening: Screening }) {
+  const { user } = useAuth();
+  const open = screening.status === "referred";
+  if (open && screening.assigned_to_id && screening.assigned_to_id !== user?.id) {
+    return <Card className="p-3 text-sm" role="status">Being reviewed by {screening.assigned_to_name}. You can read the case but not decide it.</Card>;
+  }
+  return (
+    <>
+      {open && !screening.assigned_to_id && (
+        <Card className="flex items-center justify-between gap-2 p-3 text-sm">
+          <span>Nobody has taken this case yet. Taking it shows other specialists that you are reviewing it.</span>
+          <TakeButton screeningId={screening.id} />
+        </Card>
+      )}
+      <ReviewPanel screening={screening} />
+    </>
+  );
+}
+
 export function CaseReviewPage() {
   const { id = "" } = useParams();
   const screening = useScreening(id);
@@ -157,7 +214,7 @@ export function CaseReviewPage() {
       <PageHeader title="Case review" />
       <div className="flex flex-col gap-3">
         <ScreeningView screening={screening.data} />
-        <ReviewPanel screening={screening.data} />
+        <CaseActions screening={screening.data} />
       </div>
     </>
   );

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { AccountStatus, PatientInput, ReviewInput, Role } from "@/lib/api/types";
+import type { AccountStatus, AskSpecialistInput, PatientInput, ReviewInput, Role, Specialty } from "@/lib/api/types";
+import { REFRESH_MS } from "@/lib/refresh";
 import { useApi } from "@/lib/services";
 
 /** Data hooks: components read server state only through these (no fetch calls in components). */
@@ -31,25 +32,43 @@ export const useCreatePatient = () => {
 
 export const useScreenings = (limit = 50, day?: string) => {
   const api = useApi();
-  return useQuery({ queryKey: ["screenings", "mine", limit, day ?? ""], queryFn: () => api.screenings.list(limit, day) });
+  return useQuery({ queryKey: ["screenings", "mine", limit, day ?? ""], queryFn: () => api.screenings.list(limit, day),
+    refetchInterval: REFRESH_MS });
 };
 
 /** Screenings per day in the clinic's time zone (server setting), for "Screened today" and History. */
 export const useDailyCounts = (days = 14) => {
   const api = useApi();
-  return useQuery({ queryKey: ["screenings", "daily", days], queryFn: () => api.screenings.dailyCounts(days) });
+  return useQuery({ queryKey: ["screenings", "daily", days], queryFn: () => api.screenings.dailyCounts(days),
+    refetchInterval: REFRESH_MS });
+};
+
+/** Specialist decisions not opened yet ("New decisions" on the health worker's home). */
+export const useNewDecisions = () => {
+  const api = useApi();
+  return useQuery({ queryKey: ["screenings", "new-decisions"], queryFn: () => api.screenings.newDecisions(),
+    refetchInterval: REFRESH_MS });
 };
 
 export const useScreening = (id: string) => {
   const api = useApi();
-  return useQuery({ queryKey: ["screenings", "detail", id], queryFn: () => api.screenings.get(id) });
+  const client = useQueryClient();
+  return useQuery({
+    queryKey: ["screenings", "detail", id],
+    queryFn: async () => {
+      const screening = await api.screenings.get(id);
+      // Opening a screening marks a new specialist decision as seen on the server; refresh the home count.
+      void client.invalidateQueries({ queryKey: ["screenings", "new-decisions"] });
+      return screening;
+    },
+  });
 };
 
 export const useAskSpecialist = (id: string) => {
   const api = useApi();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (question: string) => api.screenings.askSpecialist(id, question),
+    mutationFn: (body: AskSpecialistInput) => api.screenings.askSpecialist(id, body),
     onSuccess: (screening) => {
       client.setQueryData(["screenings", "detail", id], screening);
       return client.invalidateQueries({ queryKey: ["screenings"] });
@@ -73,7 +92,19 @@ export const useScreeningImage = (id: string) => {
 
 export const useReviewQueue = () => {
   const api = useApi();
-  return useQuery({ queryKey: ["reviews", "queue"], queryFn: () => api.reviews.queue() });
+  return useQuery({ queryKey: ["reviews", "queue"], queryFn: () => api.reviews.queue(), refetchInterval: REFRESH_MS });
+};
+
+export const useTakeCase = (screeningId: string) => {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.reviews.take(screeningId),
+    onSuccess: (screening) => {
+      client.setQueryData(["screenings", "detail", screeningId], screening);
+      return client.invalidateQueries({ queryKey: ["reviews"] });
+    },
+  });
 };
 
 export const useSubmitReview = (screeningId: string) => {
@@ -102,7 +133,7 @@ export const useUpdateUser = () => {
   const api = useApi();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string; facility?: string }) =>
+    mutationFn: ({ id, ...body }: { id: string; role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string; facility?: string; specialties?: Specialty[] }) =>
       api.admin.updateUser(id, body),
     onSuccess: () => client.invalidateQueries({ queryKey: ["admin"] }),
   });

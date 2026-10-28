@@ -119,12 +119,17 @@ function RetakeNeeded({ screening, canRescreen }: { screening: Screening; canRes
 function ReviewWaiting({ screening }: { screening: Screening }) {
   if (screening.status !== "referred" || !screening.referred_at) return null;
   return (
+    <>
+    {screening.assigned_to_name && (
+      <p data-testid="being-reviewed"><Badge tone="info">Being reviewed by {screening.assigned_to_name}</Badge></p>
+    )}
     <p data-testid="review-waiting">
       Awaiting specialist for <strong>{waitingFor(screening.referred_at)}</strong> (since {formatDateTime(screening.referred_at)}).{" "}
       {screening.review_overdue
         ? <Badge tone="high">Review overdue</Badge>
         : screening.review_due_at && <>Target: {screening.review_priority} review by {formatDateTime(screening.review_due_at)}.</>}
     </p>
+    </>
   );
 }
 
@@ -142,7 +147,13 @@ export function ScreeningView({ screening }: { screening: Screening }) {
           <p className="text-lg font-semibold">{screening.patient_code} · {EYE_LABEL[screening.eye]}</p>
           <StatusPill screening={screening} />
           <p className="text-muted-foreground">Captured {formatDateTime(screening.captured_at)} by {screening.created_by_name}</p>
-          {screening.referral_reason && (
+          {screening.referral_reason && screening.queued_automatically && (
+            <p data-testid="queued-automatically">
+              <strong>Queued automatically</strong> for specialist review because the result was uncertain
+              {flagged.length > 0 && <> ({flagged.join(", ")})</>}.
+            </p>
+          )}
+          {screening.referral_reason && !screening.queued_automatically && (
             <p>
               Sent to a specialist by {screening.created_by_name} when <strong>{ASKED_WHEN[screening.referral_reason]}</strong>
               {screening.referral_reason !== "manual" && flagged.length > 0 && <> ({flagged.join(", ")})</>}.
@@ -150,7 +161,9 @@ export function ScreeningView({ screening }: { screening: Screening }) {
           )}
           {screening.referral_question && (
             <p data-testid="referral-question" className="rounded-md bg-muted/60 p-2">
-              <span className="font-medium">Question for the specialist:</span> {screening.referral_question}
+              <span className="font-medium">Question for the specialist</span>
+              {screening.referral_conditions.length > 0 && <> (about {screening.referral_conditions.map((c) => CONDITION_LABEL[c] ?? c).join(", ")})</>}
+              : {screening.referral_question}
             </p>
           )}
           <ReviewWaiting screening={screening} />

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-import { acceptConsentIfAsked, approveAsAdmin, registerPatient, signIn as signInOnly, signUp } from "./helpers";
+import { acceptConsentIfAsked, askButton, approveAsAdmin, fillAskForm, registerPatient, signIn as signInOnly, signUp } from "./helpers";
 
 // WCAG 2.1 A/AA audit (axe-core) of every screen, signed in as each role, with real content on the page.
 // Lighthouse can only audit the public sign-in page; this covers the rest.
@@ -71,9 +71,9 @@ test("every screen meets WCAG 2.1 A/AA checks (axe-core)", async ({ page, browse
   await page.getByRole("button", { name: "Analyse", exact: true }).click();
   await page.waitForURL("**/screenings/*");
   const screeningPath = new URL(page.url()).pathname;
-  await page.getByRole("button", { name: "Ask a specialist" }).click();
+  await askButton(page).click();
   await audit(page, "health_worker", "(result: ask a specialist form)", results);
-  await page.getByLabel("Your question for the specialist").fill("Accessibility run: please check.");
+  await fillAskForm(page, "Accessibility run: please check.");
   await page.getByRole("button", { name: "Send to specialist" }).click();
   await expect(page.getByTestId("status-label").first()).toHaveText("Awaiting specialist");
   for (const route of ["/", "/patients", "/patients/new", patientPath, screeningPath, "/history", "/about"]) {

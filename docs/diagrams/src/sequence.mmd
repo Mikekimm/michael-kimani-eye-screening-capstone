@@ -26,7 +26,7 @@ sequenceDiagram
     else usable
       ML->>ML: score with every registered model, then RiskPolicy gives band, action, refer_suggested
       ML-->>API: one outcome per condition (unavailable models flagged)
-      API->>DB: screening + diagnosis_results + sync_log + audit (no referral yet)
+      API->>DB: screening + diagnosis_results + sync_log + audit (+ referral if uncertain: queued automatically)
       API-->>App: 201 result + ReferralAdvisor recommendation
     end
   end

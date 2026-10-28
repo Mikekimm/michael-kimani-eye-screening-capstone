@@ -30,7 +30,18 @@ export interface User {
   requested_role: Role | null;
   /** Free text typed at sign-up, recorded for the administrator; not verified. */
   facility: string | null;
+  /** Specialists only: which conditions they review; "general" matches every case. */
+  specialties: Specialty[];
   created_at: string;
+}
+
+export type Specialty = "dr" | "glaucoma" | "cataract" | "general";
+
+/** "Ask a specialist": what the question is about, the question, and how soon. */
+export interface AskSpecialistInput {
+  question: string;
+  conditions: string[];
+  priority: ReviewPriority;
 }
 
 /** The app's recommendation after a result. Nothing is sent automatically: the health worker decides. */
@@ -121,6 +132,17 @@ export interface Screening {
   review_priority: ReviewPriority | null;
   review_due_at: string | null;
   review_overdue: boolean;
+  /** Conditions the health worker asked about. */
+  referral_conditions: string[];
+  /** The specialist who took the case ("Being reviewed by ..."). */
+  assigned_to_name: string | null;
+  assigned_to_id: string | null;
+  /** The risk policy queued it (uncertain result); otherwise the health worker sent it. */
+  queued_automatically: boolean;
+  /** Default for "Ask a specialist": urgent for severe results (DR band 4-5). */
+  suggested_priority: ReviewPriority;
+  /** A specialist decision the health worker has not opened yet. */
+  new_decision: boolean;
   reviews: ReviewEvent[];
   disclaimer: string;
   duplicate?: boolean;
@@ -143,6 +165,11 @@ export interface QueueItem {
   priority: ReviewPriority;
   due_at: string;
   overdue: boolean;
+  /** What the health worker asked about. */
+  conditions: string[];
+  matches_my_specialties: boolean;
+  assigned_to_name: string | null;
+  assigned_to_me: boolean;
 }
 
 export interface ReviewInput {
@@ -213,6 +240,7 @@ export interface Analytics {
   time_zone: string;
   open_referrals: number;
   overdue_referrals: number;
+  overdue_by_priority: { urgent?: number; routine?: number };
   review_targets_hours: { urgent: number; routine: number };
   median_review_turnaround_hours: number | null;
   model_versions_in_use: Record<string, number>;

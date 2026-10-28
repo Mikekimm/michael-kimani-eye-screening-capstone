@@ -41,7 +41,8 @@ checked after a clean reset on 28 October (all three sign in). Never use them on
 6. **Admin (normal window):** sign in as admin -> Users -> the pending card shows the requested role. Press
    **Reject** with no reason -> refused ("Give a reason"). Then type a facility (optional) and **Approve** (role to
    grant: Health worker). Say: the app does not verify identity; the admin checks it outside the app; every
-   decision is in the audit log.
+   decision is in the audit log. Show that for a **specialist** the admin also ticks specialties (DR, glaucoma,
+   cataract, general); the demo specialist already has all four.
 7. **Private window:** sign in again -> accept consent -> home screen. Sign out.
 8. **Health worker (phone size), `nurse@example.org`:** Patients -> **Register patient** -> app-generated code.
 9. **Screen** -> the patient -> **Left eye** -> **From gallery** -> choose the **non-eye image** -> preview with
@@ -52,24 +53,30 @@ checked after a clean reset on 28 October (all three sign in). Never use them on
     estimated band (not a grade), glaucoma and cataract "binary result only", "How reliable is this model?"
     (glaucoma: about 9 in 10 flags are false alarms), the recommendation ("Refer recommended" or "Uncertain,
     consider asking a specialist"), the disclaimer. Say: **nothing has been sent to a specialist**.
-12. **Ask a specialist** -> type a question ("Is this referable DR?") -> **Send to specialist** -> status
-    "Awaiting specialist", the question, waiting time and review target (urgent 24 h / routine 72 h).
+12. **Ask a specialist** -> the flagged conditions are pre-ticked (keep Diabetic retinopathy) -> type a question
+    ("Is this referable DR?") -> **How soon?** Urgent -> **Send to specialist** -> status "Awaiting specialist", the
+    question and its conditions, waiting time and review target (urgent 24 h / routine 72 h).
 13. **Screen** again -> same patient -> **Right eye** -> the **non-DR photo** -> Analyse -> "No referral needed" ->
-    **Save** -> History shows it and today's count.
-14. **Specialist** (`specialist@example.org`): Review queue -> the case with the health worker's question ->
-    open -> **Decision: Override** glaucoma with a reason -> **Save review** -> **Decision: Approve** with a note ->
-    **Save review**. History is append-only.
-15. **Health worker:** History -> the case now shows **Reviewed**; open it -> the specialist's decisions. Then try
+    **Save** -> History shows it and today's count. If you have a borderline photo, show that it is **Queued
+    automatically** (uncertain case, as in the proposal) and that **Add a question** still works.
+14. **Specialist** (`specialist@example.org`): Review queue -> **My specialties** tab (and **All cases**) -> the case
+    with the question -> **Take this case** -> "Taken by you". Say: specialty routing is an extension beyond the
+    proposal, which has a single Specialist role.
+15. **Health worker:** open the case -> "Being reviewed by Demo Specialist".
+16. **Specialist:** open the case -> **Decision: Override** glaucoma with a reason -> **Save review** -> **Decision:
+    Approve** with a note -> **Save review**. History is append-only.
+17. **Health worker:** Home -> **New decisions: 1** (no reload needed: the screens refresh every 30 s) -> History ->
+    the case shows **Reviewed** and **New decision**; open it (the mark clears) -> the specialist's decisions. Then try
     `/admin/users` in the address bar -> sent back home (the API returns 403).
-16. **Offline:** DevTools -> Network -> Offline -> capture a photo -> History "Waiting to sync" -> back online ->
+18. **Offline:** DevTools -> Network -> Offline -> capture a photo -> History "Waiting to sync" -> back online ->
     it syncs and is scored. Say: no on-device inference.
-17. **Admin:** Analytics (aggregates only, overdue reviews) and the **About** screen (model cards, test-split
+19. **Admin:** Analytics (aggregates only, overdue reviews per priority) and the **About** screen (model cards, test-split
     figures and caveats).
-18. **Terminal:** `pytest -q`, `npm.cmd test`, the Playwright HTML report (four profiles), the GitHub Actions run.
-19. **docs/testing_report.md** section 5: performance and compatibility figures.
-20. **Code:** `registry.py`, `risk_policy.py` (`RiskPolicy`, `ReferralAdvisor`), `quality.py` (`FundusCheck`),
+20. **Terminal:** `pytest -q`, `npm.cmd test`, the Playwright HTML report (four profiles), the GitHub Actions run.
+21. **docs/testing_report.md** section 5: performance and compatibility figures.
+22. **Code:** `registry.py`, `risk_policy.py` (`RiskPolicy`, `ReferralAdvisor`), `quality.py` (`FundusCheck`),
     `review_targets.py`, `syncQueue.ts`.
-21. **README known issues.**
+23. **README known issues.**
 
 ## Script against the grading criteria
 
@@ -79,11 +86,11 @@ checked after a clean reset on 28 October (all three sign in). Never use them on
 | 1:15-3:15 | 3-7 | Core features; access control | Sign-up is a request; the requested role grants nothing; one account per email; admin approves or rejects with a reason; no claim that anyone is verified. |
 | 3:15-5:00 | 8-11 | Core features; **backend/frontend interaction** | Multipart upload with a client UUID; the server checks type and size, runs the quality gate and the fundus check, then all three checksum-verified models, each with the resize from its card, then the risk policy and `ReferralAdvisor`; the typed API client turns errors into plain language. |
 | 5:00-6:00 | 4-5, 9-10, invalid form input | **Error handling with different inputs** | Wrong password vs pending account, duplicate email, non-eye photo (hard stop, nothing saved), blank photo, invalid form input; the fundus check figures: 3 of 25 real fundus photos wrongly refused, 0 of 77 non-eye images accepted, tuned on the same images, no face photos tested, so optimistic. |
-| 6:00-8:15 | 12-15 | Core features (referral loop) | The health worker gives the advice at once; the review is a later confirmation, not a gate. Only the health worker sends a case, with a question; asynchronous review as in the proposal; the 24 h / 72 h targets are my design decision; the decision comes back; RBAC on the server. |
-| 8:15-9:00 | 16-17 | Offline, analytics | IndexedDB queue, backoff with jitter, idempotent on the UUID; aggregates only. |
-| 9:00-10:30 | 18 | **Testing strategies (at least two)** | Unit (risk policy boundaries, fundus check, review targets, daily counts at 23:59 vs 00:01), integration (role matrix, real models, approval rules, PostgreSQL in CI), end-to-end on four profiles, model parity (24 photos, max 0.021, no decision changed). One bug each found. |
-| 10:30-11:15 | 19 | **Performance and compatibility** | Server timing, 0.44 s vs 2.73 s round trip on an emulated low-end phone with slow 3G, Lighthouse, axe-core; Chromium, Firefox and WebKit; say what is emulated and what is not tested yet (physical phone). |
-| 11:15-12:00 | 20-21 | Code quality; honest limits | Patterns and algorithms; DR specificity 0.748 below the 80% target, glaucoma below target (precision about 10%), cataract only 46 positive test eyes; no on-device inference, no load balancer, no usability study yet. |
+| 6:00-8:30 | 12-17 | Core features (referral loop) | The health worker gives the advice at once; the review is a later confirmation, not a gate. As in the proposal, an uncertain case is queued automatically (configurable); a clear positive is sent by the health worker with its conditions and routine or urgent (severe = urgent by default). Review is asynchronous from a shared queue: one "general" specialist sees every case, a district specialist can serve several clinics; specialists do not prescribe, they approve, override with a reason, request a retake or comment. SMS/email notifications are future work; screens refresh every 30 s; specialty routing (extension beyond the proposal) puts it in the right specialist's tab, Take this case shows who is reviewing it; asynchronous review as in the proposal; the 24 h / 72 h targets are my design decision; the decision comes back; RBAC on the server. |
+| 8:30-9:00 | 18-19 | Offline, analytics | IndexedDB queue, backoff with jitter, idempotent on the UUID; aggregates only. |
+| 9:00-10:30 | 20 | **Testing strategies (at least two)** | Unit (risk policy boundaries, fundus check, review targets, daily counts at 23:59 vs 00:01), integration (role matrix, real models, approval rules, PostgreSQL in CI), end-to-end on four profiles, model parity (24 photos, max 0.021, no decision changed). One bug each found. |
+| 10:30-11:15 | 21 | **Performance and compatibility** | Server timing, 0.44 s vs 2.73 s round trip on an emulated low-end phone with slow 3G, Lighthouse, axe-core; Chromium, Firefox and WebKit; say what is emulated and what is not tested yet (physical phone). |
+| 11:15-12:00 | 22-23 | Code quality; honest limits | Patterns and algorithms; DR specificity 0.748 below the 80% target, glaucoma below target (precision about 10%), cataract only 46 positive test eyes; no on-device inference, no load balancer, no usability study yet. |
 
 Upload as **unlisted** on YouTube (or Google Drive with "anyone with the link"), test the link in a
 private browser window, then paste it into the README and the report.

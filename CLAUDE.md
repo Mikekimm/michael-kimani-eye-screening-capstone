@@ -49,8 +49,9 @@ Design patterns that must be visible in code:
   registers only valid models. Dropping a model folder in must work with zero code change.
 - `RiskPolicy` strategy per condition: probability -> positive / uncertain / severity band / risk level /
   recommendation / refer-suggested; `ReferralAdvisor` turns them into one screening-level recommendation
-  ("No referral needed" / "Refer recommended" / "Uncertain, consider asking a specialist"). Nothing is sent
-  automatically: only the health worker's "Ask a specialist" (with a question) creates a referral.
+  ("No referral needed" / "Refer recommended" / "Uncertain, consider asking a specialist"). Referral policy
+  (`referral_advice` in risk_policy.json, as in the proposal's sequence diagram): uncertain cases are queued
+  automatically; clear positives are sent by the health worker with "Ask a specialist"; severe (band 4-5) = urgent.
   All numbers in one config file, reasoning in `docs/risk_policy.md`.
 
 ## 4. Roles
@@ -60,7 +61,9 @@ Design patterns that must be visible in code:
   admin); it grants nothing until an admin approves it (with that role or another, optionally setting the facility)
   or rejects it with a reason. One account per email: a duplicate sign-up is refused (409) and changes nothing.
   The app verifies nobody's identity or qualifications. Never claim it does.
-- `specialist`: review queue; approve / override (reason required) / request retake / comment.
+- `specialist`: review queue; approve / override (reason required) / request retake / comment. Specialty routing
+  (extension beyond the proposal): specialties per specialist (dr/glaucoma/cataract/general), "My specialties" and
+  "All cases" tabs, "Take this case"; the health worker's ask names conditions and routine/urgent.
 - `admin`: user and role management, aggregate analytics (no images, no identifiers).
 
 ## 5. Data model

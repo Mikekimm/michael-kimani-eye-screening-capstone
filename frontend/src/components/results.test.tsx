@@ -105,6 +105,8 @@ describe("notice on results made with earlier models", () => {
     updated_at: "2026-10-27T12:47:00Z", created_by_name: "Mike",
     quality: { usable: true, warnings: [], sharpness: 1, brightness: 1, contrast: 1 }, results,
     referral_advice: "none", referral_reason: null, referral_question: null, referred_at: null, review_priority: null, review_due_at: null, review_overdue: false,
+    referral_conditions: [], assigned_to_name: null, assigned_to_id: null, queued_automatically: false,
+    suggested_priority: "routine", new_decision: false,
     reviews: [], disclaimer: "",
   });
   const old = screening([dr(), { ...missing }, { ...missing, condition: "cataract", display_name: "Cataract" }]);

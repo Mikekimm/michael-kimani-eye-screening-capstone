@@ -5,10 +5,11 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "@/components/AppShell";
 import { ErrorState, ListSkeleton, describeError } from "@/components/feedback";
 import { ScreeningView } from "@/components/ScreeningView";
-import { Button, Card, FieldError, Label, Textarea } from "@/components/ui/primitives";
+import { Button, Card, FieldError, Label, Select, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { useAskSpecialist, useDiscardScreening, useScreening } from "@/hooks/queries";
-import type { Screening } from "@/lib/api/types";
+import type { AskSpecialistInput, ReviewPriority, Screening } from "@/lib/api/types";
+import { CONDITION_LABEL } from "@/lib/utils";
 
 /** A short text box with a confirm button, used for the specialist question and the discard reason. */
 function NoteForm({ id, label, placeholder, submitLabel, busy, onSubmit, onCancel }: {
@@ -33,6 +34,60 @@ function NoteForm({ id, label, placeholder, submitLabel, busy, onSubmit, onCance
   );
 }
 
+/** "Ask a specialist": which conditions (pre-ticked from borderline or positive results), the question, and
+ * routine or urgent (urgent suggested when the app recommends referral). */
+export function AskSpecialistForm({ screening, busy, onSubmit, onCancel }: {
+  screening: Screening; busy: boolean; onSubmit: (body: AskSpecialistInput) => void; onCancel: () => void;
+}) {
+  const scored = screening.results.filter((r) => r.model_available);
+  const [conditions, setConditions] = useState<string[]>(screening.referral_conditions?.length
+    ? screening.referral_conditions : scored.filter((r) => r.refer_suggested).map((r) => r.condition));
+  const [question, setQuestion] = useState("");
+  const [priority, setPriority] = useState<ReviewPriority>(screening.review_priority ?? screening.suggested_priority ?? "routine");
+  const [errors, setErrors] = useState<{ conditions?: string; question?: string }>({});
+  const toggle = (condition: string) =>
+    setConditions((now) => (now.includes(condition) ? now.filter((c) => c !== condition) : [...now, condition]));
+  const send = () => {
+    const found = {
+      conditions: conditions.length ? undefined : "Tick at least one condition.",
+      question: question.trim().length >= 3 ? undefined : "Write at least a few words.",
+    };
+    setErrors(found);
+    if (!found.conditions && !found.question) onSubmit({ question: question.trim(), conditions, priority });
+  };
+  return (
+    <Card className="flex flex-col gap-3 p-3">
+      <fieldset className="flex flex-col gap-1" aria-describedby="ask-conditions-error">
+        <legend className="text-sm font-medium">What is your question about?</legend>
+        {scored.map((r) => (
+          <label key={r.condition} className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={conditions.includes(r.condition)} onChange={() => toggle(r.condition)} />
+            {r.display_name || CONDITION_LABEL[r.condition]}
+          </label>
+        ))}
+        <FieldError id="ask-conditions-error" message={errors.conditions} />
+      </fieldset>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="question">Your question for the specialist</Label>
+        <Textarea id="question" value={question} aria-invalid={!!errors.question} aria-describedby="question-error"
+          placeholder="e.g. Is this proliferative? The patient reports blurred vision." onChange={(e) => setQuestion(e.target.value)} />
+        <FieldError id="question-error" message={errors.question} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="priority">How soon?</Label>
+        <Select id="priority" value={priority} onChange={(e) => setPriority(e.target.value as ReviewPriority)}>
+          <option value="routine">Routine</option>
+          <option value="urgent">Urgent</option>
+        </Select>
+      </div>
+      <div className="flex gap-2">
+        <Button disabled={busy} onClick={send}>Send to specialist</Button>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
+    </Card>
+  );
+}
+
 function HealthWorkerActions({ screening, fresh }: { screening: Screening; fresh: boolean }) {
   const ask = useAskSpecialist(screening.id);
   const discard = useDiscardScreening(screening.id);
@@ -40,10 +95,12 @@ function HealthWorkerActions({ screening, fresh }: { screening: Screening; fresh
   const navigate = useNavigate();
   const [open, setOpen] = useState<"ask" | "discard" | null>(null);
   const canAsk = screening.status === "completed";
+  // A case the risk policy queued automatically can still get the health worker's question (once).
+  const canAddQuestion = screening.status === "referred" && screening.queued_automatically && !screening.referral_question;
 
-  const sendQuestion = async (question: string) => {
+  const sendQuestion = async (body: AskSpecialistInput) => {
     try {
-      await ask.mutateAsync(question);
+      await ask.mutateAsync(body);
       toast("Sent to a specialist. The answer comes back here at the next sync.", "success");
       setOpen(null);
     } catch (error) {
@@ -63,8 +120,8 @@ function HealthWorkerActions({ screening, fresh }: { screening: Screening; fresh
   return (
     <div className="mt-3 flex flex-col gap-2">
       {open === "ask" && (
-        <NoteForm id="question" label="Your question for the specialist" placeholder="e.g. Is this proliferative? The patient reports blurred vision."
-          submitLabel="Send to specialist" busy={ask.isPending} onSubmit={(q) => void sendQuestion(q)} onCancel={() => setOpen(null)} />
+        <AskSpecialistForm screening={screening} busy={ask.isPending} onSubmit={(body) => void sendQuestion(body)}
+          onCancel={() => setOpen(null)} />
       )}
       {open === "discard" && (
         <NoteForm id="discard-reason" label="Why discard this screening?" placeholder="e.g. Wrong photo uploaded"
@@ -80,6 +137,11 @@ function HealthWorkerActions({ screening, fresh }: { screening: Screening; fresh
           {canAsk && (
             <Button variant={screening.referral_advice === "none" ? "outline" : "primary"} onClick={() => setOpen("ask")}>
               <Send aria-hidden className="h-4 w-4" />Ask a specialist
+            </Button>
+          )}
+          {canAddQuestion && (
+            <Button variant="outline" onClick={() => setOpen("ask")}>
+              <Send aria-hidden className="h-4 w-4" />Add a question
             </Button>
           )}
           <Button variant="outline" onClick={() => setOpen("discard")}>

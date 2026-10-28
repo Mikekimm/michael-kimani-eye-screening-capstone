@@ -45,7 +45,7 @@ def test_specialist_can_override_a_glaucoma_result(client):
     screening = upload(client, headers, patient["id"]).json()
     assert screening["status"] == "completed"  # nothing is sent automatically
     asked = client.post(f"/api/screenings/{screening['id']}/ask-specialist", headers=headers,
-                        json={"question": "Is the optic disc cupped?"})
+                        json={"question": "Is the optic disc cupped?", "conditions": ["glaucoma"]})
     assert asked.status_code == 200
     _, specialist = auth_headers(client, Role.SPECIALIST)
     queued = next(i for i in client.get("/api/reviews/queue", headers=specialist).json()

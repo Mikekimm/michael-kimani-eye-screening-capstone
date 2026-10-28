@@ -8,7 +8,8 @@ from pydantic import (
 
 from ..core import patient_codes
 from ..models.enums import (
-    AccountStatus, Eye, ReferralAdvice, ReferralReason, ReviewAction, RiskLevel, Role, ScreeningStatus, Sex, SyncOutcome,
+    AccountStatus, Eye, ReferralAdvice, ReferralReason, ReviewAction, ReviewPriority, RiskLevel, Role, ScreeningStatus,
+    Sex, Specialty, SyncOutcome,
 )
 
 def _password_rules(value: str) -> str:
@@ -76,7 +77,13 @@ class UserOut(ORMModel):
     status_reason: str | None = None
     requested_role: Role | None = None   # what they asked for at sign-up; grants nothing until approved
     facility: str | None = None          # set by an admin (optional); free text, not verified
+    specialties: list[Specialty] = Field(default_factory=list)  # specialists only; "general" matches every case
     created_at: datetime
+
+    @field_validator("specialties", mode="before")
+    @classmethod
+    def _none_is_empty(cls, value):
+        return value or []
 
 
 class UserUpdate(BaseModel):
@@ -85,6 +92,7 @@ class UserUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role: Role | None = None
     facility: FacilityName | None = None
+    specialties: list[Specialty] | None = None   # replaces the list; for specialists
     is_active: bool | None = None
     status: AccountStatus | None = None
     status_reason: Note | None = None
@@ -104,6 +112,7 @@ class AdminUserCreate(BaseModel):
     password: Password
     role: Role = Role.HEALTH_WORKER
     facility: FacilityName | None = None
+    specialties: list[Specialty] = Field(default_factory=list)
 
 
 # ---------- patients ----------
@@ -193,6 +202,12 @@ class ScreeningOut(ORMModel):
     referral_question: str | None = None  # the health worker's note when they asked a specialist
     referred_at: datetime | None = None
     review_priority: str | None = None      # "urgent" or "routine" while a referral is open
+    referral_conditions: list[str] = Field(default_factory=list)  # what the health worker asked about
+    assigned_to_name: str | None = None     # the specialist who took the case ("Being reviewed by ...")
+    assigned_to_id: str | None = None
+    queued_automatically: bool = False      # the risk policy queued it (uncertain); otherwise the health worker sent it
+    suggested_priority: str = "routine"     # default for "Ask a specialist" (urgent for DR band 4-5)
+    new_decision: bool = False              # a specialist decision the health worker has not opened yet
     review_due_at: datetime | None = None
     review_overdue: bool = False
     reviews: list[ReviewEventOut]
@@ -206,14 +221,23 @@ class ScreeningCreated(ScreeningOut):
 # ---------- reviews ----------
 
 class AskSpecialistRequest(BaseModel):
-    """The health worker sends a case to the specialist queue with a short question."""
+    """The health worker sends a case to the specialist queue: which conditions the question is about, the
+    question, and routine or urgent (left out: urgent when a model clearly detected signs, else routine)."""
     model_config = ConfigDict(extra="forbid")
     question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=1000)]
+    conditions: list[str] = Field(min_length=1, max_length=10)
+    priority: ReviewPriority | None = None
 
 
 class DiscardRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+
+
+class NewDecisionsOut(BaseModel):
+    """Screenings with a specialist decision the health worker has not opened yet (home screen count)."""
+    count: int
+    screening_ids: list[str]
 
 
 class DailyCountsOut(BaseModel):
@@ -254,9 +278,13 @@ class QueueItemOut(BaseModel):
     created_by_facility: str | None = None
     question: str | None = None
     waiting_since: datetime
-    priority: str                   # urgent (signs detected) or routine (borderline / manual)
+    priority: str                   # urgent or routine, chosen by the health worker
     due_at: datetime
     overdue: bool
+    conditions: list[str] = Field(default_factory=list)  # what the health worker asked about
+    matches_my_specialties: bool = False   # for the specialist asking; "general" matches every case
+    assigned_to_name: str | None = None    # who took the case, if anyone
+    assigned_to_me: bool = False
 
 
 # ---------- sync ----------
@@ -325,6 +353,7 @@ class AnalyticsOut(BaseModel):
     referral_rate: float | None
     open_referrals: int
     overdue_referrals: int
+    overdue_by_priority: dict[str, int] = Field(default_factory=dict)  # urgent / routine past their target
     review_targets_hours: dict[str, int]
     median_review_turnaround_hours: float | None
     model_versions_in_use: dict[str, int]

@@ -5,7 +5,7 @@ import type { Screening } from "@/lib/api/types";
 import { EYE_LABEL, formatDateTime } from "@/lib/utils";
 
 import { StatusPill } from "./feedback";
-import { Card } from "./ui/primitives";
+import { Badge, Card } from "./ui/primitives";
 
 export function ScreeningListItem({ screening, showPatient = true }: { screening: Screening; showPatient?: boolean }) {
   const dr = screening.results.find((r) => r.condition === "dr");
@@ -20,7 +20,10 @@ export function ScreeningListItem({ screening, showPatient = true }: { screening
             {formatDateTime(screening.created_at)}
             {dr?.severity_band ? ` · DR band ${dr.severity_band}` : ""}
           </p>
-          <StatusPill screening={screening} />
+          <div className="flex flex-wrap gap-1">
+            <StatusPill screening={screening} />
+            {screening.new_decision && <Badge tone="info" data-testid="new-decision">New decision</Badge>}
+          </div>
         </div>
         <ChevronRight aria-hidden className="h-4 w-4 text-muted-foreground" />
       </Card>

@@ -29,6 +29,9 @@ class AnalyticsService:
         now = datetime.now(timezone.utc)
         delays = [(reviewed - referred).total_seconds() / 3600
                   for referred, reviewed in self._analytics.first_review_delays()]
+        overdue = {"urgent": 0, "routine": 0}
+        for at, priority in self._analytics.open_referrals():
+            overdue[priority.value] += self._targets.is_overdue(at, priority, now)
         return AnalyticsOut(
             total_screenings=total,
             screenings_per_day=count_by_day(
@@ -38,8 +41,8 @@ class AnalyticsService:
             positives_per_condition=self._analytics.positives_per_condition(),
             referral_rate=round(self._analytics.referral_count() / total, 4) if total else None,
             open_referrals=self._analytics.open_referral_count(),
-            overdue_referrals=sum(self._targets.is_overdue(at, reason, now)
-                                  for at, reason in self._analytics.open_referrals()),
+            overdue_referrals=sum(overdue.values()),
+            overdue_by_priority=overdue,
             review_targets_hours={"urgent": self._targets.urgent_hours, "routine": self._targets.routine_hours},
             median_review_turnaround_hours=round(median(delays), 2) if delays else None,
             model_versions_in_use=self._analytics.model_versions_in_use(),

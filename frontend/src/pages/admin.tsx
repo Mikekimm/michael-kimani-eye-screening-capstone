@@ -13,8 +13,8 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useAnalytics, useCreateUser, useUpdateUser, useUsers } from "@/hooks/queries";
-import type { AccountStatus, Role, User } from "@/lib/api/types";
-import { CONDITION_LABEL, ROLE_LABEL, formatDate, percent } from "@/lib/utils";
+import type { AccountStatus, Role, Specialty, User } from "@/lib/api/types";
+import { CONDITION_LABEL, ROLE_LABEL, SPECIALTY_LABEL, formatDate, percent } from "@/lib/utils";
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -55,7 +55,7 @@ export function AnalyticsPage() {
         <StatTile label="Referral rate" value={a.referral_rate === null ? "-" : percent(a.referral_rate)} />
         <StatTile label="Open referrals" value={String(a.open_referrals)} />
         <StatTile label="Overdue reviews" value={String(a.overdue_referrals)}
-          hint={`targets: urgent ${a.review_targets_hours.urgent} h, routine ${a.review_targets_hours.routine} h`} />
+          hint={`urgent ${a.overdue_by_priority.urgent ?? 0} (target ${a.review_targets_hours.urgent} h), routine ${a.overdue_by_priority.routine ?? 0} (target ${a.review_targets_hours.routine} h)`} />
         <StatTile label="Median time to review" value={a.median_review_turnaround_hours === null ? "-" : `${a.median_review_turnaround_hours} h`} />
       </div>
 
@@ -132,7 +132,7 @@ export function UsersPage() {
 
   const [rejecting, setRejecting] = useState<string | null>(null);
 
-  const change = async (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string; facility?: string }) => {
+  const change = async (id: string, body: { role?: Role; is_active?: boolean; status?: AccountStatus; status_reason?: string; facility?: string; specialties?: Specialty[] }) => {
     try {
       await update.mutateAsync({ id, ...body });
       toast("User updated.", "success");
@@ -172,7 +172,8 @@ export function UsersPage() {
                 )}
               </div>
               {u.status === "pending" && !self && rejecting !== u.id && (
-                <PendingDecision user={u} busy={update.isPending} onApprove={(role, facility) => void change(u.id, { status: "approved", role, ...(facility ? { facility } : {}) })}
+                <PendingDecision user={u} busy={update.isPending} onApprove={(role, facility, specialties) => void change(u.id, { status: "approved", role, ...(facility ? { facility } : {}),
+                  ...(role === "specialist" ? { specialties } : {}) })}
                   onReject={() => setRejecting(u.id)} />
               )}
               <div className={u.status === "pending" ? "hidden" : "flex gap-2"}>
@@ -180,6 +181,10 @@ export function UsersPage() {
                   onChange={(e) => void change(u.id, { role: e.target.value as Role })}>
                   {(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                 </Select>
+                {u.role === "specialist" && (
+                  <SpecialtyPicker name={u.full_name} value={u.specialties} disabled={self || update.isPending}
+                    onChange={(specialties) => void change(u.id, { specialties })} />
+                )}
                 <Select aria-label={`Status for ${u.full_name}`} className="w-32" value={u.is_active ? "active" : "inactive"} disabled={self || update.isPending}
                   onChange={(e) => void change(u.id, { is_active: e.target.value === "active" })}>
                   <option value="active">Active</option><option value="inactive">Deactivated</option>
@@ -195,11 +200,32 @@ export function UsersPage() {
 
 /** Approve with the requested role (or another one the admin picks) and, optionally, the person's facility;
  * or reject with a reason. */
+const SPECIALTIES: Specialty[] = ["dr", "glaucoma", "cataract", "general"];
+
+/** Which conditions a specialist reviews; "general" matches every case. */
+function SpecialtyPicker({ name, value, disabled, onChange }: {
+  name: string; value: Specialty[]; disabled?: boolean; onChange: (value: Specialty[]) => void;
+}) {
+  return (
+    <fieldset className="flex flex-wrap items-center gap-2 text-xs" disabled={disabled}>
+      <legend className="sr-only">Specialties for {name}</legend>
+      {SPECIALTIES.map((s) => (
+        <label key={s} className="flex items-center gap-1">
+          <input type="checkbox" aria-label={`${SPECIALTY_LABEL[s]} for ${name}`} checked={value.includes(s)}
+            onChange={() => onChange(value.includes(s) ? value.filter((v) => v !== s) : [...value, s])} />
+          {SPECIALTY_LABEL[s]}
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
 function PendingDecision({ user, busy, onApprove, onReject }: {
-  user: User; busy: boolean; onApprove: (role: Role, facility: string) => void; onReject: () => void;
+  user: User; busy: boolean; onApprove: (role: Role, facility: string, specialties: Specialty[]) => void; onReject: () => void;
 }) {
   const [role, setRole] = useState<Role>(user.requested_role ?? "health_worker");
   const [facility, setFacility] = useState(user.facility ?? "");
+  const [specialties, setSpecialties] = useState<Specialty[]>(user.specialties ?? []);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select aria-label={`Role to grant ${user.full_name}`} className="w-40" value={role} onChange={(e) => setRole(e.target.value as Role)}>
@@ -207,7 +233,8 @@ function PendingDecision({ user, busy, onApprove, onReject }: {
       </Select>
       <Input aria-label={`Facility for ${user.full_name} (optional)`} className="w-48" placeholder="Facility (optional)"
         maxLength={120} value={facility} onChange={(e) => setFacility(e.target.value)} />
-      <Button size="sm" disabled={busy} onClick={() => onApprove(role, facility.trim().length >= 2 ? facility.trim() : "")}>Approve</Button>
+      {role === "specialist" && <SpecialtyPicker name={user.full_name} value={specialties} onChange={setSpecialties} />}
+      <Button size="sm" disabled={busy} onClick={() => onApprove(role, facility.trim().length >= 2 ? facility.trim() : "", specialties)}>Approve</Button>
       <Button size="sm" variant="outline" disabled={busy} onClick={onReject}>Reject</Button>
     </div>
   );

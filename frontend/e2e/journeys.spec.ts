@@ -61,8 +61,10 @@ test.describe.serial("clinical journeys", () => {
     await page.getByRole("button", { name: "Analyse", exact: true }).click();
 
     await page.waitForURL("**/screenings/*");
-    // Nothing is sent automatically: the label is the app's recommendation, not "Awaiting specialist".
-    await expect(page.getByTestId("status-label").first()).not.toHaveText("Awaiting specialist");
+    // Only an uncertain result is queued automatically; anything else shows the app's recommendation.
+    const queued = await page.getByTestId("queued-automatically").isVisible();
+    const status = page.getByTestId("status-label").first();
+    await (queued ? expect(status).toHaveText("Awaiting specialist") : expect(status).not.toHaveText("Awaiting specialist"));
     const dr = page.getByTestId("result-dr");
     await expect(dr).toContainText("model mobilenetv2-dr-binary-2.0");
     await expect(dr).toContainText("Estimated severity band");
