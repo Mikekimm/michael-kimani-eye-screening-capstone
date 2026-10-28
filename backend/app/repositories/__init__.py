@@ -1,4 +1,5 @@
 """Repositories: the only layer that builds SQL queries. Services depend on these, not on SQLAlchemy."""
+from __future__ import annotations  # "list" is also a method name on the repositories; keeps annotations lazy on 3.12
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Generic, TypeVar
