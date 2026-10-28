@@ -33,6 +33,9 @@ async function signIn(page: Page, email: string) {
 
 test.describe.serial("clinical journeys", () => {
   test("health worker: sign up, admin approval, register patient, screen with the real model, see history", async ({ page }, info) => {
+    // Long journey (sign-up to real-model screening to ask); on mobile-webkit it hit the 60 s limit twice on the
+    // development laptop under load (different step each time). Only the time limit is raised; nothing else changes.
+    test.setTimeout(120_000);
     await signUp(page, "E2E Nurse", workerEmail(info));
     await shot(page, info, "01-signup-pending");
     const early = await page.request.post("/api/auth/login", { data: { email: workerEmail(info), password: process.env.E2E_PASSWORD } });
