@@ -327,9 +327,7 @@ app loads no third-party scripts); no TLS in local development; no penetration t
 
 I used Claude to help me build this project.
 
-This project was designed and directed by Michael Maina Kimani. I wrote the proposal, chose the scope and the honesty rules (real trained models only, no invented results), trained and evaluated the models (diabetic retinopathy, glaucoma and cataract) on Kaggle, and made the decisions on what to build and what to cut, including the specialty-routing extension.
-
-I used Claude (Anthropic), through Claude Code, to help write, refactor and test the backend and frontend code, the test suites and the documentation, working under my direction. I reviewed the results and I am responsible for the submitted work.
+I designed and directed the project, wrote the proposal and made the scope decisions. I trained the models myself by running the Kaggle training notebooks. I reviewed the results and I am responsible for the work.
 
 ## 12. Known issues
 
