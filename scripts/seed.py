@@ -72,6 +72,8 @@ def main() -> int:
                 print(f"created {role.value}: {email}")
             else:
                 print(f"exists  {role.value}: {email}")
+            if role == Role.SPECIALIST and not user.specialties:
+                user.specialties = ["general", "dr", "glaucoma", "cataract"]  # so the demo queue routes every case
             accounts[role] = user
 
         patients = PatientRepository(session)

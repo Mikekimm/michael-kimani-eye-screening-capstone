@@ -12,8 +12,8 @@ Conditions whose training data has no severity grades (glaucoma and cataract fro
 ``severity_bands: false``: they get a binary result (positive / borderline / negative) and no band.
 
 A policy only *suggests* referral (``refer_suggested``); ``ReferralAdvisor`` turns the suggestions of all
-conditions and the photo quality into one recommendation for the health worker, who decides whether to ask
-a specialist. Nothing is sent automatically.
+conditions and the photo quality into one recommendation, and decides from the config which recommendations
+are queued for a specialist automatically (default: uncertain cases only, as in the proposal).
 
 Every number comes from ``config/risk_policy.json`` and the model card; see docs/risk_policy.md.
 """
@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-from ..models.enums import ReferralAdvice, RiskLevel
+from ..models.enums import ReferralAdvice, ReviewPriority, RiskLevel
 
 
 @dataclass(frozen=True)
@@ -74,16 +74,41 @@ class RiskPolicy:
 
 
 class ScoredResult(Protocol):
+    condition: str
+    model_available: bool
     positive: bool | None
     uncertain: bool | None
+    severity_band: int | None
     refer_suggested: bool
 
 
 @dataclass(frozen=True)
 class ReferralAdvisor:
     """One recommendation per screening: a clear positive -> "recommended"; a borderline result or a photo
-    with quality warnings -> ``low_quality_advice`` / "consider"; otherwise "none"."""
+    with quality warnings -> ``low_quality_advice`` / "consider"; otherwise "none".
+
+    ``queue_automatically``: recommendations put in the specialist queue without the health worker pressing
+    anything (default: "consider", as in the proposal's sequence diagram, where an uncertain case is flagged and
+    queued). ``urgent_from_band``: an estimated band at or above it makes the default review priority urgent."""
     low_quality_advice: ReferralAdvice = ReferralAdvice.CONSIDER
+    queue_automatically: frozenset[ReferralAdvice] = frozenset({ReferralAdvice.CONSIDER})
+    urgent_from_band: int = 4
+
+    def queues_automatically(self, advice: ReferralAdvice) -> bool:
+        return advice in self.queue_automatically
+
+    def default_priority(self, results: Iterable[ScoredResult]) -> ReviewPriority:
+        """Severe results (estimated band at or above ``urgent_from_band``) are urgent; everything else routine."""
+        severe = any((r.severity_band or 0) >= self.urgent_from_band for r in results)
+        return ReviewPriority.URGENT if severe else ReviewPriority.ROUTINE
+
+    @staticmethod
+    def queued_conditions(results: Iterable[ScoredResult]) -> list[str]:
+        """What an automatically queued case is about: the flagged conditions, or every scored one when only
+        the photo quality made the case uncertain."""
+        results = list(results)
+        flagged = sorted(r.condition for r in results if r.refer_suggested)
+        return flagged or sorted(r.condition for r in results if r.model_available)
 
     def advise(self, results: Iterable[ScoredResult], has_quality_warnings: bool) -> ReferralAdvice:
         suggesting = [r for r in results if r.refer_suggested]
@@ -107,8 +132,12 @@ class RiskPolicyFactory:
         return cls(json.loads(Path(path).read_text(encoding="utf-8")))
 
     def advisor(self) -> ReferralAdvisor:
-        advice = self._config.get("referral_advice", {}).get("low_quality_photo", ReferralAdvice.CONSIDER.value)
-        return ReferralAdvisor(low_quality_advice=ReferralAdvice(advice))
+        config = self._config.get("referral_advice", {})
+        return ReferralAdvisor(
+            low_quality_advice=ReferralAdvice(config.get("low_quality_photo", ReferralAdvice.CONSIDER.value)),
+            queue_automatically=frozenset(ReferralAdvice(a) for a in config.get("queue_automatically", ["consider"])),
+            urgent_from_band=int(config.get("urgent_from_band", 4)),
+        )
 
     def for_condition(self, condition: str, threshold: float) -> RiskPolicy:
         merged = {**self._default, **self._overrides.get(condition, {})}

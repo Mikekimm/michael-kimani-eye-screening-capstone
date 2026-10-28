@@ -47,6 +47,21 @@ class ReviewAction(str, Enum):
     COMMENT = "comment"
 
 
+class Specialty(str, Enum):
+    """What a specialist reviews. GENERAL matches every case. An extension beyond the proposal, which has a
+    single Specialist role."""
+    DR = "dr"
+    GLAUCOMA = "glaucoma"
+    CATARACT = "cataract"
+    GENERAL = "general"
+
+
+class ReviewPriority(str, Enum):
+    """Chosen by the health worker when asking a specialist; sets the review target (24 h / 72 h)."""
+    URGENT = "urgent"
+    ROUTINE = "routine"
+
+
 class ReferralReason(str, Enum):
     POSITIVE = "positive"
     UNCERTAIN = "uncertain"
@@ -64,7 +79,7 @@ def values(enum_cls: type[Enum]) -> list[str]:
 
 
 class ReferralAdvice(str, Enum):
-    """What the app recommends after a result. Nothing is sent automatically; the health worker decides."""
+    """What the app recommends after a result; the risk policy says which of these are queued automatically."""
     NONE = "none"                # "No referral needed"
     CONSIDER = "consider"        # "Uncertain, consider asking a specialist" (borderline or low-quality photo)
     RECOMMENDED = "recommended"  # "Refer recommended" (a model detected signs)

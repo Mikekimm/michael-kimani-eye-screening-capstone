@@ -31,7 +31,8 @@ class UserService:
             raise ConflictError("An account with this email already exists.")
         user = self._users.add(User(email=request.email.lower(), full_name=request.full_name,
                                     password_hash=self._hasher.hash(request.password), role=request.role,
-                                    status=AccountStatus.APPROVED, facility=request.facility))
+                                    status=AccountStatus.APPROVED, facility=request.facility,
+                                    specialties=[s.value for s in request.specialties]))
         self._audit.record(admin.id, "user.created", "user", user.id)
         self._session.commit()
         return user
@@ -43,6 +44,11 @@ class UserService:
         if user.id == admin.id:
             # Prevents an admin locking everyone out by demoting or deactivating themselves.
             raise PermissionDeniedError("You cannot change your own role or status.")
+        if changes.specialties is not None:
+            wanted = sorted({s.value for s in changes.specialties})
+            if wanted != sorted(user.specialties or []):
+                self._audit.record(admin.id, "user.specialties_changed", "user", user.id)
+                user.specialties = wanted
         if changes.facility is not None and changes.facility != user.facility:
             self._audit.record(admin.id, "user.facility_set", "user", user.id)
             user.facility = changes.facility

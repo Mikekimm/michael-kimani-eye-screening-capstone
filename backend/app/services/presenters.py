@@ -30,11 +30,13 @@ def _review_timing(screening: Screening, targets: ReviewTargets) -> dict:
     referral = screening.referral
     if referral is None:
         return {}
-    timing = {"referred_at": referral.created_at}
+    timing = {"referred_at": referral.created_at, "referral_conditions": list(referral.conditions or []),
+              "assigned_to_name": referral.assigned_to.full_name if referral.assigned_to else None,
+              "assigned_to_id": referral.assigned_to_id, "queued_automatically": referral.queued_automatically}
     if referral.is_open:
-        timing |= {"review_priority": targets.priority(referral.reason),
-                   "review_due_at": targets.due_at(referral.created_at, referral.reason),
-                   "review_overdue": targets.is_overdue(referral.created_at, referral.reason, datetime.now(timezone.utc))}
+        timing |= {"review_priority": referral.priority.value,
+                   "review_due_at": targets.due_at(referral.created_at, referral.priority),
+                   "review_overdue": targets.is_overdue(referral.created_at, referral.priority, datetime.now(timezone.utc))}
     return timing
 
 
@@ -48,7 +50,8 @@ class ScreeningPresenter:
 
     def screening(self, screening: Screening, schema: type[ScreeningOut] = ScreeningOut, **extra) -> ScreeningOut:
         advice = self._advisor.advise(screening.results, bool(screening.quality.get("warnings")))
-        return screening_out(screening, schema, targets=self._targets, referral_advice=advice, **extra)
+        return screening_out(screening, schema, targets=self._targets, referral_advice=advice,
+                             suggested_priority=self._advisor.default_priority(screening.results).value, **extra)
 
 
 def screening_out(screening: Screening, schema: type[ScreeningOut] = ScreeningOut, *,
@@ -71,6 +74,7 @@ def screening_out(screening: Screening, schema: type[ScreeningOut] = ScreeningOu
                                 reviewer_name=e.reviewer.full_name, created_at=e.created_at)
                  for e in screening.reviews],
         disclaimer=DISCLAIMER,
+        new_decision=screening.new_decision,
         **_review_timing(screening, targets or ReviewTargets()),
         **extra,
     )

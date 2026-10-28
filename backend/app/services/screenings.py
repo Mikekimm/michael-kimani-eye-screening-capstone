@@ -17,6 +17,7 @@ from .image_store import ImageStore
 from .pipeline import PipelineOutcome, ScreeningPipeline
 from .daily_counts import count_by_day, local_day, start_of_window
 from .presenters import quality_out
+from ..schemas import AskSpecialistRequest
 
 CLOCK_SKEW = timedelta(minutes=5)
 # The recommendation at the moment of asking decides the review priority (urgent for a clear positive).
@@ -66,6 +67,8 @@ class ScreeningService:
             self._session.add(SyncLog(user_id=user.id, client_uuid=client_uuid, entity_type="screening",
                                       outcome=SyncOutcome.ACCEPTED, attempt=sync_attempt))
             self._audit.record(user.id, "screening.created", "screening", screening.id)
+            if screening.referral is not None:
+                self._audit.record(None, "screening.queued_automatically", "screening", screening.id)
             self._session.commit()
         except IntegrityError:
             # Two copies of the same upload raced each other; the first one won.
@@ -111,27 +114,48 @@ class ScreeningService:
             )
             for c in outcome.conditions
         ]
-        # Nothing is sent to a specialist here: the health worker sees the recommendation and decides.
         screening = Screening(
             client_uuid=client_uuid, patient_id=patient_id, eye=eye, captured_at=captured_at, patient_consent=True,
             image_path=image_name,
             image_sha256=outcome.image_sha256, quality=quality_out(outcome.quality),
             status=ScreeningStatus.COMPLETED, created_by_id=user.id, results=results,
         )
+        # The risk policy decides what is queued without the health worker pressing anything (default:
+        # uncertain cases, as in the proposal); clear positives wait for "Ask a specialist".
+        advice = self._advisor.advise(results, bool(outcome.quality.warnings))
+        if self._advisor.queues_automatically(advice):
+            screening.referral = Referral(reason=_REASON_FOR[advice], queued_automatically=True,
+                                          conditions=self._advisor.queued_conditions(results),
+                                          priority=self._advisor.default_priority(results))
+            screening.status = ScreeningStatus.REFERRED
         return screening
 
-    def ask_specialist(self, user: User, screening_id: str, question: str) -> Screening:
-        """The health worker sends the case to the specialist queue with a question. Only sent cases are
-        "Awaiting specialist"; a screening can be sent once."""
+    def ask_specialist(self, user: User, screening_id: str, request: AskSpecialistRequest) -> Screening:
+        """The health worker sends the case to the specialist queue (conditions, question, routine or urgent),
+        or adds a question to a case the risk policy queued automatically. A case is sent once."""
         AccessPolicy.require_role(user, Role.HEALTH_WORKER)
         screening = self.get(user, screening_id)
-        if screening.referral is not None:
+        referral = screening.referral
+        adding_question = (referral is not None and referral.is_open and referral.queued_automatically
+                           and not referral.question)
+        if referral is not None and not adding_question:
             raise ConflictError("This screening has already been sent to a specialist.")
-        advice = self._advisor.advise(screening.results, bool(screening.quality.get("warnings")))
-        screening.referral = Referral(reason=_REASON_FOR[advice], question=question)
-        screening.status = ScreeningStatus.REFERRED
+        evaluated = {r.condition for r in screening.results if r.model_available}
+        unknown = sorted(set(request.conditions) - evaluated)
+        if unknown:
+            raise AppError(f"Not evaluated in this screening: {', '.join(unknown)}.")
+        priority = request.priority or self._advisor.default_priority(screening.results)
+        if adding_question:
+            referral.question, referral.conditions, referral.priority = request.question, sorted(set(request.conditions)), priority
+            action = "screening.question_added"
+        else:
+            advice = self._advisor.advise(screening.results, bool(screening.quality.get("warnings")))
+            screening.referral = Referral(reason=_REASON_FOR[advice], question=request.question,
+                                          conditions=sorted(set(request.conditions)), priority=priority)
+            screening.status = ScreeningStatus.REFERRED
+            action = "screening.sent_to_specialist"
         screening.updated_at = datetime.now(timezone.utc)
-        self._audit.record(user.id, "screening.sent_to_specialist", "screening", screening.id)
+        self._audit.record(user.id, action, "screening", screening.id)
         self._session.commit()
         self._session.expire(screening)
         return self._screenings.get_full(screening.id)
@@ -159,6 +183,19 @@ class ScreeningService:
 
     def get(self, user: User, screening_id: str) -> Screening:
         return self._access.check_screening(user, self._screenings.get_full(screening_id))
+
+    def open(self, user: User, screening_id: str) -> Screening:
+        """Like ``get``; when the health worker who made it opens it, a new specialist decision counts as seen."""
+        screening = self.get(user, screening_id)
+        if screening.new_decision and screening.created_by_id == user.id:
+            screening.new_decision = False
+            self._session.commit()
+        return screening
+
+    def new_decisions(self, user: User) -> list[str]:
+        """This health worker's screenings with a specialist decision they have not opened yet."""
+        AccessPolicy.require_role(user, Role.HEALTH_WORKER)
+        return self._screenings.with_new_decision(user.id)
 
     def list_mine(self, user: User, patient_id: str | None = None, limit: int = 50,
                   on_day: date | None = None) -> Sequence[Screening]:

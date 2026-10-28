@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, Upl
 from fastapi.responses import FileResponse
 
 from ...models.enums import Eye
-from ...schemas import AskSpecialistRequest, DailyCountsOut, DiscardRequest, ScreeningCreated, ScreeningOut
+from ...schemas import AskSpecialistRequest, DailyCountsOut, DiscardRequest, NewDecisionsOut, ScreeningCreated, ScreeningOut
 from ...services.image_store import MEDIA_TYPES
 from ...services.screenings import ScreeningService
 from ..deps import ClinicalUser, HealthWorker, Presenter, get_screening_service
@@ -29,8 +29,8 @@ async def create_screening(
     x_sync_attempt: Annotated[int, Header(ge=1, le=1000)] = 1,
 ):
     """Runs every available condition model on a photo that passes the quality gate (otherwise 422 and
-    nothing is stored). Requires ``patient_consent=true``. Nothing is sent to a specialist: the result
-    carries a recommendation and the health worker decides. Re-sending the same client_uuid returns the
+    nothing is stored). Requires ``patient_consent=true``. The result carries a recommendation; an uncertain
+    case is queued for a specialist automatically (risk policy), clear positives are sent by the health worker. Re-sending the same client_uuid returns the
     original record with 200 instead of creating a duplicate."""
     data = await image.read()
     screening, duplicate = screenings.create(
@@ -55,16 +55,23 @@ def daily_counts(user: HealthWorker, screenings: Screenings, days: Annotated[int
     return DailyCountsOut(time_zone=screenings.time_zone, today=today, days=counts)
 
 
+@router.get("/new-decisions", response_model=NewDecisionsOut)
+def new_decisions(user: HealthWorker, screenings: Screenings):
+    """Specialist decisions this health worker has not opened yet (cleared by opening the screening)."""
+    ids = screenings.new_decisions(user)
+    return NewDecisionsOut(count=len(ids), screening_ids=ids)
+
+
 @router.get("/{screening_id}", response_model=ScreeningOut)
 def get_screening(screening_id: str, user: ClinicalUser, screenings: Screenings, presenter: Presenter):
-    return presenter.screening(screenings.get(user, screening_id))
+    return presenter.screening(screenings.open(user, screening_id))
 
 
 @router.post("/{screening_id}/ask-specialist", response_model=ScreeningOut)
 def ask_specialist(screening_id: str, body: AskSpecialistRequest, user: HealthWorker, screenings: Screenings,
                    presenter: Presenter):
-    """Send the case to the specialist queue with the health worker's question (once per screening)."""
-    return presenter.screening(screenings.ask_specialist(user, screening_id, body.question))
+    """Send the case to the specialist queue: conditions, question, routine or urgent (once per screening)."""
+    return presenter.screening(screenings.ask_specialist(user, screening_id, body))
 
 
 @router.post("/{screening_id}/discard", status_code=status.HTTP_204_NO_CONTENT)

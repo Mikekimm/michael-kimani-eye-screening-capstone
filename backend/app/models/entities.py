@@ -14,7 +14,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.database import Base, UTCDateTime, utcnow
 from .enums import (
-    AccountStatus, Eye, ReferralReason, ReviewAction, RiskLevel, Role, ScreeningStatus, Sex, SyncOutcome,
+    AccountStatus, Eye, ReferralReason, ReviewAction, ReviewPriority, RiskLevel, Role, ScreeningStatus, Sex,
+    SyncOutcome,
 )
 
 
@@ -45,6 +46,8 @@ class User(Base):
     # What the person asked for at sign-up. It grants nothing: ``role`` is set when an admin approves.
     requested_role: Mapped[Role | None] = mapped_column(_enum(Role), nullable=True)
     status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)  # why a registration was rejected
+    # Specialists only: which conditions they review (values of Specialty; "general" matches every case).
+    specialties: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
 
@@ -116,6 +119,8 @@ class Screening(Base):
     discarded_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True, index=True)
     discarded_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # A specialist decision arrived that the health worker who made the screening has not opened yet.
+    new_decision: Mapped[bool] = mapped_column(Boolean, default=False)
 
     patient: Mapped[Patient] = relationship(back_populates="screenings")
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
@@ -162,11 +167,20 @@ class Referral(Base):
     screening_id: Mapped[str] = mapped_column(ForeignKey("screenings.id", ondelete="CASCADE"), unique=True)
     reason: Mapped[ReferralReason] = mapped_column(_enum(ReferralReason))
     question: Mapped[str | None] = mapped_column(Text, nullable=True)  # the health worker's note to the specialist
+    conditions: Mapped[list[str]] = mapped_column(JSON, default=list)  # what the question is about
+    # True when the risk policy queued the case (uncertain result); False when the health worker sent it.
+    queued_automatically: Mapped[bool] = mapped_column(Boolean, default=False)
+    priority: Mapped[ReviewPriority] = mapped_column(_enum(ReviewPriority), default=ReviewPriority.ROUTINE)
+    # The specialist who took the case; others see it as taken.
+    assigned_to_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+                                                       index=True)
+    assigned_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     is_open: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     closed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     screening: Mapped[Screening] = relationship(back_populates="referral")
+    assigned_to: Mapped[User | None] = relationship(foreign_keys=[assigned_to_id])
 
 
 class ReviewEvent(Base):

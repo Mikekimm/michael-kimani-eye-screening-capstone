@@ -12,7 +12,7 @@ from ..models import (
     AuditEvent, DiagnosisResult, PasswordResetToken, Patient, Referral, RefreshToken, ReviewEvent, Screening,
     SyncLog, User,
 )
-from ..models.enums import AccountStatus, ReferralReason, Role, ScreeningStatus
+from ..models.enums import AccountStatus, ReferralReason, ReviewPriority, Role, ScreeningStatus
 
 T = TypeVar("T", bound=Base)
 
@@ -92,7 +92,7 @@ class PatientRepository(Repository[Patient]):
 
 _SCREENING_GRAPH = (
     selectinload(Screening.results), selectinload(Screening.patient),
-    selectinload(Screening.created_by), selectinload(Screening.referral),
+    selectinload(Screening.created_by), selectinload(Screening.referral).selectinload(Referral.assigned_to),
     selectinload(Screening.reviews).selectinload(ReviewEvent.reviewer),
 )
 
@@ -128,6 +128,12 @@ class ScreeningRepository(Repository[Screening]):
         stmt = (select(Screening).options(*_SCREENING_GRAPH).join(Referral)
                 .where(Referral.is_open.is_(True), _KEPT).order_by(Screening.created_at.asc()))
         return self.session.scalars(stmt).all()
+
+    def with_new_decision(self, created_by_id: str) -> list[str]:
+        """Ids of kept screenings by this user with a specialist decision not opened yet, newest first."""
+        stmt = (select(Screening.id).where(_KEPT, Screening.created_by_id == created_by_id,
+                                           Screening.new_decision.is_(True)).order_by(Screening.updated_at.desc()))
+        return list(self.session.scalars(stmt).all())
 
     def created_times(self, created_by_id: str | None, since: datetime) -> list[datetime]:
         """Creation times of kept screenings since ``since`` (one user's, or everyone's for analytics)."""
@@ -186,10 +192,10 @@ class AnalyticsRepository:
         return self.session.scalar(select(func.count()).select_from(Referral).join(Screening)
                                    .where(Referral.is_open.is_(True), _KEPT)) or 0
 
-    def open_referrals(self) -> list[tuple[datetime, ReferralReason]]:
-        """(referred at, reason) for every open referral; used to count overdue reviews."""
+    def open_referrals(self) -> list[tuple[datetime, ReviewPriority]]:
+        """(referred at, priority) for every open referral; used to count overdue reviews."""
         return [tuple(row) for row in self.session.execute(
-            select(Referral.created_at, Referral.reason).join(Screening)
+            select(Referral.created_at, Referral.priority).join(Screening)
             .where(Referral.is_open.is_(True), _KEPT)).all()]
 
     def first_review_delays(self) -> list[tuple[datetime, datetime]]:
