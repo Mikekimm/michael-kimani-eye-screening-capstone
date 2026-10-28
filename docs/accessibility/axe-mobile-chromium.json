@@ -1,5 +1,5 @@
 {
-  "measured_at": "2026-10-28T12:15:09.287Z",
+  "measured_at": "2026-10-28T17:49:30.084Z",
   "tool": "axe-core via @axe-core/playwright 4.10.1",
   "tags": [
     "wcag2a",
@@ -72,12 +72,12 @@
     },
     {
       "role": "health_worker",
-      "route": "/patients/347c9958b8d344009afea5fb1c4635b1",
+      "route": "/patients/1612a6771f334f35ae9272828cb0721e",
       "violations": []
     },
     {
       "role": "health_worker",
-      "route": "/screenings/75f3ec82733f4214b5872e34b9f8c6da",
+      "route": "/screenings/f04d077e76224dd1af9189f83596a36e",
       "violations": []
     },
     {
@@ -97,7 +97,7 @@
     },
     {
       "role": "specialist",
-      "route": "/reviews/75f3ec82733f4214b5872e34b9f8c6da",
+      "route": "/reviews/f04d077e76224dd1af9189f83596a36e",
       "violations": []
     },
     {
