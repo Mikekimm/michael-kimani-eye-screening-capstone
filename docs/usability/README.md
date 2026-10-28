@@ -4,6 +4,8 @@ Goal: check that people who match the intended users (health workers, or failing
 clinical students) can complete the core tasks without help, and measure perceived usability with the
 System Usability Scale (SUS). Aim for 3-5 testers; record what you actually ran, even if it is fewer.
 
+Remote sessions (video call and a public HTTPS tunnel): see [../remote_testing.md](../remote_testing.md).
+
 ## Before each session
 1. Run the app (README section 7) on a phone or a laptop in phone-sized view.
 2. Prepare 2 **public** fundus images (e.g. from APTOS 2019 on Kaggle) on the device. Never use real patient photos.
