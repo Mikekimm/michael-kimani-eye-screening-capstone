@@ -15,8 +15,8 @@ Remote sessions (video call and a public HTTPS tunnel): see [../remote_testing.m
 ## Tasks (time each, note errors and where they hesitated)
 | Task | Instructions to the tester | Success = |
 |---|---|---|
-| 1 | "Create an account, then register a new patient with the code TEST-01." | patient page for TEST-01 shown |
-| 2 | "Screen TEST-01's left eye using the photo on this device, then tell me what the result means and what you should do next." | result shown; tester explains the band is an estimate and states the recommended action |
+| 1 | "Create an account, then register a new patient and tell me the code the app gives them." | patient page with the new code (e.g. PHC-XXXXXX) shown; tester reads the code |
+| 2 | "Screen this patient's left eye using the photo on this device, then tell me what the result means and what you should do next." | result shown; tester explains the band is an estimate and states the recommended action |
 | 3 | "The internet is now off (switch on airplane mode). Screen the right eye. Then turn the internet back on and find out whether it was sent." | photo saved while offline; tester finds it synced in History |
 
 ## After the tasks
