@@ -25,15 +25,30 @@ setting only: no field deployment or clinical evaluation has taken place.
 
 | Role | What they do in the app |
 |---|---|
-| **Health worker** (public sign-up, then admin approval) | Registers patients by app-generated code, captures or uploads a fundus photo of the left or right eye, gets a screening result, refers cases, works offline and syncs later |
-| **Specialist** (created or promoted by an admin) | Reviews referred cases: approve, override any condition with a reason, request a retake, comment. History is append-only |
-| **Admin** (created at install) | Approves or rejects sign-ups (rejection needs a reason), creates staff accounts, assigns roles, maintains the facility list, sees aggregate analytics (no images or identifiers) |
+| **Health worker** (sign-up request, then admin approval) | Registers patients by app-generated code, captures or uploads a fundus photo of the left or right eye, gets a screening result with a recommendation, decides whether to ask a specialist, works offline and syncs later |
+| **Specialist** (sign-up request approved as specialist, or created by an admin) | Reviews the cases health workers sent: approve, override any condition with a reason, request a retake, comment. History is append-only |
+| **Admin** (created at install) | Approves or rejects sign-up requests (choosing the role to grant; rejection needs a reason), creates staff accounts, changes roles, sees aggregate analytics (no images or identifiers) |
 
-Patients have no accounts: they are records with an app-generated code. A new sign-up is **pending** and
-cannot sign in until an admin approves it. The facility comes from the admin's list (no free text) and
-the professional registration number is **recorded for the admin to check** (for example by phoning
-the facility); the app cannot verify it. The server checks the role on every request (`AccessPolicy`
-and route guards), so a health worker calling a specialist or admin endpoint gets HTTP 403.
+Patients have no accounts: they are records with an app-generated code.
+
+### How access is controlled
+
+* **Sign-up is a request, not an account.** The form asks only for name, email, password and the role being
+  requested (health worker or specialist; admin cannot be requested). The request is **pending**: with the
+  correct password, signing in returns "Your account is waiting for administrator approval" until an admin
+  acts; a wrong password gets the generic "Incorrect email or password". The requested role grants nothing.
+* **One account per email.** Signing up again with a registered email (any letter case) is refused with "This
+  email is already registered. Sign in, or use Forgot password ..." and changes nothing: no second account,
+  and the existing name, password, role and status stay as they were. The clear message is a deliberate
+  choice (it reveals that the email is registered; sign-up is rate-limited).
+* **An admin decides.** On the Users page the admin approves the request with the requested role or another
+  one, optionally recording the person's facility, or rejects it with a reason (emailed to the person). Every
+  decision is in the audit log. Admins can also create staff accounts directly.
+* **The app does not verify anyone's identity or qualifications.** The admin is expected to check who the
+  person is outside the app (for example by phoning the facility).
+* **Every request is checked on the server.** Route guards and one `AccessPolicy` check the role and record
+  ownership, so a health worker calling a specialist or admin endpoint gets HTTP 403, and health workers see
+  only their own patients. Users cannot change their own role. Sign-in and sign-up are rate-limited.
 
 ## 2. Conditions and real model availability
 
@@ -56,21 +71,46 @@ and restart. The registry verifies the SHA-256, and the card says which resize t
 
 ## 3. Features
 
-* Sign-up with admin approval (pending until approved; facility from an admin-managed list; rejection with a reason, emailed to the person), sign-in with Argon2-hashed passwords, JWT access + refresh tokens, sign-in and sign-up rate limits, role-based access enforced by the API
+* Sign-up request with a requested role, pending until an admin approves (see "How access is controlled"); sign-in with Argon2-hashed passwords, JWT access + refresh tokens, sign-in and sign-up rate limits, role-based access enforced by the API
 * Forgot password by emailed one-time link; required patient consent per screening
 * Patient registry using pseudonymous clinic codes (no names), patient screening history
-* 3-step capture: patient, eye, photo (rear camera with a circular guide, or gallery), with on-device quality hints
-* Server quality gate (blank, too small) with plain-language 422 errors; warnings for blur, darkness and non-fundus images
-* One result card per condition: classification, model score explained, borderline flag, estimated severity band (DR), model version, recommended action, and the model's measured limits ("How reliable is this model?")
+* 3-step capture: patient, eye, photo (rear camera with a circular guide, or gallery), with on-device quality hints. After choosing a photo: **Cancel** or **Analyse**; a refused photo offers **Retake** or **Upload another**; after a result: **Save** or **Discard** (with a reason)
+* Server quality gate with plain-language 422 errors and nothing saved: blank, too small, and **photos that do not look like a retinal fundus photograph** (a heuristic check; see section 8); warnings for blur and darkness
+* One result card per condition: classification, model score explained, borderline flag, estimated severity band (DR), model version, the model's measured limits ("How reliable is this model?"), and one recommendation for the screening: "No referral needed", "Refer recommended" or "Uncertain, consider asking a specialist"
+* **Specialist review is a later confirmation, not a gate.** The health worker gives the patient the recommended action from the result straight away, at the same visit; the specialist's review (asynchronous, as in the proposal) confirms or corrects it later and comes back at the next sync. The review targets (urgent 24 h, routine 72 h, configurable) are my own design decision so that no sent case waits unnoticed; the proposal sets no time limit.
+* **Nothing is sent to a specialist automatically.** The health worker presses "Ask a specialist" and types a question; only then does the case show "Awaiting specialist" (and later "Reviewed" or "Retake needed")
 * Results made by an earlier model are kept unchanged and labelled, with "Screen again" for current results
-* Automatic referral of positive and borderline results; manual "refer anyway"
-* Specialist queue (overdue first; flagged conditions; waiting time; urgent 24 h / routine 72 h review targets, configurable) and case review with an append-only, timestamped review history; override any condition with a reason
+* Asynchronous specialist review, as in the proposal: the queue shows the health worker's question, flagged conditions, waiting time and review target (urgent 24 h / routine 72 h, configurable; overdue first); approve, override any condition with a reason, request a retake or comment; append-only, timestamped history
+* Remove screening (soft delete by the health worker who made it, reason required): hidden everywhere, the photo file is deleted, the audit entry stays
+* Daily screening counts and a History day filter in the clinic's time zone (setting `TIME_ZONE`, default Africa/Kigali)
 * Offline queue in IndexedDB: capture while offline, automatic sync with exponential backoff, per-item retry; specialist decisions pulled back to the device
-* Admin user management, staff account creation, facility list, aggregate analytics with overdue reviews; About screen built from the model cards
+* Admin user management (approve / reject requests, staff accounts, roles), aggregate analytics with overdue reviews; About screen built from the model cards
 * Installable PWA, mobile-first (bottom tabs) with a desktop sidebar
 
 **Not included (honest limits):** offline *inference* (photos taken offline are analysed after they
 sync), a native Android app (the PWA installs on Android and iPhone instead), a load balancer, field testing.
+
+**Planned vs implemented** (same rows as [docs/scope_table.md](docs/scope_table.md) and the report):
+
+| Planned feature (proposal) | Status | Evidence (scope table row) |
+|---|---|---|
+| DR classifier (MobileNetV2, TFLite) | **Completed** | v2.0 fine-tuned, served; recomputation and parity tests (1) |
+| Glaucoma classifier (ODIR-5K) | **Completed, below target** | sensitivity 0.762, specificity 0.721, precision 0.103 (1,040 eyes, 42 positive) (2) |
+| Cataract classifier (ODIR-5K) | **Completed, limited evidence** | 0.978 / 0.962 / precision 0.542; only 46 positive test eyes (3) |
+| Five-band cataract grading | **Not implemented** | ODIR-5K has no severity labels; binary result only (3b) |
+| Risk / severity output | **Completed (changed)** | DR: five-band *estimated* band from the binary score; others binary (4) |
+| Sensitivity >= 85%, specificity >= 80% on a held-out test set | **Partial** | DR sensitivity 0.851 met, specificity 0.748 not met; glaucoma not met; cataract met (5) |
+| On-device TFLite inference | **Changed** | server-side LiteRT; offline = capture and queue, scored after sync (6) |
+| Android app (React Native) | **Changed** | installable PWA for Android and iPhone (7) |
+| Offline storage and two-way sync | **Completed** | IndexedDB queue, idempotent push, decision pull, interruption tests (8, 13, 21) |
+| Register patient, capture image, run screening, view result | **Completed (changed)** | patient stored as a code and year of birth (no name); E2E journeys on four browser profiles (9-12) |
+| Flag uncertain / high-risk cases for referral | **Completed (changed)** | recommendation per screening; only the health worker sends a case (Ask a specialist) (14) |
+| Specialist review: approve or override | **Completed** | asynchronous queue with the question, review targets; override, retake, comment (15-16) |
+| Admin: user accounts and analytics | **Completed** | approve / reject sign-up requests, roles, aggregate analytics (17-18) |
+| FastAPI + PostgreSQL backend | **Completed** | SQLite locally; backend suite on PostgreSQL 16 in GitHub Actions (19) |
+| Load balancer | **Not implemented** | stateless JWT API could scale behind one (20) |
+| Usability testing with health workers | **Not implemented yet** | SUS kit ready, no participants yet (22) |
+| UML design | **Completed** | use case, class, ERD, sequence, architecture diagrams (23) |
 
 **Deviations from the proposal** (reasons in [docs/scope_table.md](docs/scope_table.md)): React Native on
 Android with on-device TensorFlow Lite became an installable PWA with server-side TFLite inference. Offline
@@ -96,8 +136,10 @@ Design patterns you can find in the code:
 | Dependency injection | [backend/app/api/deps.py](backend/app/api/deps.py), [frontend/src/lib/services.tsx](frontend/src/lib/services.tsx) |
 | Single access policy | `AccessPolicy`: [backend/app/services/access.py](backend/app/services/access.py) |
 
-Algorithms: image quality gate (Laplacian variance, brightness, vignette test) in
-[quality.py](backend/app/ml/quality.py); sensitivity-targeted threshold search (O(n log n)) in
+Algorithms: image quality gate (Laplacian variance, brightness, vignette test) and the fundus check
+(dark corners, bright centre, red/green ratio, lit-field fraction) in [quality.py](backend/app/ml/quality.py);
+one screening-level referral recommendation (`ReferralAdvisor`) in [risk_policy.py](backend/app/ml/risk_policy.py);
+clinic-time-zone day counts in [daily_counts.py](backend/app/services/daily_counts.py); sensitivity-targeted threshold search (O(n log n)) in
 [thresholding.py](backend/app/ml/thresholding.py); rank-sum AUC and bootstrap intervals in
 [evaluation.py](backend/app/ml/evaluation.py); threshold-anchored severity bands in
 [risk_policy.py](backend/app/ml/risk_policy.py); idempotent sync with bounded exponential backoff and
@@ -125,7 +167,7 @@ frontend/
   e2e/                Playwright journeys
 models/<condition>/   model.tflite (served), model_card.json; models/dr/model.keras (source for the agreement test)
 notebooks/            DR v2 and ODIR training notebooks (with outputs), DR v1 notebook, hold-out notebook
-scripts/              init_env, seed, benchmark, dr_v2_metrics, extract_notebook_metrics, export_tflite, e2e_server
+scripts/              init_env, seed, reset_demo_data, benchmark, dr_v2_metrics, evaluate_fundus_check, extract_notebook_metrics, export_tflite, e2e_server
 docs/                 scope table, testing report, risk policy, metrics, evaluation evidence, benchmarks, diagrams, screenshots, report
 .github/workflows/     CI: backend tests on PostgreSQL, frontend checks, Docker build
 ```
@@ -175,11 +217,23 @@ npm.cmd run dev          # http://localhost:5173 (API calls are proxied to port 
 
 If PowerShell blocks `npm` scripts, use `npm.cmd` as shown. API documentation: http://localhost:8000/docs.
 
-**Demo accounts** (synthetic data only): `admin@example.org`, `specialist@example.org`,
-`nurse@example.org`. Their passwords are generated by `scripts/init_env.py` and stored in your local
-`.env`; they are never committed. The seed also creates three fictional facilities (Demo Health Centre A,
-Demo Health Centre B, Demo District Hospital). New health worker accounts come from the sign-up page and
-stay pending until the admin approves them on the Users page.
+**Demo accounts** (synthetic data only, demo-only passwords, never use them on a hosted deployment):
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@example.org` | `DemoAdmin2026!` |
+| Specialist | `specialist@example.org` | `DemoSpecialist2026!` |
+| Health worker (approved) | `nurse@example.org` | `DemoNurse2026!` |
+
+These are set by `scripts/init_env.py --demo-passwords` (without the flag, random passwords are written to
+`.env` instead) and created by `scripts/seed.py`. New accounts come from the sign-up page (health worker or specialist
+requested) and stay pending until the admin approves them on the Users page.
+
+**Clean demo data:** `.venv\Scripts\python scripts\reset_demo_data.py --yes` (stop the backend first) backs up
+the local SQLite file, deletes it and the stored photos, re-runs the migrations and the seed. Approved accounts
+that are not demo accounts (for example your own) are carried over with their password; pending and rejected
+requests are removed (`--drop-accounts` removes every non-demo account). It refuses to run against anything
+except the SQLite file under `data/`.
 
 **Switching to PostgreSQL:** set `DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db` in `.env`,
 `pip install "psycopg[binary]"`, then run `alembic upgrade head`.
@@ -204,19 +258,21 @@ cd frontend; npx playwright install chromium firefox webkit; npx playwright test
 
 Continuous integration ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push: the backend suite
 against PostgreSQL 16 (after `alembic upgrade head`), frontend type-check, lint and Vitest, and `docker compose build`.
-First runs, all three jobs green:
-[run #1 (final-app)](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40503709691),
-[run #2 (main)](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40503744036).
+Runs, all three jobs green: [run #1 (final-app)](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40503709691)
+and [run #2 (main)](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40503744036) (27 Oct);
+[run #4 (wip-final-fixes)](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40675193040) (28 Oct, with all of the 28 October changes). [Run #3](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40672299037) failed: on
+Python 3.12 pytest could not collect the tests (fixed, see the testing report).
 
-Latest recorded results (27 Oct 2026, development laptop):
+Latest recorded results (28 Oct 2026, development laptop, Python 3.14; the backend suite also ran on Python 3.12:
+276 passed, 1 skipped because TensorFlow is not installed there):
 
 | Suite | Result |
 |---|---|
-| Backend pytest (119 unit/algorithm + 136 API integration, real models incl. parity and Keras-vs-TFLite agreement) | 255 passed, 0 skipped |
-| Frontend Vitest (algorithms, API client, components, forms, routes) | 69 passed |
+| Backend pytest (134 unit/algorithm + 143 API integration, real models incl. parity and Keras-vs-TFLite agreement) | 277 passed, 0 skipped |
+| Frontend Vitest (algorithms, API client, components, forms, routes, capture flow) | 78 passed |
 | TypeScript strict type-check / ESLint | clean / clean |
-| Playwright end-to-end (6 journeys incl. fake sign-up -> pending -> refused -> approved, x Chromium mobile + desktop, Firefox desktop, WebKit/iPhone; plus axe-core and throttled-performance checks on Chromium) | 27 passed (24 journeys + 2 accessibility + 1 performance), 3 skipped by design (those checks run on Chromium only) |
-| Browser performance (upload to result, Chromium; measured 26 Oct with the DR v1 model) | median 0.50 s; 3.17 s with emulated 6x slower CPU + slow 3G |
+| Playwright end-to-end (11 tests per profile: sign-up requests, duplicate email, rejection, specialist sign-up, capture flow with a refused non-eye photo, Save / Discard, health worker journey, specialist review, decision and retake returned, unauthorized access, invalid input; on Chromium mobile + desktop, Firefox desktop, WebKit/iPhone 13; plus axe-core and throttled-performance checks on Chromium) | 47 passed (44 functional + 2 accessibility + 1 performance), 3 skipped by design (those checks run on Chromium only), 0 failed |
+| Browser performance (upload to result, Chromium, three models; 28 Oct) | median 0.44 s; 2.73 s with emulated 6x slower CPU + slow 3G |
 | Accessibility, axe-core WCAG 2.1 A/AA (20 pages, all roles, mobile + desktop) | 0 violations |
 | Lighthouse, sign-in page (mobile / desktop) | 96/100/100/100 and 100/100/100/100 (performance/accessibility/best practices/SEO) |
 
@@ -245,6 +301,10 @@ cores: model 55 ms mean, full pipeline on a 1024px photo 74 ms mean; restricted 
   patient's two eyes could not be grouped; the DR figures may be optimistic), no external test set, no
   smartphone-lens images, scores are not calibrated probabilities, ODIR labels may be noisy and its positive
   classes are small.
+* Fundus check (the classifiers cannot recognise a non-eye photo themselves): `scripts/evaluate_fundus_check.py`
+  on 25 real fundus photos and 77 non-eye images wrongly rejected **3 of 25** fundus photos (all grey-background
+  processed dataset images) and wrongly accepted **0 of 77** non-eye images. The rules were tuned on these same
+  images and no face photos were available, so these figures are optimistic; the check is a heuristic and can be fooled.
 * Reference only: Gulshan et al. (2016) reported 90.3% sensitivity / 98.1% specificity for referable DR on
   different data, a much larger model and a high-specificity operating point; not a like-for-like comparison.
   Our referable-DR (grade 2+) sensitivity on the test split is 0.869.
@@ -271,6 +331,8 @@ I used Claude (Anthropic), through Claude Code, to help write, refactor and test
 * DR specificity (0.748) and both glaucoma targets are below the proposal's targets; glaucoma precision is
   about 0.10. The result screens show these limits next to each result.
 * Offline mode queues photos but cannot analyse them on the device.
+* The fundus check is a heuristic tuned on a small set (3 of 25 real fundus photos wrongly refused; no face photos
+  tested); an unusual photo can still pass it or be refused.
 * PostgreSQL runs in CI (backend tests) and Docker images are built in CI; the full Docker stack has not been
   started locally.
 * Rate limits are in memory per process; behind several API instances they would need a shared store.
