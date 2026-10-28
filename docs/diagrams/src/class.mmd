@@ -43,7 +43,10 @@ classDiagram
   class RiskAssessment {
     +positive, uncertain
     +severity_band, risk_level
-    +recommendation, auto_refer
+    +recommendation, refer_suggested
+  }
+  class ReferralAdvisor {
+    +advise(results, quality_warnings) ReferralAdvice
   }
   class ScreeningPipeline {
     +validate_upload(type, bytes) Image
@@ -81,6 +84,8 @@ classDiagram
   ModelRegistry --> ModelStatus
   RiskPolicyFactory ..> RiskPolicy : creates
   RiskPolicy ..> RiskAssessment : returns
+  RiskPolicyFactory ..> ReferralAdvisor : creates
+  ScreeningService --> ReferralAdvisor
   ScreeningPipeline --> ModelRegistry
   ScreeningPipeline --> RiskPolicyFactory
   ScreeningPipeline --> ImagePreprocessor

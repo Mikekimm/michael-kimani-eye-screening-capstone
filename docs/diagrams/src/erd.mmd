@@ -16,6 +16,10 @@ erDiagram
     string full_name
     string password_hash "Argon2id"
     enum role "health_worker|specialist|admin"
+    enum status "pending|approved|rejected"
+    enum requested_role "health_worker|specialist"
+    string status_reason
+    string facility "free text, not verified"
     bool is_active
     datetime created_at
   }
@@ -48,6 +52,8 @@ erDiagram
     string created_by_id FK
     datetime created_at
     datetime updated_at
+    datetime discarded_at "soft delete"
+    string discard_reason
   }
   DIAGNOSIS_RESULTS {
     int id PK
@@ -62,12 +68,13 @@ erDiagram
     int severity_band "1..5"
     enum risk_level
     string recommendation
-    bool auto_refer
+    bool refer_suggested
   }
   REFERRALS {
     int id PK
     string screening_id FK "UK"
     enum reason "positive|uncertain|manual"
+    string question "from the health worker"
     bool is_open
     datetime created_at
     datetime closed_at
