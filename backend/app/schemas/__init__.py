@@ -357,4 +357,5 @@ class AnalyticsOut(BaseModel):
     review_targets_hours: dict[str, int]
     median_review_turnaround_hours: float | None
     model_versions_in_use: dict[str, int]
-    users_by_role: dict[str, int]
+    users_by_role: dict[str, int]          # approved, active accounts only
+    pending_requests: int = 0              # sign-ups waiting for an administrator

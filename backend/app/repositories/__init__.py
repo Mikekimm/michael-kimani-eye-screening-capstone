@@ -47,8 +47,15 @@ class UserRepository(Repository[User]):
             User.role == Role.ADMIN, User.is_active.is_(True), User.status == AccountStatus.APPROVED)).all()
 
     def count_by_role(self) -> dict[str, int]:
-        rows = self.session.execute(select(User.role, func.count()).group_by(User.role)).all()
+        """Approved, active accounts per role (people who can use the system now)."""
+        rows = self.session.execute(
+            select(User.role, func.count()).where(User.status == AccountStatus.APPROVED, User.is_active.is_(True))
+            .group_by(User.role)).all()
         return {role.value: count for role, count in rows}
+
+    def count_pending(self) -> int:
+        """Sign-up requests waiting for an administrator."""
+        return self.session.scalar(select(func.count()).select_from(User).where(User.status == AccountStatus.PENDING)) or 0
 
 
 class RefreshTokenRepository(Repository[RefreshToken]):

@@ -27,7 +27,7 @@ setting only: no field deployment or clinical evaluation has taken place.
 |---|---|
 | **Health worker** (sign-up request, then admin approval) | Registers patients by app-generated code, captures or uploads a fundus photo of the left or right eye, gets a screening result with a recommendation, decides whether to ask a specialist, works offline and syncs later |
 | **Specialist** (sign-up request approved as specialist, or created by an admin) | Reviews the cases health workers sent, starting with those matching their specialties; takes a case, then approves, overrides any condition with a reason, requests a retake or comments. History is append-only |
-| **Admin** (created at install) | Approves or rejects sign-up requests (choosing the role to grant; rejection needs a reason), creates staff accounts, changes roles, sees aggregate analytics (no images or identifiers) |
+| **Admin** (created at install, or a personal admin via `scripts/create_admin.py`) | Controls who can use the system and keeps the records: approves or rejects sign-up requests (a human, logged decision; may grant a different role and set specialties), creates staff accounts, changes roles, deactivates people who leave. The Analytics home shows approved health workers, specialists and admins, requests waiting for approval, and aggregate screening and referral numbers (no images or identifiers). Approval takes effect immediately |
 
 Patients have no accounts: they are records with an app-generated code.
 
@@ -232,6 +232,8 @@ If PowerShell blocks `npm` scripts, use `npm.cmd` as shown. API documentation: h
 These are set by `scripts/init_env.py --demo-passwords` (without the flag, random passwords are written to
 `.env` instead) and created by `scripts/seed.py`. New accounts come from the sign-up page (health worker or specialist
 requested) and stay pending until the admin approves them on the Users page.
+
+**Personal admin account (optional):** put `PERSONAL_ADMIN_EMAIL` and `PERSONAL_ADMIN_PASSWORD` in your local `.env` (git-ignored; use a password you use nowhere else), then run `.venv\Scripts\python scripts\create_admin.py`. The password is never printed or committed, and the demo reset keeps the account.
 
 **Clean demo data:** `.venv\Scripts\python scripts\reset_demo_data.py --yes` (stop the backend first) backs up
 the local SQLite file, deletes it and the stored photos, re-runs the migrations and the seed. Approved accounts

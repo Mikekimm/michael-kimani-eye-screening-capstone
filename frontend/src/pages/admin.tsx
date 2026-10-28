@@ -50,6 +50,16 @@ export function AnalyticsPage() {
     <>
       <PageHeader title="Analytics" description="Aggregate counts only. No images, patient codes or names." />
       <PendingApprovalsNotice />
+      <h2 className="mb-2 text-sm font-semibold">People who can use the system</h2>
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="people-overview">
+        <StatTile label="Health workers" value={String(a.users_by_role.health_worker ?? 0)} />
+        <StatTile label="Specialists" value={String(a.users_by_role.specialist ?? 0)} />
+        <StatTile label="Administrators" value={String(a.users_by_role.admin ?? 0)} />
+        <Link to="/admin/users" className="block">
+          <StatTile label="Waiting for approval" value={String(a.pending_requests)} hint="Open Users to approve or reject" />
+        </Link>
+      </div>
+      <h2 className="mb-2 text-sm font-semibold">Screening and referrals</h2>
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         <StatTile label="Screenings" value={String(a.total_screenings)} />
         <StatTile label="Referral rate" value={a.referral_rate === null ? "-" : percent(a.referral_rate)} />
