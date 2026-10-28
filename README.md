@@ -27,7 +27,7 @@ setting only: no field deployment or clinical evaluation has taken place.
 |---|---|
 | **Health worker** (sign-up request, then admin approval) | Registers patients by app-generated code, captures or uploads a fundus photo of the left or right eye, gets a screening result with a recommendation, decides whether to ask a specialist, works offline and syncs later |
 | **Specialist** (sign-up request approved as specialist, or created by an admin) | Reviews the cases health workers sent, starting with those matching their specialties; takes a case, then approves, overrides any condition with a reason, requests a retake or comments. History is append-only |
-| **Admin** (created at install) | Approves or rejects sign-up requests (choosing the role to grant; rejection needs a reason), creates staff accounts, changes roles, sees aggregate analytics (no images or identifiers) |
+| **Admin** (created at install, or a personal admin via `scripts/create_admin.py`) | Controls who can use the system and keeps the records: approves or rejects sign-up requests (a human, logged decision; may grant a different role and set specialties), creates staff accounts, changes roles, deactivates people who leave. The Analytics home shows approved health workers, specialists and admins, requests waiting for approval, and aggregate screening and referral numbers (no images or identifiers). Approval takes effect immediately |
 
 Patients have no accounts: they are records with an app-generated code.
 
@@ -233,6 +233,8 @@ These are set by `scripts/init_env.py --demo-passwords` (without the flag, rando
 `.env` instead) and created by `scripts/seed.py`. New accounts come from the sign-up page (health worker or specialist
 requested) and stay pending until the admin approves them on the Users page.
 
+**Personal admin account (optional):** put `PERSONAL_ADMIN_EMAIL` and `PERSONAL_ADMIN_PASSWORD` in your local `.env` (git-ignored; use a password you use nowhere else), then run `.venv\Scripts\python scripts\create_admin.py`. The password is never printed or committed, and the demo reset keeps the account.
+
 **Clean demo data:** `.venv\Scripts\python scripts\reset_demo_data.py --yes` (stop the backend first) backs up
 the local SQLite file, deletes it and the stored photos, re-runs the migrations and the seed. Approved accounts
 that are not demo accounts (for example your own) are carried over with their password; pending and rejected
@@ -251,6 +253,17 @@ the API (built from `backend/Dockerfile`) and the PWA as a static HTTPS site. In
 **New -> Blueprint**, pick this repository, then type the six `SEED_*` values (demo accounts) and, for real
 emails, the `SMTP_*` values (e.g. Gmail with an App Password). Secrets are entered in the dashboard and never
 stored in git. Open the static site's URL on a phone and use **Add to Home Screen** to install the app.
+
+**Emails (password reset, sign-up and approval notices):**
+
+* **Local (default, no `SMTP_HOST`):** nothing is sent. Each email is saved as a text file in `data\outbox\` and
+  printed in the backend console, so the reset link can be copied from the terminal. The link works once and
+  expires after 30 minutes.
+* **Real email (deployment):** set these environment variables on the server (Render dashboard or a local
+  `.env`, never in git): `SMTP_HOST` (e.g. `smtp.gmail.com`), `SMTP_PORT` (587), `SMTP_USERNAME`,
+  `SMTP_PASSWORD` (for Gmail an App Password, not the account password), `SMTP_SENDER`
+  (e.g. `Retinal Screening <you@example.org>`), `SMTP_STARTTLS` (true), and `APP_BASE_URL` (the address of the
+  PWA, used in the links). Restart the API afterwards.
 
 ## 8. Tests
 

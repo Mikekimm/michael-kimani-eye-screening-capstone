@@ -47,4 +47,5 @@ class AnalyticsService:
             median_review_turnaround_hours=round(median(delays), 2) if delays else None,
             model_versions_in_use=self._analytics.model_versions_in_use(),
             users_by_role=self._users.count_by_role(),
+            pending_requests=self._users.count_pending(),
         )

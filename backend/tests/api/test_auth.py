@@ -338,3 +338,13 @@ def test_rejecting_needs_a_reason_and_every_decision_is_audited(client):
     for session in client.container.database.session():
         actions = [e.action for e in session.query(AuditEvent).filter_by(actor_id=admin_user.id, entity_id=created["id"])]
     assert actions == ["user.rejected", "user.approved"]
+
+
+def test_admin_overview_counts_approved_people_by_role_and_pending_requests(client):
+    admin = login(client, create_user(client, Role.ADMIN))
+    create_user(client, Role.SPECIALIST)
+    create_user(client, Role.HEALTH_WORKER, active=False)  # deactivated people are not counted
+    client.post("/api/auth/register", json=NEW_USER)       # pending: counted as a request, not as a health worker
+    stats = client.get("/api/admin/analytics", headers=admin).json()
+    assert stats["users_by_role"] == {"admin": 1, "specialist": 1}
+    assert stats["pending_requests"] == 1

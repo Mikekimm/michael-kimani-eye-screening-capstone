@@ -106,6 +106,10 @@ Full run on 28 October evening (with routing and the referral policy): 51 passed
 (16 min). Earlier full run that day: 47 passed, 3 skipped, 0 failed (7.2 min). A first full run that day, made
 while the backend suite and a manual demo ran at the same time, had 5 timeouts; re-run alone they passed except
 two genuine test bugs (an old button label; a timeout too short for four Firefox sessions), which were fixed.
+This long journey test needed a longer timeout on mobile-webkit (60 s raised to 120 s for that one test only) because
+the development laptop is slow under load: it timed out twice in full runs on admin-overview (46 passed, 1 failed,
+3 skipped, 4 did not run), at a different step each time. The test itself and its assertions were not weakened. Full run after the change (all four profiles): 51 passed,
+3 skipped by design, 0 failed, 0 did not run (16.2 min).
 
 Layout: bottom tabs below 1024 px, sidebar above. Limits: all on Windows 11; no physical Android/iOS
 device or real Safari on iOS has been tested yet (planned on an iPhone 13 Pro after the HTTPS deploy).

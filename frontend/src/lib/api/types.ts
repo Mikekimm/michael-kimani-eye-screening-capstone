@@ -244,7 +244,10 @@ export interface Analytics {
   review_targets_hours: { urgent: number; routine: number };
   median_review_turnaround_hours: number | null;
   model_versions_in_use: Record<string, number>;
+  /** Approved, active accounts per role. */
   users_by_role: Record<string, number>;
+  /** Sign-up requests waiting for an administrator. */
+  pending_requests: number;
 }
 
 export interface ApiErrorBody {
