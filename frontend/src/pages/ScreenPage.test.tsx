@@ -9,7 +9,7 @@ import { ScreenPage } from "./ScreenPage";
 
 const patient = { id: "p1", code: "PHC-7A8MRX" };
 const nurse = { id: "u1", email: "n@example.org", full_name: "Amina Nurse", role: "health_worker", is_active: true,
-  status: "approved", status_reason: null, requested_role: null, facility: null, created_at: "2026-10-01T00:00:00Z" };
+  status: "approved", status_reason: null, requested_role: null, facility: null, specialties: [], created_at: "2026-10-01T00:00:00Z" };
 const photo = () => new File([new Uint8Array([1, 2, 3])], "eye.jpg", { type: "image/jpeg" });
 
 async function reachPhotoStep(create = vi.fn()) {

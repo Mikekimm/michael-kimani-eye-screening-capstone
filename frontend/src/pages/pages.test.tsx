@@ -15,7 +15,7 @@ import { patientSchema } from "./patients";
 import { reviewSchema } from "./specialist";
 
 const nurse: User = { id: "u1", email: "n@example.org", full_name: "Amina Nurse", role: "health_worker", is_active: true,
-  status: "approved", status_reason: null, requested_role: null, facility: "Demo Health Centre A",
+  status: "approved", status_reason: null, requested_role: null, facility: "Demo Health Centre A", specialties: [],
   created_at: "2026-10-01T00:00:00Z" };
 
 function guarded(role: "health_worker" | "admin") {
