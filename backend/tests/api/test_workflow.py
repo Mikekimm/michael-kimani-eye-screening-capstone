@@ -19,8 +19,9 @@ from .conftest import FixedScoreModel, auth_headers, register_patient, upload
 QUESTION = "Is this proliferative? Patient reports blurred vision."
 
 
-def ask(client, headers, screening_id, question=QUESTION):
-    return client.post(f"/api/screenings/{screening_id}/ask-specialist", headers=headers, json={"question": question})
+def ask(client, headers, screening_id, question=QUESTION, conditions=("dr",), priority=None):
+    body = {"question": question, "conditions": list(conditions)} | ({"priority": priority} if priority else {})
+    return client.post(f"/api/screenings/{screening_id}/ask-specialist", headers=headers, json=body)
 
 
 @pytest.fixture
@@ -49,11 +50,15 @@ def test_nothing_is_sent_to_a_specialist_automatically(stub_client):
     assert stub_client.get("/api/reviews/queue", headers=specialist).json() == []
 
 
-@pytest.mark.parametrize(("offset", "advice"), [(+0.4, "recommended"), (-0.05, "consider"), (-0.4, "none")])
-def test_recommendation_follows_the_policy(stub_client, offset, advice):
+@pytest.mark.parametrize(("offset", "advice", "status"), [
+    (+0.4, "recommended", "completed"),  # clear positive: "Refer recommended", the health worker sends it
+    (-0.05, "consider", "referred"),     # borderline: queued automatically, as in the proposal
+    (-0.4, "none", "completed")])        # clear negative: not queued
+def test_recommendation_and_automatic_queueing_follow_the_policy(stub_client, offset, advice, status):
     threshold = stub_client.container.registry.get("dr").card.threshold
     _, screening = _screen(stub_client, min(0.99, max(0.01, threshold + offset)))
-    assert screening["referral_advice"] == advice and screening["status"] == "completed"
+    assert screening["referral_advice"] == advice and screening["status"] == status
+    assert screening["queued_automatically"] is (status == "referred")
 
 
 def test_negative_result_on_a_low_quality_photo_is_uncertain(stub_client):
@@ -61,6 +66,7 @@ def test_negative_result_on_a_low_quality_photo_is_uncertain(stub_client):
     blurred = encode(make_fundus_like(seed=4).filter(ImageFilter.GaussianBlur(8)), "JPEG")
     _, screening = _screen(stub_client, 0.01, data=blurred)
     assert screening["quality"]["warnings"] and screening["referral_advice"] == "consider"
+    assert screening["status"] == "referred" and screening["queued_automatically"] is True  # usable but low quality
 
 
 def test_asked_case_reaches_the_queue_with_the_question(referred):
@@ -278,3 +284,34 @@ def test_queue_and_screening_show_waiting_time_priority_and_overdue(referred):
     _, admin = auth_headers(client, Role.ADMIN)
     stats = client.get("/api/admin/analytics", headers=admin).json()
     assert stats["overdue_referrals"] == 1 and stats["review_targets_hours"] == {"urgent": 24, "routine": 72}
+
+
+def test_uncertain_case_is_queued_routine_and_the_health_worker_can_add_a_question(stub_client):
+    _, specialist = auth_headers(stub_client, Role.SPECIALIST)
+    threshold = stub_client.container.registry.get("dr").card.threshold
+    worker, screening = _screen(stub_client, threshold - 0.05)
+    assert screening["status"] == "referred" and screening["review_priority"] == "routine"
+    assert screening["referral_conditions"] == ["dr"] and screening["referral_question"] is None
+    queue = stub_client.get("/api/reviews/queue", headers=specialist).json()
+    assert [(q["screening_id"], q["question"]) for q in queue] == [(screening["id"], None)]
+
+    added = ask(stub_client, worker, screening["id"], question="Patient is diabetic for 10 years.")
+    assert added.status_code == 200 and added.json()["referral_question"] == "Patient is diabetic for 10 years."
+    assert ask(stub_client, worker, screening["id"]).status_code == 409  # the question can be added once
+    for session in stub_client.container.database.session():
+        actions = {a for (a,) in session.query(AuditEvent.action).filter_by(entity_id=screening["id"]).all()}
+    assert {"screening.queued_automatically", "screening.question_added"} <= actions
+
+
+def test_new_decision_shows_until_the_health_worker_opens_the_screening(referred):
+    client, worker, specialist, screening = referred
+    assert client.get("/api/screenings/new-decisions", headers=worker).json() == {"count": 0, "screening_ids": []}
+    client.post(f"/api/reviews/{screening['id']}", headers=specialist, json={"action": "approve"})
+    assert client.get("/api/screenings/new-decisions", headers=worker).json() == {"count": 1, "screening_ids": [screening["id"]]}
+    listed = client.get("/api/screenings", headers=worker).json()
+    assert listed[0]["new_decision"] is True and listed[0]["status"] == "reviewed"
+    client.get(f"/api/screenings/{screening['id']}", headers=specialist)  # the specialist opening it changes nothing
+    assert client.get("/api/screenings/new-decisions", headers=worker).json()["count"] == 1
+    opened = client.get(f"/api/screenings/{screening['id']}", headers=worker).json()
+    assert opened["status"] == "reviewed"
+    assert client.get("/api/screenings/new-decisions", headers=worker).json()["count"] == 0

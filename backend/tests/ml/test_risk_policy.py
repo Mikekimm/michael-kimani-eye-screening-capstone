@@ -112,3 +112,47 @@ def test_referral_advice_combines_conditions_and_photo_quality():
     assert advisor.advise([negative, negative], False) == ReferralAdvice.NONE
     assert advisor.advise([negative], True) == ReferralAdvice.CONSIDER  # low-quality photo
     assert ReferralAdvisor(low_quality_advice=ReferralAdvice.NONE).advise([negative], True) == ReferralAdvice.NONE
+
+
+# ---------- automatic queueing and default priority (proposal sequence diagram) ----------
+from dataclasses import dataclass as _dataclass  # noqa: E402
+
+from app.ml.risk_policy import ReferralAdvisor, RiskPolicyFactory  # noqa: E402
+from app.models.enums import ReferralAdvice, ReviewPriority  # noqa: E402
+
+
+@_dataclass
+class _Scored:
+    condition: str
+    positive: bool | None = False
+    uncertain: bool | None = False
+    severity_band: int | None = None
+    refer_suggested: bool = False
+    model_available: bool = True
+
+
+def test_only_uncertain_cases_are_queued_automatically_by_default():
+    advisor = ReferralAdvisor()
+    assert advisor.queues_automatically(ReferralAdvice.CONSIDER)
+    assert not advisor.queues_automatically(ReferralAdvice.RECOMMENDED)  # the health worker sends clear positives
+    assert not advisor.queues_automatically(ReferralAdvice.NONE)
+
+
+def test_severe_results_default_to_urgent():
+    advisor = ReferralAdvisor()
+    assert advisor.default_priority([_Scored("dr", severity_band=4)]) == ReviewPriority.URGENT
+    assert advisor.default_priority([_Scored("dr", severity_band=3), _Scored("glaucoma")]) == ReviewPriority.ROUTINE
+
+
+def test_queued_conditions_are_the_flagged_ones_or_every_scored_one():
+    flagged = [_Scored("dr", refer_suggested=True), _Scored("glaucoma"), _Scored("cataract", model_available=False)]
+    assert ReferralAdvisor.queued_conditions(flagged) == ["dr"]
+    assert ReferralAdvisor.queued_conditions([_Scored("dr"), _Scored("glaucoma")]) == ["dr", "glaucoma"]  # low quality only
+
+
+def test_queueing_and_urgency_come_from_the_config():
+    advisor = RiskPolicyFactory({"referral_advice": {"queue_automatically": ["consider", "recommended"],
+                                                     "urgent_from_band": 5}}).advisor()
+    assert advisor.queues_automatically(ReferralAdvice.RECOMMENDED)
+    assert advisor.default_priority([_Scored("dr", severity_band=4)]) == ReviewPriority.ROUTINE
+    assert RiskPolicyFactory({"referral_advice": {"queue_automatically": []}}).advisor().queue_automatically == frozenset()

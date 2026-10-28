@@ -10,6 +10,7 @@ ROUTES = {
     "patients.list": ("get", "/api/patients", None),
     "patients.create": ("post", "/api/patients", {}),
     "screenings.list": ("get", "/api/screenings", None),
+    "screenings.new_decisions": ("get", "/api/screenings/new-decisions", None),
     "reviews.queue": ("get", "/api/reviews/queue", None),
     "reviews.create": ("post", "/api/reviews/x", {"action": "comment", "note": "hi"}),
     "sync.push": ("post", "/api/sync/push", {"patients": []}),
@@ -19,13 +20,14 @@ ROUTES = {
     "admin.analytics": ("get", "/api/admin/analytics", None),
     "admin.create_user": ("post", "/api/admin/users", {"email": "s@example.org", "full_name": "Sp",
                                                        "password": "pass-word-1", "role": "specialist"}),
-    "screenings.ask": ("post", "/api/screenings/x/ask-specialist", {"question": "Please check"}),
+    "screenings.ask": ("post", "/api/screenings/x/ask-specialist", {"question": "Please check", "conditions": ["dr"]}),
+    "reviews.take": ("post", "/api/reviews/x/take", None),
     "screenings.discard": ("post", "/api/screenings/x/discard", {"reason": "wrong photo"}),
 }
 ALLOWED = {
-    Role.HEALTH_WORKER: {"patients.list", "patients.create", "screenings.list", "screenings.ask",
+    Role.HEALTH_WORKER: {"patients.list", "patients.create", "screenings.list", "screenings.new_decisions", "screenings.ask",
                          "screenings.discard", "sync.push", "sync.pull"},
-    Role.SPECIALIST: {"reviews.queue", "reviews.create"},
+    Role.SPECIALIST: {"reviews.queue", "reviews.create", "reviews.take"},
     Role.ADMIN: {"admin.users", "admin.update", "admin.analytics", "admin.create_user"},
 }
 
