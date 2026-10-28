@@ -8,11 +8,11 @@ Seven strategies were used, each chosen for a specific risk in a screening-and-r
 
 | # | Strategy | Risk it addresses | Tooling | Result |
 |---|---|---|---|---|
-| 1 | Unit testing of algorithms | wrong decision logic silently mis-triages patients | pytest, Vitest | 134 backend ML and algorithm tests + 78 Vitest tests pass |
-| 2 | Integration testing of the API with the real models | layers work alone but not together; RBAC gaps; fake accounts | pytest + FastAPI TestClient + LiteRT; PostgreSQL in CI | 143 API tests pass (incl. 52 role-matrix and signed-out cases) |
-| 3 | End-to-end functional testing | the user cannot complete a clinical task; a stranger gets in | Playwright | 11 tests x 4 browser/device profiles: 44/44 pass |
-| 4 | Compatibility testing | works in one browser only | Playwright: Chromium, Firefox, WebKit | all 11 tests pass on all three engines |
-| 5 | Performance testing | too slow on clinic hardware or networks | benchmark script, Playwright + CDP throttling, Lighthouse | 74 ms server pipeline (DR v1); 0.44 s / 2.73 s round trip; Lighthouse 96-100 |
+| 1 | Unit testing of algorithms | wrong decision logic silently mis-triages patients | pytest, Vitest | 137 backend ML and algorithm tests + 84 Vitest tests pass |
+| 2 | Integration testing of the API with the real models | layers work alone but not together; RBAC gaps; fake accounts | pytest + FastAPI TestClient + LiteRT; PostgreSQL in CI | 162 API tests pass (incl. 60 role-matrix and signed-out cases) |
+| 3 | End-to-end functional testing | the user cannot complete a clinical task; a stranger gets in | Playwright | 12 tests x 4 browser/device profiles: 48/48 pass |
+| 4 | Compatibility testing | works in one browser only | Playwright: Chromium, Firefox, WebKit | all 12 tests pass on all three engines |
+| 5 | Performance testing | too slow on clinic hardware or networks | benchmark script, Playwright + CDP throttling, Lighthouse | 74 ms server pipeline (DR v1); 0.60 s / 4.15 s round trip; Lighthouse 96-100 |
 | 5b | Accessibility testing | health workers with low vision or screen readers cannot use it | axe-core (WCAG 2.1 A/AA) on every screen | 0 violations on 20 audited pages, mobile and desktop |
 | 6 | Model validation and parity | the model is worse than claimed, or the app feeds it differently from training | held-out test splits; recomputation with the app's code; 24-photo parity test | DR sensitivity 0.851 (target met), specificity 0.748 (not met); app reproduces notebook scores within 0.021 |
 
@@ -31,12 +31,12 @@ no visible failure.
 
 | Area | File | Tests | What is checked |
 |---|---|---|---|
-| Risk policy and referral advice | `backend/tests/ml/test_risk_policy.py` | 31 | every band edge, uncertain zone, referral-suggestion switches, the screening-level recommendation (`ReferralAdvisor`: positive, borderline, quality warnings), invalid config; a sweep of 1,001 scores proves bands never contradict the decision |
+| Risk policy and referral advice | `backend/tests/ml/test_risk_policy.py` | 35 | every band edge, uncertain zone, referral-suggestion switches, which recommendations are queued automatically, severe (band 4+) = urgent, queued conditions, all read from the config, the screening-level recommendation (`ReferralAdvisor`: positive, borderline, quality warnings), invalid config; a sweep of 1,001 scores proves bands never contradict the decision |
 | Threshold selection | `test_thresholding.py` | 10 | known confusion matrices; chosen threshold is the highest meeting the sensitivity target |
 | Evaluation | `test_evaluation.py` | 11 | stratified split keeps class ratios; AUC equals scikit-learn's; bootstrap intervals contain the estimate |
 | Preprocessing / quality / fundus check | `test_preprocessing.py`, `test_quality.py` | 26 | [-1, 1] scaling; nearest-neighbour copies pixels, bilinear stays in float like TensorFlow; blank and tiny images block; non-eye images block before any model runs; fundus-like images at several brightness levels pass; blur and darkness warn |
 | Registry and model cards | `test_registry.py` | 15 | checksum mismatch, bad card, wrong folder, missing file, and a card that does not name its resize are rejected; each card names the resize it was trained with |
-| Review targets, daily counts, demo reset | `test_review_targets.py`, `test_daily_counts.py`, `test_reset_demo_data.py` | 11 | urgent 24 h / routine 72 h due times, overdue one second after; a screening at 23:59 and one at 00:01 Kigali time fall on different days; the reset refuses anything but the local SQLite file, backs it up first and carries approved own accounts over unchanged |
+| Review targets, daily counts, demo reset | `test_review_targets.py`, `test_daily_counts.py`, `test_reset_demo_data.py` | 10 | urgent 24 h / routine 72 h due times, overdue one second after; a screening at 23:59 and one at 00:01 Kigali time fall on different days; the reset refuses anything but the local SQLite file, backs it up first and carries approved own accounts over unchanged |
 | Rate limits, patient codes, SUS score | `test_throttle.py`, `test_patient_codes.py`, `test_sus_score.py` | 18 | sliding window and Retry-After; check character catches typos; SUS arithmetic |
 | Backoff and sync queue | `frontend/src/offline/*.test.ts` | 15 | **reply lost after the server saved** -> retry creates no duplicate; stops at first network error and keeps order; backoff with jitter; attempt limit |
 | Waiting time, image hints | `utils.test.ts`, `imageQuality.test.ts` | 8 | "30 min", "5 h", "3 days" for a case referred at midnight; sharpness and brightness hints |
@@ -61,9 +61,10 @@ After the 28 October changes, [run #3](https://github.com/Mikekimm/michael-kiman
 | Area | Tests | Highlights |
 |---|---|---|
 | Auth and approval | 36 | sign-up is a **pending request**: with the correct password, sign-in returns 403 "Your account is waiting for administrator approval."; the requested role (health worker or specialist) grants nothing until approved; admin cannot be requested; sign-up has no facility field (422 if sent); a duplicate email (any case) is refused and leaves the existing account's name, password hash, role, status and requested role unchanged, for a pending and an approved account; the admin approves with the requested or another role and may set the facility (audited), or rejects with a reason, which is emailed; each decision audited; password needs a letter and a number; sign-ups rate-limited (429); Argon2id; refresh rotation; logout revokes; password reset |
-| RBAC | 57 | every protected route x every role (39) and without a token (13): a health worker gets 403 on specialist and admin routes, a specialist gets 403 on admin routes; self-promotion blocked; workers cannot see each other's patients |
+| RBAC | 65 | every protected route x every role (45) and without a token (15): a health worker gets 403 on specialist and admin routes, a specialist gets 403 on admin routes; self-promotion blocked; workers cannot see each other's patients |
 | Screenings | 21 | all three real models return a score in [0, 1]; DR has a band, glaucoma/cataract do not; a condition without a model is "not available" with no score; idempotent `client_uuid`; blank / tiny / **non-eye photo** / non-image / wrong type / oversized / future timestamp / bad eye / no consent rejected with nothing saved; specialist overrides a glaucoma result |
-| Workflow | 24 | **nothing is sent to a specialist automatically**; "Ask a specialist" needs a question and works once, only for the owner, also for a negative result; recommendation for positive and borderline scores (borderline score derived from the model card's threshold); approve / override / retake (shown as "Retake needed") / comment; remove screening hides it, keeps the audit and deletes the photo; History day filter in the clinic time zone; append-only history; sync pull; analytics without identifiers; waiting time, priority and overdue flag in the queue, on the screening and in admin analytics |
+| Routing (extension) | 9 | ask names conditions and priority (default urgent for a severe result); conditions must have been scored; "My specialties" first ("general" matches all); Take this case: idempotent, others get 409 and cannot decide, the health worker sees "Being reviewed by"; deciding without Take also takes it; a health worker cannot take or decide (403); only open queued cases can be taken; admin sets specialties on approval and later (audited, invalid ones 422); overdue counted per priority |
+| Workflow | 26 | **uncertain (borderline or low-quality) cases are queued automatically, routine, and the health worker can add a question once; clear positives and negatives are not queued**; "new decision" shows until the health worker opens the screening (not when the specialist opens it); "Ask a specialist" needs a question and works once, only for the owner, also for a negative result; recommendation for positive and borderline scores (borderline score derived from the model card's threshold); approve / override / retake (shown as "Retake needed") / comment; remove screening hides it, keeps the audit and deletes the photo; History day filter in the clinic time zone; append-only history; sync pull; analytics without identifiers; waiting time, priority and overdue flag in the queue, on the screening and in admin analytics |
 
 **Inputs varied:** positive, borderline and negative scores; real fundus photos and synthetic images; blank,
 tiny, corrupt, wrong-type and oversized uploads; non-eye images; questions that are too short; weak passwords; valid and invalid
@@ -85,6 +86,7 @@ the software, not model accuracy.
 | Capture flow | Cancel discards the chosen photo; a non-eye photo is refused ("does not look like a retinal fundus photograph ... Nothing was saved") with Retake / Upload another and no screening stored; Upload another with a usable photo gives a result; Save keeps it; Discard needs a reason and removes it |
 | Health worker | sign up -> admin approval -> consent -> register patient -> eye -> Cancel / Analyse -> DR v2.0 card with band; glaucoma and cataract cards with model versions, "Binary result only" -> status is **not** "Awaiting specialist" -> Ask a specialist with a question -> "Awaiting specialist", the question, waiting time and review target -> history |
 | Specialist | queue shows the question -> open case -> glaucoma reliability box ("false alarms") -> override glaucoma with a reason -> approve with note -> comment -> all entries kept |
+| Routing loop | ask about DR, urgent -> the specialist's "My specialties" tab -> Take this case -> "Taken by you" -> the health worker sees "Being reviewed by Demo Specialist" -> approve with a note -> History shows "Reviewed" and "New decision" -> opening the screening clears it |
 | Decision returns | health worker's History shows "Reviewed" and the decisions; a second case answered with a retake request shows "Retake needed" with the specialist's note |
 | Unauthorized access | worker opening `/admin/users` is redirected; API returns 401 without a token and 403 with a worker token |
 | Invalid input | future year of birth rejected by the form; blank photo -> server 422 shown as "blank or uniform" with Upload another |
@@ -95,12 +97,13 @@ Screenshots of every step: [screenshots/e2e/](screenshots/e2e/) (files `10-` to 
 
 | Browser engine | Profile | Journeys |
 |---|---|---|
-| Chromium (Playwright 1.48.2 build) | Pixel 5 (mobile, 393x851, touch) | 11/11 (+ accessibility, performance) |
-| Chromium | Desktop Chrome 1280x720 | 11/11 (+ accessibility) |
-| Firefox (Playwright build) | Desktop Firefox | 11/11 |
-| WebKit (Safari's engine) | iPhone 13 | 11/11 |
+| Chromium (Playwright 1.48.2 build) | Pixel 5 (mobile, 393x851, touch) | 12/12 (+ accessibility, performance) |
+| Chromium | Desktop Chrome 1280x720 | 12/12 (+ accessibility) |
+| Firefox (Playwright build) | Desktop Firefox | 12/12 |
+| WebKit (Safari's engine) | iPhone 13 | 12/12 |
 
-Full run on 28 October: 47 passed, 3 skipped by design, 0 failed (7.2 min). A first full run that day, made
+Full run on 28 October evening (with routing and the referral policy): 51 passed, 3 skipped by design, 0 failed
+(16 min). Earlier full run that day: 47 passed, 3 skipped, 0 failed (7.2 min). A first full run that day, made
 while the backend suite and a manual demo ran at the same time, had 5 timeouts; re-run alone they passed except
 two genuine test bugs (an old button label; a timeout too short for four Firefox sessions), which were fixed.
 
@@ -124,8 +127,13 @@ re-run with them.
 
 | Profile | Median |
 |---|---|
-| No throttling | 0.44 s (26 Oct, DR v1 only: 0.50 s) |
-| Emulated low-end phone: 6x CPU slowdown + slow 3G (400 ms latency, 400 kbit/s) | 2.73 s (26 Oct: 3.17 s) |
+| No throttling | 0.60 s (earlier on 28 Oct: 0.44 s; 26 Oct, DR v1 only: 0.50 s) |
+| Emulated low-end phone: 6x CPU slowdown + slow 3G (400 ms latency, 400 kbit/s) | 4.15 s (earlier on 28 Oct: 2.73 s; 26 Oct: 3.17 s) |
+
+The evening figures were measured after specialty routing, automatic queueing, "New decisions" and auto-refresh
+were added, with the spec run alone; inside the full 16-minute run the throttled median was 6.1 s. The slower
+throttled time is a real regression of about 1.4 s on an emulated slow phone (more data and requests on the
+result page); it has not been optimised yet.
 
 Measured 28 October with all three models, on a quiet machine. An earlier run the same day, while the backend
 test suite ran in parallel, failed its 240 s limit for a wrong button label in the test (fixed).
@@ -229,7 +237,7 @@ optimistic. The check is a heuristic and can be fooled; it is not a trained clas
 | CI run #3 (PostgreSQL, Python 3.12) | pytest stopped at collection (exit 2); reproduced locally with Python 3.12: `list[datetime]` inside a class with a `list` method fails on 3.12 (3.14 evaluates annotations lazily), and `tzdata` was missing for `Africa/Kigali` | `from __future__ import annotations` in the repositories, `tzdata` pinned; full suite on 3.12: 276 passed, 1 skipped (Keras test without TensorFlow) |
 | Manual test (28 Oct) | "Incorrect email or password" for the developer's own account | cause found in the database backups: `reset_demo_data.py` (run twice that day) recreated the database with only the demo accounts, deleting the account; a later sign-up with the same email created a new pending account, which the second reset also deleted. It was not a duplicate-email bug (a duplicate is refused with 409). Fix: the reset now carries approved non-demo accounts over unchanged; the account was restored from the backup; duplicate-email tests added |
 | Supervisor's live test (28 Oct) | a screenshot containing a secret was accepted and scored as an eye | fundus check as a hard stop before any model runs; Remove screening deletes the photo file; the uploaded file was removed |
-| Supervisor's live test (28 Oct) | every positive or borderline result was sent to the specialist automatically | nothing is sent automatically; "Ask a specialist" with a question; recommendation labels |
+| Supervisor's live test (28 Oct) | every positive or borderline result was sent to the specialist automatically | first: nothing automatic, "Ask a specialist" with a question; then, to match the proposal's sequence diagram, a configurable policy: only uncertain cases are queued automatically, clear positives are sent by the health worker |
 | Supervisor's live test (28 Oct) | "Screened today" counted in the phone's time zone from the last 50 screenings | server-side counts in the clinic time zone (`TIME_ZONE`), tested at 23:59 vs 00:01 |
 | Parity test | the app resized every photo with nearest-neighbour; DR v2 was trained with bilinear: 6 of 24 decisions would have changed | each model card states its resize; the pipeline uses it; a card without one is refused |
 | Full test run after the DR v2 install | a borderline test hard-coded the old 0.5 threshold | the borderline score is derived from the model card |

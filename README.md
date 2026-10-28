@@ -26,7 +26,7 @@ setting only: no field deployment or clinical evaluation has taken place.
 | Role | What they do in the app |
 |---|---|
 | **Health worker** (sign-up request, then admin approval) | Registers patients by app-generated code, captures or uploads a fundus photo of the left or right eye, gets a screening result with a recommendation, decides whether to ask a specialist, works offline and syncs later |
-| **Specialist** (sign-up request approved as specialist, or created by an admin) | Reviews the cases health workers sent: approve, override any condition with a reason, request a retake, comment. History is append-only |
+| **Specialist** (sign-up request approved as specialist, or created by an admin) | Reviews the cases health workers sent, starting with those matching their specialties; takes a case, then approves, overrides any condition with a reason, requests a retake or comments. History is append-only |
 | **Admin** (created at install) | Approves or rejects sign-up requests (choosing the role to grant; rejection needs a reason), creates staff accounts, changes roles, sees aggregate analytics (no images or identifiers) |
 
 Patients have no accounts: they are records with an app-generated code.
@@ -78,7 +78,10 @@ and restart. The registry verifies the SHA-256, and the card says which resize t
 * Server quality gate with plain-language 422 errors and nothing saved: blank, too small, and **photos that do not look like a retinal fundus photograph** (a heuristic check; see section 8); warnings for blur and darkness
 * One result card per condition: classification, model score explained, borderline flag, estimated severity band (DR), model version, the model's measured limits ("How reliable is this model?"), and one recommendation for the screening: "No referral needed", "Refer recommended" or "Uncertain, consider asking a specialist"
 * **Specialist review is a later confirmation, not a gate.** The health worker gives the patient the recommended action from the result straight away, at the same visit; the specialist's review (asynchronous, as in the proposal) confirms or corrects it later and comes back at the next sync. The review targets (urgent 24 h, routine 72 h, configurable) are my own design decision so that no sent case waits unnoticed; the proposal sets no time limit.
-* **Nothing is sent to a specialist automatically.** The health worker presses "Ask a specialist" and types a question; only then does the case show "Awaiting specialist" (and later "Reviewed" or "Retake needed")
+* **Specialty routing (an extension beyond the proposal, which lists only a single Specialist role):** when asking a specialist, the health worker ticks which conditions the question is about (pre-ticked from borderline or positive results) and chooses routine or urgent. Each specialist has specialties (DR, glaucoma, cataract, general = all cases), set by the admin on the approval screen or in user management. The queue shows matching cases under "My specialties" and everything under "All cases"; "Take this case" assigns it, other specialists see it as taken, and the health worker sees "Being reviewed by <name>". Decisions come back as before; overdue cases (past 24 h urgent / 72 h routine) are counted per priority in the admin analytics. The server enforces it: a health worker cannot take or decide a case, a specialist can take only open cases in the queue and cannot decide a case another specialist has taken.
+* **Referral policy (configurable, as in the proposal's sequence diagram):** an uncertain case is flagged and queued for specialist review automatically: borderline results, and usable photos with quality warnings. A clear positive shows "Refer recommended" and the health worker sends it with "Ask a specialist"; a clear negative is not queued. The health worker can add a question to a queued case or send any case manually. Severe results (DR band 4-5) default to urgent, everything else to routine. Settings: `referral_advice` in `backend/config/risk_policy.json`
+* **Asynchronous review from a shared queue.** The specialist works from one shared queue: a single specialist with the "general" specialty sees every case, and one district specialist can serve several clinics. Specialists do not prescribe medication: they approve, override with a reason, request a retake or comment; the app supports screening and referral only. Notifications by SMS or email are future work: health workers and specialists see new cases and decisions when the screens refresh (every 30 seconds by default, `VITE_REFRESH_SECONDS`) or at the next sync
+* **New decisions:** the health worker's home shows how many specialist decisions have arrived and not been opened; History marks them "New decision" next to "Reviewed" (or "Retake needed"); opening the screening clears it
 * Results made by an earlier model are kept unchanged and labelled, with "Screen again" for current results
 * Asynchronous specialist review, as in the proposal: the queue shows the health worker's question, flagged conditions, waiting time and review target (urgent 24 h / routine 72 h, configurable; overdue first); approve, override any condition with a reason, request a retake or comment; append-only, timestamped history
 * Remove screening (soft delete by the health worker who made it, reason required): hidden everywhere, the photo file is deleted, the audit entry stays
@@ -104,13 +107,14 @@ sync), a native Android app (the PWA installs on Android and iPhone instead), a 
 | Android app (React Native) | **Changed** | installable PWA for Android and iPhone (7) |
 | Offline storage and two-way sync | **Completed** | IndexedDB queue, idempotent push, decision pull, interruption tests (8, 13, 21) |
 | Register patient, capture image, run screening, view result | **Completed (changed)** | patient stored as a code and year of birth (no name); E2E journeys on four browser profiles (9-12) |
-| Flag uncertain / high-risk cases for referral | **Completed (changed)** | recommendation per screening; only the health worker sends a case (Ask a specialist) (14) |
+| Flag uncertain / high-risk cases for referral | **Completed** | uncertain cases flagged and queued automatically (configurable); clear positives sent by the health worker; decision pulled back (14) |
 | Specialist review: approve or override | **Completed** | asynchronous queue with the question, review targets; override, retake, comment (15-16) |
 | Admin: user accounts and analytics | **Completed** | approve / reject sign-up requests, roles, aggregate analytics (17-18) |
 | FastAPI + PostgreSQL backend | **Completed** | SQLite locally; backend suite on PostgreSQL 16 in GitHub Actions (19) |
 | Load balancer | **Not implemented** | stateless JWT API could scale behind one (20) |
 | Usability testing with health workers | **Not implemented yet** | SUS kit ready, no participants yet (22) |
 | UML design | **Completed** | use case, class, ERD, sequence, architecture diagrams (23) |
+| Specialty routing (not in the proposal) | **Added (extension)** | conditions and priority on "Ask a specialist", specialist specialties, "Take this case"; `test_routing.py`, `routing.spec.ts` |
 
 **Deviations from the proposal** (reasons in [docs/scope_table.md](docs/scope_table.md)): React Native on
 Android with on-device TensorFlow Lite became an installable PWA with server-side TFLite inference. Offline
@@ -263,16 +267,17 @@ and [run #2 (main)](https://github.com/Mikekimm/michael-kimani-eye-screening-cap
 [run #4 (wip-final-fixes)](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40675193040) (28 Oct, with all of the 28 October changes). [Run #3](https://github.com/Mikekimm/michael-kimani-eye-screening-capstone/actions/runs/40672299037) failed: on
 Python 3.12 pytest could not collect the tests (fixed, see the testing report).
 
-Latest recorded results (28 Oct 2026, development laptop, Python 3.14; the backend suite also ran on Python 3.12:
-276 passed, 1 skipped because TensorFlow is not installed there):
+Latest recorded results (28 Oct 2026 evening, branch with specialty routing and the referral policy; development
+laptop, Python 3.14; the backend suite also ran on Python 3.12: 298 passed, 1 skipped because TensorFlow is not
+installed there):
 
 | Suite | Result |
 |---|---|
-| Backend pytest (134 unit/algorithm + 143 API integration, real models incl. parity and Keras-vs-TFLite agreement) | 277 passed, 0 skipped |
-| Frontend Vitest (algorithms, API client, components, forms, routes, capture flow) | 78 passed |
+| Backend pytest (137 unit/algorithm + 162 API integration, real models incl. parity and Keras-vs-TFLite agreement) | 299 passed, 0 skipped |
+| Frontend Vitest (algorithms, API client, components, forms, routes, capture flow, ask form, queue tabs, auto-refresh, new decisions) | 84 passed |
 | TypeScript strict type-check / ESLint | clean / clean |
-| Playwright end-to-end (11 tests per profile: sign-up requests, duplicate email, rejection, specialist sign-up, capture flow with a refused non-eye photo, Save / Discard, health worker journey, specialist review, decision and retake returned, unauthorized access, invalid input; on Chromium mobile + desktop, Firefox desktop, WebKit/iPhone 13; plus axe-core and throttled-performance checks on Chromium) | 47 passed (44 functional + 2 accessibility + 1 performance), 3 skipped by design (those checks run on Chromium only), 0 failed |
-| Browser performance (upload to result, Chromium, three models; 28 Oct) | median 0.44 s; 2.73 s with emulated 6x slower CPU + slow 3G |
+| Playwright end-to-end (12 tests per profile: the routing loop (ask with conditions and priority, My specialties, Take this case, Being reviewed by, New decision), sign-up requests, duplicate email, rejection, specialist sign-up, capture flow with a refused non-eye photo, Save / Discard, health worker journey, specialist review, decision and retake returned, unauthorized access, invalid input; on Chromium mobile + desktop, Firefox desktop, WebKit/iPhone 13; plus axe-core and throttled-performance checks on Chromium) | 51 passed (48 functional + 2 accessibility + 1 performance), 3 skipped by design (those checks run on Chromium only), 0 failed |
+| Browser performance (upload to result, Chromium, three models; 28 Oct evening, run alone) | median 0.60 s; 4.15 s with emulated 6x slower CPU + slow 3G (before the routing and referral changes: 0.44 s / 2.73 s) |
 | Accessibility, axe-core WCAG 2.1 A/AA (20 pages, all roles, mobile + desktop) | 0 violations |
 | Lighthouse, sign-in page (mobile / desktop) | 96/100/100/100 and 100/100/100/100 (performance/accessibility/best practices/SEO) |
 
@@ -322,7 +327,7 @@ app loads no third-party scripts); no TLS in local development; no penetration t
 
 I used Claude to help me build this project.
 
-This project was designed and directed by Michael Maina Kimani. I wrote the proposal, chose the scope and the honesty rules (real trained models only, no invented results), trained and evaluated the diabetic retinopathy model on Kaggle, and made the decisions on what to build and what to cut.
+This project was designed and directed by Michael Maina Kimani. I wrote the proposal, chose the scope and the honesty rules (real trained models only, no invented results), trained and evaluated the models (diabetic retinopathy, glaucoma and cataract) on Kaggle, and made the decisions on what to build and what to cut, including the specialty-routing extension.
 
 I used Claude (Anthropic), through Claude Code, to help write, refactor and test the backend and frontend code, the test suites and the documentation, working under my direction. I reviewed the results and I am responsible for the submitted work.
 
@@ -330,7 +335,9 @@ I used Claude (Anthropic), through Claude Code, to help write, refactor and test
 
 * DR specificity (0.748) and both glaucoma targets are below the proposal's targets; glaucoma precision is
   about 0.10. The result screens show these limits next to each result.
-* Offline mode queues photos but cannot analyse them on the device.
+* Offline mode queues photos but cannot analyse them on the device; an uncertain case is queued for the specialist
+  when the photo is scored after sync, not on the device.
+* No SMS or email notifications of new cases or decisions (future work); the screens refresh every 30 seconds.
 * The fundus check is a heuristic tuned on a small set (3 of 25 real fundus photos wrongly refused; no face photos
   tested); an unusual photo can still pass it or be refused.
 * PostgreSQL runs in CI (backend tests) and Docker images are built in CI; the full Docker stack has not been

@@ -31,7 +31,7 @@ With the current DR values (`t = 0.418` from the DR v2 model card, chosen on the
 0.759, band 5 from 0.759. Glaucoma uses `t = 0.320` and cataract `t = 0.541` (their model cards), with
 the same margin and no band.
 
-## From per-condition results to one recommendation (nothing is sent automatically)
+## From per-condition results to one recommendation and the referral policy
 
 `ReferralAdvisor` (same file) combines the per-condition results and the photo's quality warnings into
 one recommendation for the screening:
@@ -43,13 +43,23 @@ one recommendation for the screening:
 | All negative, but the photo has quality warnings (blur, darkness) | **Uncertain, consider asking a specialist** (`referral_advice.low_quality_photo`) |
 | All negative, good photo | **No referral needed** |
 
-This is advice only. **No case is sent to a specialist automatically.** The health worker reads the
-result and, if they want a specialist's opinion, presses **Ask a specialist** and types a question
-(`POST /api/screenings/{id}/ask-specialist`). Only then is a referral created and the case shown as
-"Awaiting specialist"; afterwards it shows "Reviewed" or, if the specialist asked for a new photo,
-"Retake needed". A health worker may also ask about a negative result. Reason: the health worker, not
-the software, stays responsible for the referral decision, and the specialist queue holds only cases a
-person chose to send, each with a question.
+**Referral policy** (`referral_advice` in `backend/config/risk_policy.json`), matching the proposal's sequence
+diagram ("if the case is uncertain, the app flags it and queues it"):
+
+| Recommendation | Default handling (`queue_automatically: ["consider"]`) |
+|---|---|
+| Uncertain, consider asking a specialist (borderline, or a usable photo with quality warnings) | **Queued for specialist review automatically**, shown as "Queued automatically" / "Awaiting specialist"; the health worker can add a question |
+| Refer recommended (clear positive) | Not queued by itself: the health worker presses **Ask a specialist** (conditions, question, routine or urgent) |
+| No referral needed (clear negative) | Not queued; the health worker can still send it manually |
+
+Default priority: **urgent** when any result has an estimated band at or above `urgent_from_band` (4, i.e. DR
+band 4-5), otherwise **routine**; the health worker can change it when asking. Why clear positives are not
+queued automatically: the screen already says "Refer recommended", and the health worker decides how to refer
+(directly to an eye clinic, or a specialist question first); uncertain cases are the ones the proposal sends for
+a second opinion. Both lists are configuration, so a clinic can queue clear positives too
+(`"queue_automatically": ["consider", "recommended"]`). Afterwards the case shows "Reviewed" or "Retake needed",
+and the health worker's home counts new decisions until they are opened. Specialists do not prescribe: they
+approve, override with a reason, request a retake or comment.
 
 ## Reasoning
 
@@ -87,10 +97,12 @@ The proposal makes specialist review asynchronous: a case the health worker send
 reviewed when a specialist next signs in, and the decision is pulled back at the next sync. It sets no time limit. So
 that no case waits unnoticed, the app adds configurable targets (`backend/app/services/review_targets.py`):
 
-| Referral | Priority | Default target | Setting |
+The health worker chooses the priority when asking (specialty routing). The form suggests:
+
+| Recommendation when asking | Suggested priority | Default target | Setting |
 |---|---|---|---|
-| Sent while the recommendation was "Refer recommended" (a model detected signs) | urgent | 24 hours | `REVIEW_TARGET_URGENT_HOURS` |
-| Sent while "Uncertain, consider asking a specialist" or "No referral needed" | routine | 72 hours | `REVIEW_TARGET_ROUTINE_HOURS` |
+| "Refer recommended" (a model clearly detected signs) | urgent | 24 hours | `REVIEW_TARGET_URGENT_HOURS` |
+| "Uncertain, consider asking a specialist" or "No referral needed" | routine | 72 hours | `REVIEW_TARGET_ROUTINE_HOURS` |
 
 A case past its target is flagged **overdue**: it moves to the top of the specialist queue, the health
 worker's screening shows "Review overdue", and the admin dashboard counts overdue reviews. A case

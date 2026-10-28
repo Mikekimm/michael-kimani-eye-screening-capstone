@@ -17,7 +17,9 @@ Status on 28 October 2026. Ticked items have evidence in the repository.
 - [x] Sign-up request (name, email, password, requested role) pending until admin approval; one account per email;
   facility optional, set by the admin; rejection reason; staff
   accounts created by admins; no claim that anyone is verified
-- [x] Nothing sent automatically: "Ask a specialist" with a question; Awaiting specialist / Reviewed / Retake needed
+- [x] Referral policy as in the proposal: uncertain cases queued automatically (configurable); clear positives sent with
+  "Ask a specialist"; Awaiting specialist / Reviewed / Retake needed; "New decisions" on the home screen
+- [x] Specialty routing (extension): conditions and priority, specialties, Take this case; screens refresh every 30 s
 - [x] Specialist review: override any condition, waiting time, overdue targets; notice on results from earlier models
 - [x] Capture flow (Cancel / Analyse, Retake / Upload another, Save / Discard); remove screening with a reason
 - [x] Daily counts in the clinic time zone; demo reset script (keeps approved own accounts); demo credentials documented
