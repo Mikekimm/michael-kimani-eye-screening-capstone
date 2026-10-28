@@ -29,7 +29,7 @@
 <body>
 
 <h1>Retinal Screening and Referral Support: Final Product Technical Report</h1>
-<p class="meta">Michael Kimani · BSc Software Engineering (ML), African Leadership University · Supervisor: Emmanuel Adjei · 27 October 2026<br>
+<p class="meta">Michael Kimani · BSc Software Engineering (ML), African Leadership University · Supervisor: Emmanuel Adjei · 28 October 2026<br>
 Repository: github.com/Mikekimm/michael-kimani-eye-screening-capstone (branch <code>main</code>) · Video: <b>[link]</b></p>
 
 <div class="note"><b>Scope of claims.</b> This is screening and referral <i>support</i>, not a diagnostic device. The models were trained and evaluated
@@ -40,33 +40,58 @@ only on public datasets; there has been no field deployment, external validation
 device, refers uncertain or high-risk cases to a specialist dashboard, and syncs when connectivity returns. Following supervisor feedback (a feasible
 prototype with one demonstrable workflow; reconcile offline use with sync and authentication; separate research evaluation from development), effort went
 first into one complete, tested workflow; the model registry then made adding the glaucoma and cataract models a data task with no code change.
-The platform changed from React Native with on-device TensorFlow Lite to an installable PWA with server-side inference (one code base for Android and
+<b>Main deviation:</b> the proposal specified React Native with on-device TensorFlow Lite; the delivered app is an installable PWA with server-side inference (one code base for Android and
 iPhone, models verified and replaced on the server); offline therefore covers capture and queueing, and scoring happens after sync. The full table with
 evidence paths is in <code>docs/scope_table.md</code>.</p>
 
 <table>
-<tr><th>Planned feature</th><th>Intended purpose</th><th>Status</th><th>Evidence</th></tr>
-<tr><td>DR classifier (MobileNetV2, TFLite)</td><td>Detect DR from a fundus photo</td><td class="ok">Completed</td><td>v2.0 fine-tuned; <code>notebooks/dr_v2_finetune.ipynb</code>; recomputation and parity tests</td></tr>
-<tr><td>Glaucoma and cataract classifiers</td><td>Multi-disease screening</td><td class="ok">Completed</td><td>ODIR-5K, patient-separated split; glaucoma below target (precision 0.103), cataract limited evidence (46 positives)</td></tr>
-<tr><td>Five-band cataract grading</td><td>Grade cataract severity</td><td class="no">Not implemented</td><td>ODIR-5K has no severity labels; glaucoma and cataract are binary only rather than showing invented bands</td></tr>
-<tr><td>Risk / severity output</td><td>Show urgency</td><td class="ch">Changed</td><td>DR: five-band <i>estimated</i> band from the binary score (<code>RiskPolicy</code>, boundary tests); others binary</td></tr>
-<tr><td>Sensitivity &ge; 85%, specificity &ge; 80%</td><td>Safe screening trade-off (RQ3)</td><td class="pa">Partial</td><td>DR test split: sensitivity 0.851 met, specificity 0.748 not met; glaucoma not met; cataract met</td></tr>
-<tr><td>On-device inference</td><td>Screen without internet</td><td class="ch">Changed</td><td>Server-side LiteRT; offline = capture and queue, scored after sync</td></tr>
-<tr><td>Android app (React Native)</td><td>Mobile client</td><td class="ch">Changed</td><td>Installable PWA for Android and iPhone; E2E on both engines' emulation</td></tr>
-<tr><td>Register patient, capture image, view result</td><td>Core health-worker workflow</td><td class="ok">Completed</td><td>E2E journey 1, screenshots</td></tr>
-<tr><td>Offline storage and two-way sync</td><td>Work with intermittent connectivity</td><td class="ok">Completed</td><td>IndexedDB queue, idempotent push, decision pull; 10 sync tests</td></tr>
-<tr><td>Flag and refer uncertain / high-risk cases</td><td>Structured referral</td><td class="ok">Completed</td><td>Automatic and manual referral, workflow tests</td></tr>
-<tr><td>Specialist review: approve or override</td><td>Close the referral loop</td><td class="ok">Completed</td><td>Override any condition with a reason, retake, comment; waiting time and overdue targets; E2E</td></tr>
-<tr><td>Admin: users and analytics</td><td>Access control, patterns</td><td class="ok">Completed</td><td>Approve / reject sign-ups, staff accounts, facility list, aggregate analytics</td></tr>
-<tr><td>FastAPI + PostgreSQL backend</td><td>Central store and API</td><td class="ok">Completed</td><td>SQLite locally; backend suite on PostgreSQL 16 and Docker build green in GitHub Actions</td></tr>
-<tr><td>Load balancer</td><td>Scale to many clinics</td><td class="no">Not implemented</td><td>Stateless JWT API can scale horizontally</td></tr>
-<tr><td>Sync tested under interruptions</td><td>Reliability (objective 4)</td><td class="ok">Completed</td><td>Lost-reply, offline-queue and backoff tests</td></tr>
-<tr><td>Usability test with health workers</td><td>Check usability</td><td class="no">Not yet</td><td>SUS study planned</td></tr>
+<tr><th>Planned feature (proposal)</th><th>Status</th><th>Evidence</th></tr>
+<tr><td>DR classifier (MobileNetV2, TFLite)</td><td class="ok">Completed</td><td>v2.0 fine-tuned, served; recomputation and parity tests</td></tr>
+<tr><td>Glaucoma classifier (ODIR-5K)</td><td class="pa">Completed, below target</td><td>sensitivity 0.762, specificity 0.721, precision 0.103 (1,040 eyes, 42 positive)</td></tr>
+<tr><td>Cataract classifier (ODIR-5K)</td><td class="ok">Completed, limited evidence</td><td>0.978 / 0.962 / precision 0.542; only 46 positive test eyes</td></tr>
+<tr><td>Five-band cataract grading</td><td class="no">Not implemented</td><td>ODIR-5K has no severity labels; binary result only</td></tr>
+<tr><td>Risk / severity output</td><td class="ch">Completed (changed)</td><td>DR: five-band <i>estimated</i> band from the binary score; others binary</td></tr>
+<tr><td>Sensitivity &ge; 85%, specificity &ge; 80% on a held-out test set</td><td class="pa">Partial</td><td>DR sensitivity 0.851 met, specificity 0.748 not met; glaucoma not met; cataract met</td></tr>
+<tr><td>On-device TFLite inference</td><td class="ch">Changed</td><td>server-side LiteRT; offline = capture and queue, scored after sync</td></tr>
+<tr><td>Android app (React Native)</td><td class="ch">Changed</td><td>installable PWA for Android and iPhone</td></tr>
+<tr><td>Offline storage and two-way sync</td><td class="ok">Completed</td><td>IndexedDB queue, idempotent push, decision pull, interruption tests</td></tr>
+<tr><td>Register patient, capture image, run screening, view result</td><td class="ch">Completed (changed)</td><td>patient stored as a code and year of birth (no name); E2E journeys on four browser profiles</td></tr>
+<tr><td>Flag uncertain / high-risk cases for referral</td><td class="ch">Completed (changed)</td><td>recommendation per screening; only the health worker sends a case (Ask a specialist)</td></tr>
+<tr><td>Specialist review: approve or override</td><td class="ok">Completed</td><td>asynchronous queue with the question, review targets; override, retake, comment</td></tr>
+<tr><td>Admin: user accounts and analytics</td><td class="ok">Completed</td><td>approve / reject sign-up requests, roles, aggregate analytics</td></tr>
+<tr><td>FastAPI + PostgreSQL backend</td><td class="ok">Completed</td><td>SQLite locally; backend suite on PostgreSQL 16 in GitHub Actions</td></tr>
+<tr><td>Load balancer</td><td class="no">Not implemented</td><td>stateless JWT API could scale behind one</td></tr>
+<tr><td>Usability testing with health workers</td><td class="no">Not implemented yet</td><td>SUS kit ready, no participants yet</td></tr>
+<tr><td>UML design</td><td class="ok">Completed</td><td>use case, class, ERD, sequence, architecture diagrams</td></tr>
 </table>
-<p>Added beyond the proposal: sign-up that stays <b>pending</b> until an administrator approves it (facility chosen from an admin-managed list; the
-registration number is recorded for the administrator to check, never claimed as verified; rejection needs a reason), role-based access checked on every
-request (Argon2, JWT refresh rotation, sign-in and sign-up rate limits), an image quality gate, a SHA-256-verified model registry whose cards also state each
-model's resize, eye laterality and model version on every result, an append-only review log and an audit log.</p>
+<h3>Proposal compliance (key requirements; full table in <code>docs/scope_table.md</code>)</h3>
+<table>
+<tr><th>Proposal</th><th>Requirement</th><th>Status</th><th>Evidence</th></tr>
+<tr><td>1.3.1 O1</td><td>Review literature and existing AI retinal-screening and offline-first mHealth tools</td><td class="ok">Met</td><td>Proposal chapter 2 (nine sources); gap: no tool combines three conditions, offline use and referral</td></tr>
+<tr><td>1.3.1 O2</td><td>Design architecture, database schema and user workflows (offline-first, referral pathway)</td><td class="ok">Met</td><td>docs/architecture.md, docs/diagrams/ (use case, class, ERD, sequence, architecture), Alembic migrations</td></tr>
+<tr><td>1.3.1 O3</td><td>Prototype with an on-device classification model, a mobile screening app and a specialist dashboard</td><td class="pa">Partial</td><td>Mobile-first installable PWA and specialist dashboard built; the TFLite models run on the server, not on the device (deviation below)</td></tr>
+<tr><td>1.3.1 O4</td><td>Evaluate against &ge; 85% sensitivity and &ge; 80% specificity, compare with Gulshan et al. (2016), test sync under simulated interruptions</td><td class="pa">Partial</td><td>DR sensitivity 0.851 met, specificity 0.748 not met; glaucoma below both; cataract met (46 positive test eyes); Gulshan compared as reference only; sync interruption tests pass (syncQueue.test.ts)</td></tr>
+<tr><td>1.4 RQ1</td><td>Gaps in mobile retinal screening tools</td><td class="ok">Met</td><td>Answered by the literature review in the proposal</td></tr>
+<tr><td>1.4 RQ2</td><td>Architecture and sync design for reliable offline-first use</td><td class="ok">Met (emulated)</td><td>IndexedDB queue, idempotent push on client UUID, backoff with jitter, decision pull; tested with lost replies and offline mid-queue; no field test</td></tr>
+<tr><td>1.4 RQ3</td><td>How accurately can an on-device model classify DR, glaucoma and cataract from low-cost fundus-attachment images</td><td class="pa">Partial</td><td>Measured on public-dataset test splits, not on smartphone-lens images, and run on the server; figures above with their caveats</td></tr>
+<tr><td>1.4 RQ4</td><td>How effectively does the referral workflow connect health workers to specialists once connectivity returns</td><td class="pa">Partial</td><td>Workflow built and tested end to end (E2E on four browser profiles); effectiveness with real users not measured (no usability study)</td></tr>
+<tr><td>1.5</td><td>Small informal user test with primary health workers</td><td class="no">Not met</td><td>SUS kit in docs/usability/; no participants yet</td></tr>
+<tr><td>1.5 / 3.6</td><td>Android app in React Native, iOS as future work</td><td class="ch">Changed</td><td>Installable PWA (React + Vite) for Android and iPhone; tested in emulation on Chromium, Firefox and WebKit</td></tr>
+<tr><td>Abstract / 3.4</td><td>Screening runs on the device while offline</td><td class="no">Not met</td><td>Offline covers capture and queueing only; scoring happens on the server after sync</td></tr>
+<tr><td>3.3</td><td>APTOS 2019 for DR severity</td><td class="ch">Changed</td><td>DR trained on the Kaggle EyePACS + APTOS + Messidor set as binary (no DR / DR); the 1-5 band is an estimate from the score, not a grade</td></tr>
+<tr><td>3.4</td><td>Load balancer in front of the API</td><td class="no">Not met</td><td>Not built; the API is stateless (JWT) so it could scale behind one</td></tr>
+<tr><td>3.5 sequence</td><td>An uncertain case is flagged and queued automatically for the specialist</td><td class="ch">Changed</td><td>The app flags it ('Uncertain, consider asking a specialist'; 'Refer recommended' for clear positives), but a case reaches the specialist only when the health worker presses 'Ask a specialist' with a question (decision of 28 October: the health worker stays responsible for the referral)</td></tr>
+</table>
+<p>Added beyond the proposal: sign-up requests approved by an administrator (below), a fundus check that refuses non-eye photos, Cancel / Analyse,
+Retake / Upload another and Save / Discard in the capture flow, removal of a screening with a reason, daily counts in the clinic's time zone, a
+SHA-256-verified model registry whose cards state each model's resize, eye laterality and model version on every result, an append-only review log and an audit log.</p>
+<p><b>How access is controlled.</b> Sign-up is a <i>request</i>: the person gives only name, email, password and the role they
+request (health worker or specialist; admin cannot be requested). Until an administrator acts, sign-in with the correct password returns "waiting for
+administrator approval" (a wrong password gets the generic message); the requested role grants nothing. A second sign-up with a registered email is refused
+and changes nothing. The administrator approves with the requested or another role, optionally recording the facility, or rejects with a reason that is
+emailed; every decision is audited. <b>The app does not verify anyone's identity or qualifications</b>; the administrator is
+expected to check outside the app. Every API request is checked on the server (route guards and one
+<code>AccessPolicy</code>); users cannot change their own role; sign-in and sign-up are rate-limited; passwords use Argon2id with rotating JWT refresh tokens.</p>
 
 <h2>2. Technical functionality</h2>
 <figure><img src="../diagrams/architecture.png" style="width:100%"><figcaption>Figure 1. Architecture as implemented (generated from <code>docs/diagrams/src/architecture.mmd</code>).</figcaption></figure>
@@ -75,12 +100,15 @@ hooks that call one typed API client, which attaches the JWT, refreshes it once 
 plain-language messages. Health workers register patients by clinic code, choose the eye, and capture a photo with a circular guide (rear camera or gallery);
 on-device hints flag dark or blurry photos before upload.</p>
 <p><b>Backend.</b> FastAPI with a layered design: routers (HTTP and role guards) &rarr; services (use cases) &rarr; repositories (all SQL). <code>POST /api/screenings</code>
-checks type, size and that the bytes really decode as JPEG/PNG, applies the quality gate (blank or tiny images return 422 with a reason), then runs every
-model the registry has verified and maps each score through that condition's risk policy. One <code>diagnosis_results</code> row is stored per condition with its
-model version, including "not available" rows, so history shows exactly what ran. Positive or borderline results open a referral with a review target
-(urgent 24 h, routine 72 h; a configurable design decision, since the proposal sets no limit); overdue cases rise to the top of the specialist queue.
-Specialists approve, override any scored condition (reason required), request a retake or comment; each action is appended to <code>review_events</code>,
-which the ORM refuses to update or delete, and reaches the health worker on the next sync. Each result card shows the model's measured limits; results
+checks type, size and that the bytes really decode as JPEG/PNG, applies the quality gate and a fundus check (blank, tiny or non-eye photos return 422 with
+a reason and nothing is saved), then runs every model the registry has verified and maps each score through that condition's risk policy. One
+<code>diagnosis_results</code> row is stored per condition with its model version, including "not available" rows. A <code>ReferralAdvisor</code> turns the
+results into one recommendation: "No referral needed", "Refer recommended" or "Uncertain, consider asking a specialist". <b>Nothing is sent automatically:</b>
+only the health worker's "Ask a specialist", with a question, creates a referral and shows "Awaiting specialist". The specialist review is a <b>later confirmation, not a gate</b>: the health worker gives the recommended action from the result at the same
+visit, and the review confirms or corrects it afterwards. Review is asynchronous, as in the proposal:
+the case waits in the queue with a review target (urgent 24 h, routine 72 h; configurable; my design decision, not a proposal requirement) and overdue
+cases rise to the top. Specialists approve, override any scored condition (reason required), request a retake (shown as "Retake needed") or comment; each
+action is appended to <code>review_events</code>, which the ORM refuses to update or delete, and reaches the health worker on the next sync. Each result card shows the model's measured limits; results
 made by an earlier model are never re-scored and carry a notice instead.</p>
 <p><b>Offline and sync.</b> Without a connection, photos and new patients are stored in IndexedDB with a client-generated UUID. A sync engine pushes them in
 order (patients first), retrying with bounded exponential backoff and full jitter; because the server is idempotent on the UUID, a retry after a lost reply
@@ -106,7 +134,7 @@ only in a git-ignored <code>.env</code> generated by a script.</p>
 <div>
 <table>
 <tr><th>Algorithm</th><th>Purpose and complexity</th></tr>
-<tr><td>Laplacian variance, brightness, vignette test</td><td>quality gate, O(pixels) on a 256&sup2; copy</td></tr>
+<tr><td>Laplacian variance, brightness, vignette; fundus check</td><td>quality gate and non-eye refusal, O(pixels) on a 256&sup2; copy</td></tr>
 <tr><td>Sensitivity-targeted threshold search</td><td>highest threshold meeting 85% sensitivity, O(n log n) via sort + binary search</td></tr>
 <tr><td>Rank-sum AUC, stratified bootstrap CIs</td><td>honest evaluation, NumPy only; AUC matches scikit-learn</td></tr>
 <tr><td>Threshold-anchored severity bands</td><td>bands can never contradict the decision (1,001-score sweep test)</td></tr>
@@ -122,18 +150,21 @@ reproducible environment (pinned requirements, <code>package-lock.json</code>). 
 <h2>4. Testing approaches and results</h2>
 <table>
 <tr><th>Strategy</th><th>Why chosen</th><th>How</th><th>Result</th></tr>
-<tr><td>Unit (algorithms)</td><td>boundary errors would mis-triage silently</td><td>pytest, Vitest; boundary values, property sweep; deliberate code breakage to check tests fail</td><td class="ok">119 + 69 pass</td></tr>
-<tr><td>Integration (API + DB + real model)</td><td>security and integrity rules live between layers</td><td>fresh DB per test; real LiteRT models; 56-case role matrix; approval rules; PostgreSQL in CI</td><td class="ok">136 pass</td></tr>
-<tr><td>End-to-end functional</td><td>prove users can finish clinical tasks</td><td>Playwright: fake sign-up refused until approved, rejection, worker journey, specialist review, unauthorized access, invalid input</td><td class="ok">24/24 pass</td></tr>
+<tr><td>Unit (algorithms)</td><td>boundary errors would mis-triage silently</td><td>pytest, Vitest; boundary values, property sweep; deliberate code breakage to check tests fail</td><td class="ok">134 + 78 pass</td></tr>
+<tr><td>Integration (API + DB + real model)</td><td>security and integrity rules live between layers</td><td>fresh DB per test; real LiteRT models; 52-case role matrix; approval, duplicate-email and referral rules; PostgreSQL in CI</td><td class="ok">143 pass</td></tr>
+<tr><td>End-to-end functional</td><td>prove users can finish clinical tasks</td><td>Playwright: sign-up requests (health worker and specialist), rejection, capture flow with a refused non-eye photo, Ask a specialist, review, decision and retake returned, unauthorized access, invalid input</td><td class="ok">44/44 pass (11 tests x 4 profiles)</td></tr>
 <tr><td>Compatibility</td><td>clinics use varied phones and browsers</td><td>same journeys on Chromium (Pixel 5, desktop), Firefox, WebKit (iPhone 13)</td><td class="ok">all engines pass</td></tr>
 <tr><td>Performance</td><td>slow hardware and networks</td><td>benchmark script; throttled browser round trip; Lighthouse</td><td class="ok">see section 5</td></tr>
 <tr><td>Accessibility</td><td>low-vision and screen-reader users</td><td>axe-core WCAG 2.1 A/AA on 20 pages, all roles, mobile and desktop</td><td class="ok">0 violations</td></tr>
 <tr><td>Security (brute force)</td><td>password guessing</td><td>sliding-window login throttle; unit tests with a fake clock and API tests</td><td class="ok">429 after 5 failures</td></tr>
 <tr><td>Model validation and parity</td><td>RQ3; the app must feed models as trained</td><td>held-out test splits; metrics recomputed with the app's code; 24-photo parity</td><td class="pa">see section 6</td></tr>
 </table>
-<p><b>Different inputs:</b> negative, borderline and positive scores, real and synthetic fundus photos, blank, tiny, corrupt, mislabelled, oversized and
-future-dated uploads, name-like patient codes, free-text facilities, weak passwords, expired and replayed tokens, and every role against every route.
-<b>Improvements made because of testing:</b> a form test exposed that the password field dropped its form reference, so sign-in could never succeed (fixed with
+<p><b>Different inputs:</b> negative, borderline and positive scores, real and synthetic fundus photos, non-eye images, blank, tiny, corrupt, mislabelled,
+oversized and future-dated uploads, invalid patient data, weak passwords, expired and replayed tokens, and every role against every route.
+<b>Fundus check:</b> on 25 real fundus photos and 77 non-eye images it wrongly refused 3 of 25 fundus photos and accepted 0 of 77 non-eye images; it was
+tuned on these same images and no face photos were tested, so the figures are optimistic.
+<b>Improvements made because of testing:</b> the supervisor's live test showed a screenshot accepted as an eye and every positive result sent
+automatically, which led to the fundus check as a hard stop and the "Ask a specialist" rule; a form test exposed that the password field dropped its form reference, so sign-in could never succeed (fixed with
 <code>forwardRef</code>); an end-to-end script test exposed that the calibration script did not write its outputs (fixed); screenshots led to listing DR first
 and to plain-language referral reasons; Lighthouse raised SEO from 91 to 100; axe-core found unlabeled camera inputs and, after the new models, low-contrast amber badges (both fixed); the parity test showed the app was resizing
 every photo with nearest-neighbour, which would have changed 6 of 24 DR v2 decisions, so each model card now states its resize.</p>
@@ -147,14 +178,14 @@ every photo with nearest-neighbour, which would have changed 6 of 24 DR v2 decis
 <tr><th>Measurement (Windows 11, Intel CPU, 8 logical cores)</th><th>Result</th></tr>
 <tr><td>Model inference, LiteRT, 200 runs (all cores / 1 thread), DR v1 2.6 MB model</td><td>55 / 60 ms mean, 68 / 84 ms p95; about 117 MB process memory (not yet re-run with the three 9 MB models)</td></tr>
 <tr><td>Full server pipeline on a 1024 px JPEG (all cores / 1 thread)</td><td>74 / 77 ms mean (an earlier run under background load: 166 ms)</td></tr>
-<tr><td>Upload to result in the browser (median of 3)</td><td>0.50 s; 3.17 s with emulated 6x slower CPU and slow 3G</td></tr>
+<tr><td>Upload to result in the browser (median of 3)</td><td>0.44 s; 2.73 s with emulated 6x slower CPU and slow 3G (three models)</td></tr>
 <tr><td>Lighthouse, sign-in page (performance / accessibility / best practices / SEO)</td><td>mobile 96 / 100 / 100 / 100; desktop 100 / 100 / 100 / 100</td></tr>
 <tr><td>Accessibility of signed-in screens (axe-core, WCAG 2.1 AA)</td><td>0 violations on 20 pages, mobile and desktop</td></tr>
-<tr><td>Browsers and devices (Playwright)</td><td>Chromium on Pixel 5 and desktop, Firefox desktop, WebKit on iPhone 13: all journeys pass</td></tr>
+<tr><td>Browsers and devices (Playwright)</td><td>Chromium on Pixel 5 and desktop, Firefox desktop, WebKit on iPhone 13: 47 passed, 3 skipped by design (axe and throttling on Chromium only), 0 failed</td></tr>
 <tr><td>Bundle</td><td>route-level code splitting; core about 110 KB gzipped; charts (103 KB) load only for admins</td></tr>
 </table>
 <p>Analysis: inference is a small share of the round trip, and limiting it to one thread costs about 5 ms, so a modest server CPU is sufficient. On a slow
-phone and network the wait rises to about 3 s, dominated by the upload; the offline queue means the worker can continue with the next patient meanwhile.
+phone and network the wait rises to about 2.7 s, dominated by the upload; the offline queue means the worker can continue with the next patient meanwhile.
 Low-end figures are emulated (Chrome DevTools); physical low-end devices and real iOS Safari have not been tested.</p>
 
 <h2>6. Model evaluation, limitations and next steps</h2>
@@ -174,6 +205,7 @@ its positive classes are small. For reference only, Gulshan et al. (2016) report
 our referable-DR (grade 2+) sensitivity is 0.869. The earlier DR model (v0.3) reached only 0.542 sensitivity on its validation fold.</p>
 <ul>
 <li>Specificity below target means about 25% of eyes without DR are referred, and about 9 in 10 glaucoma flags are false alarms; the result screens say so next to each result, and a specialist reviews every referral.</li>
+<li>The fundus check is a heuristic: 3 of 25 real fundus photos were wrongly refused and no face photos were tested.</li>
 <li>Not done: on-device inference in the browser, a load balancer, a usability study with health workers (SUS kit ready), tests on a physical phone (planned on an iPhone 13 Pro after the HTTPS deploy), external validation and smartphone-lens images.</li>
 </ul>
 <h2>7. Use of AI assistance</h2>
