@@ -48,10 +48,18 @@ Design patterns that must be visible in code:
 - `ModelRegistry`: discovers `models/<condition>/model.tflite` + `model_card.json`, verifies sha256,
   registers only valid models. Dropping a model folder in must work with zero code change.
 - `RiskPolicy` strategy per condition: probability -> positive / uncertain / severity band / risk level /
-  recommendation / auto-refer. All numbers in one config file, reasoning in `docs/risk_policy.md`.
+  recommendation / refer-suggested; `ReferralAdvisor` turns them into one screening-level recommendation
+  ("No referral needed" / "Refer recommended" / "Uncertain, consider asking a specialist"). Nothing is sent
+  automatically: only the health worker's "Ask a specialist" (with a question) creates a referral.
+  All numbers in one config file, reasoning in `docs/risk_policy.md`.
 
 ## 4. Roles
-- `health_worker`: patients, screenings, results, history, offline queue + sync. Public sign-up = this role only.
+- `health_worker`: patients, screenings, results, history, ask a specialist, remove own screening (reason),
+  offline queue + sync.
+- Public sign-up is a pending request (name, email, password, requested role `health_worker` or `specialist`, never
+  admin); it grants nothing until an admin approves it (with that role or another, optionally setting the facility)
+  or rejects it with a reason. One account per email: a duplicate sign-up is refused (409) and changes nothing.
+  The app verifies nobody's identity or qualifications. Never claim it does.
 - `specialist`: review queue; approve / override (reason required) / request retake / comment.
 - `admin`: user and role management, aggregate analytics (no images, no identifiers).
 
@@ -104,13 +112,17 @@ backend/tests/   backend/alembic/   scripts/   models/<condition>/
 frontend/   docs/{diagrams,evaluation,benchmarks,report}/   notebooks/
 ```
 
-## 12b. Current state (27 Oct 2026)
+## 12b. Current state (28 Oct 2026)
 Backend, frontend, E2E, docs, diagrams and the technical report PDF are done (see `docs/scope_table.md`);
 `final-app` is merged into `main`. The Streamlit prototype was retired (git tag `legacy-streamlit-prototype`).
 All three models are installed (DR v2.0, glaucoma, cataract); metrics as in section 3. CI (backend on
-PostgreSQL 16, frontend checks, Docker build) ran green on GitHub for runs #1 and #2.
-Sign-up is pending until an admin approves; facilities come from an admin-managed list; specialists and
-admins are created or promoted by an admin. Review targets (urgent 24 h, routine 72 h) are a design decision.
+PostgreSQL 16, frontend checks, Docker build) ran green on GitHub for runs #1, #2 and #4 (#4 = wip-final-fixes, 28 Oct).
+Sign-up is a pending request (requested role health worker or specialist; no facility field, the admin may set
+it on approval) until an admin approves; demo passwords documented in docs/video_script.md; the facility list and the old professional-ID field were removed (migration `7a3c5e9b1d20`). Fundus check is a
+hard stop (3/25 real fundus photos wrongly refused, 0/77 non-eye accepted; tuned on the same images, optimistic).
+Referral only via "Ask a specialist". Soft delete with reason; `scripts/reset_demo_data.py`; daily counts in
+`TIME_ZONE` (Africa/Kigali). Review targets (urgent 24 h, routine 72 h) are a design decision.
+Work since 27 Oct is on branch `wip-final-fixes` (not yet merged into `main`).
 Latest test run and counts: see README section 8 and docs/testing_report.md.
 Pending: walkthrough video, usability test (SUS), physical-device test (iPhone 13 Pro after an HTTPS deploy),
 on-device inference and load balancer (proposal items not built).
