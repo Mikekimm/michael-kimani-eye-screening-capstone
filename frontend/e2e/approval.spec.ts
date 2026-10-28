@@ -70,6 +70,7 @@ test("an administrator rejects a sign-up with a reason and the person still cann
 });
 
 test("specialist sign-up: pending, refused, approved by an admin, then only the specialist sees the review queue", async ({ browser }, info) => {
+  test.setTimeout(150_000); // four browser sessions, each with an Argon2 sign-in
   const email = `specialist.${info.project.name}@example.org`;
   const applicant = await session(browser, info);
   await signUp(applicant, "Requested Specialist", email, "specialist");
