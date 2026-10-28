@@ -17,14 +17,22 @@ class EmailSender(Protocol):
 
 
 class OutboxEmailSender:
-    def __init__(self, directory: Path):
+    """Local mode only (no SMTP_HOST): each message is written to a file and also printed to the backend
+    console, so a reset link can be copied straight from the terminal. Never used when SMTP is configured."""
+
+    def __init__(self, directory: Path, echo: bool = True):
         self._directory = Path(directory)
+        self._echo = echo
 
     def send(self, to: str, subject: str, body: str) -> None:
         self._directory.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
         path = self._directory / f"{stamp}-{uuid.uuid4().hex[:8]}.txt"
-        path.write_text(f"To: {to}\nSubject: {subject}\n\n{body}\n", encoding="utf-8")
+        message = f"To: {to}\nSubject: {subject}\n\n{body}\n"
+        path.write_text(message, encoding="utf-8")
+        if self._echo:
+            rule = "-" * 72
+            print(f"\n{rule}\nLOCAL EMAIL (not sent; no SMTP_HOST set), saved to {path}\n{message}{rule}\n", flush=True)
 
 
 class SmtpEmailSender:

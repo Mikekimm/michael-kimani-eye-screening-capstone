@@ -252,6 +252,17 @@ the API (built from `backend/Dockerfile`) and the PWA as a static HTTPS site. In
 emails, the `SMTP_*` values (e.g. Gmail with an App Password). Secrets are entered in the dashboard and never
 stored in git. Open the static site's URL on a phone and use **Add to Home Screen** to install the app.
 
+**Emails (password reset, sign-up and approval notices):**
+
+* **Local (default, no `SMTP_HOST`):** nothing is sent. Each email is saved as a text file in `data\outbox\` and
+  printed in the backend console, so the reset link can be copied from the terminal. The link works once and
+  expires after 30 minutes.
+* **Real email (deployment):** set these environment variables on the server (Render dashboard or a local
+  `.env`, never in git): `SMTP_HOST` (e.g. `smtp.gmail.com`), `SMTP_PORT` (587), `SMTP_USERNAME`,
+  `SMTP_PASSWORD` (for Gmail an App Password, not the account password), `SMTP_SENDER`
+  (e.g. `Retinal Screening <you@example.org>`), `SMTP_STARTTLS` (true), and `APP_BASE_URL` (the address of the
+  PWA, used in the links). Restart the API afterwards.
+
 ## 8. Tests
 
 ```powershell
