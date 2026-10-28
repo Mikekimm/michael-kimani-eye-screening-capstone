@@ -245,10 +245,10 @@ def test_the_person_is_emailed_when_an_admin_approves_or_rejects_them(client):
     rejected = client.post("/api/auth/register", json={**NEW_USER, "email": "other@example.org"}).json()
     client.patch(f"/api/admin/users/{approved['id']}", headers=admin, json={"status": "approved"})
     client.patch(f"/api/admin/users/{rejected['id']}", headers=admin,
-                 json={"status": "rejected", "status_reason": "Registration number not found."})
+                 json={"status": "rejected", "status_reason": "Could not confirm you work at this facility."})
     mails = [m.read_text(encoding="utf-8") for m in _outbox(client)]
     assert any(NEW_USER["email"] in m and "approved" in m for m in mails)
-    assert any("other@example.org" in m and "not approved" in m and "Registration number not found." in m
+    assert any("other@example.org" in m and "not approved" in m and "Could not confirm you work at this facility." in m
                for m in mails)
 
 

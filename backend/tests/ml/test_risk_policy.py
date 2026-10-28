@@ -1,4 +1,4 @@
-"""Boundary tests for every severity band, the uncertain zone and the auto-refer rule."""
+"""Boundary tests for every severity band, the uncertain zone and the referral suggestion."""
 import json
 
 import pytest
