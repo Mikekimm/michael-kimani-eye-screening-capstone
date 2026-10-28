@@ -1,10 +1,16 @@
-# Progress notes (28 October 2026, after the admin-overview merge)
+# Progress notes (28 October 2026, after the remote-testing merge)
 
 Hand-over notes for picking the work up again. Read this first.
 
 ## 1. What is on `main`
-- `main` = **`b34a084745cca8afa8593b1286ee0fb0fa97b777`** ("Merge branch 'admin-overview'"), pushed 28 Oct.
-  CI run #10 on `main` (b34a084): all three jobs green (backend tests on PostgreSQL 16, frontend checks, Docker build).
+- `main` = **`974e3f90ca1de0a68cc094efc1c92e88c41c0e77`** ("Merge branch 'remote-testing'"), pushed 28 Oct.
+  CI run #12 on `main` (974e3f9): all three jobs green (backend tests on PostgreSQL 16, frontend checks, Docker build).
+- From `remote-testing` (docs only, no code change): `docs/remote_testing.md` = remote usability sessions over a
+  Cloudflare quick tunnel (`cloudflared tunnel --url http://localhost:4173` in front of `vite preview`, which proxies
+  `/api`), safety checklist, moderator script (task 1 now includes the live admin approval), results procedure.
+  Verified 28 Oct through the tunnel: demo nurse sign-in, patient, upload, result page, History (offline task 3 and a
+  real phone not verified). Never commit a tunnel URL.
+- Earlier merge: `b34a084745cca8afa8593b1286ee0fb0fa97b777` (admin-overview; CI #10 green).
 - Earlier merges: `e2ad2a5533acf9c4c349c079bd19873c48976d42` (specialty-routing; CI #8 green), `85ccc53` (wip-final-fixes).
 - Contents: DR v2 + ODIR glaucoma/cataract models, fundus check (hard stop), capture flow, soft delete, demo reset
   (keeps approved own accounts), sign-up request without a facility, duplicate-email protection, Kigali daily
@@ -36,7 +42,7 @@ Hand-over notes for picking the work up again. Read this first.
 | Report PDF | 5 pages |
 
 ## 3. Current branch
-`main`. Branches `admin-overview`, `specialty-routing` and `wip-final-fixes` are merged and kept (local; `wip-final-fixes` also on
+`main`. Branches `remote-testing`, `admin-overview`, `specialty-routing` and `wip-final-fixes` are merged and kept (local; `wip-final-fixes` also on
 GitHub). No branch or tag was deleted.
 
 ## 4. Still to do, in order
@@ -46,7 +52,8 @@ GitHub). No branch or tag was deleted.
    (`docs/video_script.md`, demo order and demo-only credentials).
 3. Add the two links (video, report) to the README and the report; rebuild the PDF (5 pages max).
 4. Final-submission tag on `main` and the Attempt 2 ZIP (`git archive` of `main` + the video file).
-5. If time: HTTPS deploy, physical-phone test, SUS usability test, speed up the result page on slow phones.
+5. If time: physical-phone test, SUS usability test (remote: `docs/remote_testing.md`; results into
+   `docs/usability/results.csv` and the report), HTTPS deploy, speed up the result page on slow phones.
 
 ## 5. Rules
 - No Co-Authored-By or any attribution trailer in commit messages. README section 11 "Use of AI assistance"
