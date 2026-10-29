@@ -10,7 +10,7 @@ ALU BSc Software Engineering capstone, Michael Kimani (supervisor: Emmanuel Adje
 
 | | |
 |---|---|
-| Walkthrough video | **TODO: add link** |
+| Walkthrough video | **https://youtu.be/t8ew6KO18XU** |
 | Technical report (PDF) | **TODO: add link** (source in [docs/report/](docs/report/)) |
 | MVP demo (earlier milestone) | https://youtu.be/5CVl1Cbt8A0 |
 
