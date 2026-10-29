@@ -14,6 +14,8 @@ ALU BSc Software Engineering capstone, Michael Kimani (supervisor: Emmanuel Adje
 | Technical report (PDF) | **TODO: add link** (source in [docs/report/](docs/report/)) |
 | MVP demo (earlier milestone) | https://youtu.be/5CVl1Cbt8A0 |
 
+Remote test session: https://youtube.com/shorts/aiue7hzb6KI
+ A friend signed up for the health-worker role and, on his own Android phone, registers a patient, screens a retinal photo and sends the case to a specialist.
 ## Quick start
 
 Windows PowerShell, Python 3.12+ and Node.js 22+ (full details in [section 7](#7-install-and-run-windows-powershell)).
