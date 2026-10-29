@@ -406,13 +406,9 @@ served only to authorised users; analytics and audit logs hold no images or pati
 only in `.env`. Limits: tokens are kept in browser localStorage (readable by scripts on the page; the
 app loads no third-party scripts); no TLS in local development; no penetration testing.
 
-## 11. Use of AI assistance
 
-I used Claude to help me build this project.
 
-I designed and directed the project, wrote the proposal and made the scope decisions. I trained the models myself by running the Kaggle training notebooks. I reviewed the results and I am responsible for the work.
-
-## 12. Known issues
+## 11. Known issues
 
 * DR specificity (0.748) and both glaucoma targets are below the proposal's targets; glaucoma precision is
   about 0.10. The result screens show these limits next to each result.
