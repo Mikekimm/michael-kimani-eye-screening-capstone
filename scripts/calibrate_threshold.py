@@ -2,7 +2,8 @@
 honest performance on data the threshold never saw.
 
 Input: a CSV with columns ``y_true`` (0/1) and ``y_prob`` (model score) produced by
-``docs/kaggle_holdout_predictions.py`` from images the model never trained on.
+a Kaggle prediction run on images the model never trained on (the helper that produced it was
+removed in the repository clean-up; it is in the git history).
 
 The file is split in two (stratified, fixed seed):
   * tuning half : the threshold is selected here

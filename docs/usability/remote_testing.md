@@ -1,8 +1,8 @@
 # Remote usability testing (video call + public HTTPS tunnel)
 
 How to let a tester on another device use the app from this laptop during a video call, then score the
-session with SUS. The tasks and the questionnaire are the ones in [usability/README.md](usability/README.md)
-and [usability/sus_questionnaire.md](usability/sus_questionnaire.md). Screening support only; not a diagnostic device.
+session with SUS. The tasks and the questionnaire are the ones in [README.md](README.md)
+and [sus_questionnaire.md](sus_questionnaire.md). Screening support only; not a diagnostic device.
 
 ## 1. Run the app behind one public HTTPS address
 
@@ -66,10 +66,10 @@ the call. On a laptop, they can use Chrome DevTools > Network > "Offline" instea
    name; you will be T1 in my notes. [If recording:] May I record the screen share and audio for my notes only?
    I will delete it after the analysis." Continue only after a clear yes.
 2. Share the tunnel URL in the call chat. Ask the tester to share their screen.
-3. **Task 1:** "Create an account, then register a new patient with the code TEST-01." The account is a
+3. **Task 1:** "Create an account, then register a new patient and tell me the code the app gives them." The account is a
    request: when the tester sees "Waiting for administrator approval", approve it on your Users page and tell
    them they can sign in now. (Note how they react to the waiting state.)
-4. **Task 2:** "Screen TEST-01's left eye using the photo on this device, then tell me what the result means and
+4. **Task 2:** "Screen this patient's left eye using the photo on this device, then tell me what the result means and
    what you should do next."
 5. **Task 3:** "The internet is now off (switch on airplane mode). Screen the right eye. Then turn the internet
    back on and find out whether it was sent."
@@ -83,7 +83,7 @@ Testers are identified only as T1, T2, ... with role (e.g. nurse, nursing studen
 
 ## 4. Results
 
-1. Add one row per tester to [usability/results.csv](usability/results.csv): `tester_id, role, device, q1..q10
+1. Add one row per tester to [results.csv](results.csv): `tester_id, role, device, q1..q10
    (1-5), task1_success..task3_success (yes/no), task1_seconds..task3_seconds, comments`. No names or emails.
 2. Score:
    ```powershell

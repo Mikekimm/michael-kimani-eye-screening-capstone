@@ -38,3 +38,6 @@ Thumbs.db
 
 # Raw Kaggle downloads awaiting review (models are installed into models/ after checks)
 incoming/
+
+# Local AI working notes (kept on the developer machine, not part of the submission)
+CLAUDE.md

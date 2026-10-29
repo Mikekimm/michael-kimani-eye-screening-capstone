@@ -91,6 +91,17 @@ describe("LoginPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Incorrect email or password.");
   });
 
+  it("says the server cannot be reached, not 'offline', when the browser is online but the server is gone", async () => {
+    // Regression: a cached app shell whose server or tunnel had stopped told online users they were offline.
+    renderWithProviders(<LoginPage />, { route: "/login", api: { auth: { login: vi.fn().mockRejectedValue(new NetworkError()) } } });
+    await userEvent.type(screen.getByLabelText("Email"), "n@example.org");
+    await userEvent.type(screen.getByLabelText("Password"), "any-password");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Cannot reach the server.");
+    expect(alert).not.toHaveTextContent(/offline/i);
+  });
+
   it("toggles password visibility", async () => {
     renderWithProviders(<LoginPage />, { route: "/login" });
     const input = screen.getByLabelText("Password");
@@ -190,9 +201,11 @@ describe("loading, empty and error states", () => {
   });
 
   it("shows a plain-language offline error", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
     renderWithProviders(<HomePage />, { signedIn: true, api: {
       auth: { me: vi.fn().mockResolvedValue(nurse) }, screenings: { list: vi.fn().mockRejectedValue(new NetworkError()) } } });
     expect(await screen.findByText(/You appear to be offline/)).toBeInTheDocument();
+    vi.restoreAllMocks();
   });
 
   it("shows unmeasured metrics honestly on the About screen", async () => {

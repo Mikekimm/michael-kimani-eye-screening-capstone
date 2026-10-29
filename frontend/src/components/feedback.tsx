@@ -18,7 +18,12 @@ export function EmptyState({ title, description, action }: { title: string; desc
 }
 
 export function describeError(error: unknown): string {
-  if (error instanceof NetworkError) return "You appear to be offline. Check the connection and try again.";
+  if (error instanceof NetworkError) {
+    // Online but unreachable: e.g. a page cached by the service worker whose server or tunnel has since stopped.
+    return navigator.onLine
+      ? "Cannot reach the server. It may be stopped, or this address may no longer work. Check the address and try again."
+      : "You appear to be offline. Check the connection and try again.";
+  }
   if (error instanceof ApiError) return error.message;
   return "Something went wrong. Please try again.";
 }

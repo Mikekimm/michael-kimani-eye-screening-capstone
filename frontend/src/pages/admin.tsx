@@ -14,7 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useAnalytics, useCreateUser, useUpdateUser, useUsers } from "@/hooks/queries";
 import type { AccountStatus, Role, Specialty, User } from "@/lib/api/types";
-import { CONDITION_LABEL, ROLE_LABEL, SPECIALTY_LABEL, formatDate, percent } from "@/lib/utils";
+import { CONDITION_LABEL, ROLE_LABEL, SPECIALTY_LABEL, formatDate, formatDateTime, percent } from "@/lib/utils";
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -168,7 +168,7 @@ export function UsersPage() {
               <div className="flex-1">
                 <p className="text-sm font-medium">{u.full_name} {self && <Badge tone="info">You</Badge>} {!u.is_active && <Badge tone="high">Deactivated</Badge>}
                   {u.status === "pending" && <Badge tone="medium">Waiting for approval</Badge>} {u.status === "rejected" && <Badge tone="high">Rejected</Badge>}</p>
-                <p className="text-xs text-muted-foreground">{u.email} · signed up {formatDate(u.created_at)}</p>
+                <p className="text-xs text-muted-foreground">{u.email} · signed up {formatDateTime(u.created_at)}</p>
                 {u.facility && (
                   <p className="text-xs text-muted-foreground">Facility: {u.facility} <span className="italic">(set by an administrator, not verified)</span></p>
                 )}

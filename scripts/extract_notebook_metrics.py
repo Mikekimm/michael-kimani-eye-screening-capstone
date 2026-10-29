@@ -68,7 +68,7 @@ def main() -> int:
                     "sensitivity_met": met_sens, "specificity_met": met_spec},
         "caveats": [
             "Not an independent hold-out or test set: the same fold guided early stopping.",
-            "The independent hold-out evaluation (notebooks/kaggle_holdout_eval.ipynb) did not finish.",
+            "The independent hold-out evaluation did not finish (its notebook was removed from the repo; it is in the git history).",
             "Image-level data with no patient identifiers and augmented near-duplicates: optimistic.",
             "Measured with the Keras model in the training session; the served .tflite is a quantized export that differs by up to about 0.03 in score.",
             "No threshold calibration was performed; the app uses the default 0.5.",
