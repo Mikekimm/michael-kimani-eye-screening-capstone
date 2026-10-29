@@ -26,7 +26,7 @@ too. `.env` stays git-ignored. Updated: `.env.example`, comment in `docker-compo
 | Item | Why |
 |---|---|
 | `notebooks/dr_v2_finetune.ipynb`, `notebooks/odir_glaucoma_cataract.ipynb` | Training notebooks of the three served models; named in the model cards, README, testing report. |
-| `notebooks/model_notebook.ipynb` | See decision D1. |
+| `notebooks/model_notebook.ipynb` | Kept; reason in section 4. |
 | `docs/evaluation/dr_v2/*`, `docs/metrics.json`, `docs/odir_metrics.json`, `docs/evaluation/dr_v1_metrics.json` | Read by `scripts/dr_v2_metrics.py` and pytest (`test_notebook_metrics.py`, `test_dr_parity.py`); cited by README and report. |
 | `docs/screenshots/e2e/` | Written by the Playwright tests; two are figures in the report; linked from the testing report. |
 | `docs/benchmarks/`, `docs/lighthouse/`, `docs/accessibility/` | Evidence cited in the testing report, README and report; `performance.spec.ts` writes `browser-timings.jsonl`. |
@@ -35,17 +35,31 @@ too. `.env` stays git-ignored. Updated: `.env.example`, comment in `docker-compo
 | All of `scripts/` | Each is named in the README, CI, a test or the Playwright config. |
 | `render.yaml`, `docker-compose.yml`, both Dockerfiles, `frontend/nginx.conf` | Deployment; built by CI. |
 
-## 4. Needs your decision (not deleted)
+## 4. Second round (decisions made)
 
-| # | Item | Facts | Suggestion |
-|---|---|---|---|
-| D1 | `notebooks/model_notebook.ipynb` (DR v0.3, 2.1 MB) | A retired model, but the report says "the earlier DR model (v0.3) reached only 0.542 sensitivity", and this notebook's saved outputs are the evidence; `test_notebook_metrics.py` reads it. Deleting it means deleting that test and `scripts/extract_notebook_metrics.py`. | Keep. Optionally rename to `dr_v0.3_retired.ipynb` (updates 3 files). |
-| D2 | `notebooks/odir_glaucoma_cataract.ipynb` has **no saved outputs** | The glaucoma and cataract results exist only in `docs/odir_metrics.json` and the model cards. | Keep. If the executed version is still in your Kaggle account, download it and replace this copy. |
-| D3 | `scripts/calibrate_threshold.py`, `backend/app/ml/metrics_report.py`, `docs/kaggle_holdout_predictions.py` | Tooling for the DR v0.3 hold-out path that never ran. Covered by `test_metrics_report.py` and the testing report. Running the script would overwrite `docs/metrics.json` and the DR model card. | Keep for now (removing code and tests changes the test counts in the report). |
-| D4 | `docs/progress_notes.md`, `docs/submission_checklist.md` | Working notes; nothing links to them. | Keep or move out before the final submission. |
-| D5 | `CLAUDE.md` | AI working rules at the repository root; AI use is disclosed in README section 11. | Your call. |
-| D6 | Local only, never in git (ignored): `incoming/` (raw Kaggle downloads already installed, and the proposal PDF), `data/app.db.bak-*` (database backups), empty `Documents and Settings/` and `$Recycle.Bin/` folders | Not in the GitHub repository, so they do not affect readers. | Not touched (no data deleted). |
+| Item | Action | Evidence |
+|---|---|---|
+| `docs/progress_notes.md`, `docs/submission_checklist.md` | Deleted | Working notes; no link from code, tests, CI, README, docs or the report. |
+| `docs/kaggle_holdout_predictions.py` | Deleted | Paste-in Kaggle helper for the unfinished DR v0.3 hold-out run; mentioned only in the docstring of `scripts/calibrate_threshold.py` (reworded). |
+| `CLAUDE.md` | Removed from git, kept on the developer machine and git-ignored | AI working rules, not used by the app, tests or docs. AI use is disclosed in README section 11. |
+| `docs/remote_testing.md` | Moved to `docs/usability/remote_testing.md` | It is the moderator guide for the usability test; links updated. |
 
-## 5. Checks run
+Kept on purpose:
 
-See the summary in the commit message and the hand-over notes.
+| Item | Reason |
+|---|---|
+| `notebooks/model_notebook.ipynb` | The report cites its result (DR v0.3 sensitivity 0.542); `test_notebook_metrics.py` reads its saved outputs. Not renamed, as instructed. |
+| `notebooks/odir_glaucoma_cataract.ipynb` | Training code of the served glaucoma and cataract models, named in both model cards, the README and the testing report. It has no saved outputs; its results are in `docs/odir_metrics.json`. |
+| `scripts/calibrate_threshold.py`, `backend/app/ml/metrics_report.py`, `backend/tests/ml/test_metrics_report.py` | The submitted report cites the end-to-end test of the calibration script ("exposed that the calibration script did not write its outputs (fixed)"). |
+| `docs/screenshots/e2e/` (all 72) | Written by every Playwright run; the report embeds two of them. |
+| `render.yaml`, `docker-compose.yml`, `.dockerignore` at the root | Render reads `render.yaml` from the root; compose and the backend image build from the root context. |
+
+Code check: every module in `backend/app` and `frontend/src` is imported by something (routers, lazy routes,
+the Vitest setup), so no code was deleted.
+
+Not in the repository (git-ignored, local only, left untouched): `incoming/`, `data/` (database and backups),
+empty `Documents and Settings/` and `$Recycle.Bin/` folders.
+
+## 5. Links
+
+Every relative link in the tracked Markdown and HTML files was checked after the changes; none is broken.

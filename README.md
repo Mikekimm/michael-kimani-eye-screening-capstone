@@ -14,6 +14,24 @@ ALU BSc Software Engineering capstone, Michael Kimani (supervisor: Emmanuel Adje
 | Technical report (PDF) | **TODO: add link** (source in [docs/report/](docs/report/)) |
 | MVP demo (earlier milestone) | https://youtu.be/5CVl1Cbt8A0 |
 
+## Quick start
+
+Windows PowerShell, Python 3.12+ and Node.js 22+ (full details in [section 7](#7-install-and-run-windows-powershell)).
+
+```powershell
+copy .env.example .env                       # the only env template; or: .venv\Scripts\python scripts\init_env.py
+                                             # (after creating .venv) to fill in a random JWT_SECRET and passwords
+python -m venv .venv
+.venv\Scripts\python -m pip install -r backend\requirements.txt
+cd backend; ..\.venv\Scripts\alembic upgrade head; cd ..
+.venv\Scripts\python scripts\seed.py         # demo accounts and synthetic patients
+cd backend; ..\.venv\Scripts\python -m uvicorn app.main:app --port 8000
+```
+
+Second terminal: `cd frontend; npm.cmd install; npm.cmd run dev`, then open http://localhost:5173.
+If you copied `.env.example` by hand, replace `JWT_SECRET` (32+ random characters) and the `change-me`
+passwords first; the API refuses to start with the placeholder secret.
+
 ---
 
 ## 1. Problem and intended users
@@ -153,30 +171,39 @@ SHA-256 model verification in [registry.py](backend/app/ml/registry.py).
 ## 5. Repository structure
 
 ```
-backend/
-  app/api/            FastAPI routers and dependency injection
-  app/services/       use cases: auth, patients, screening pipeline, reviews, sync, analytics
-  app/repositories/   database queries
-  app/models/         SQLAlchemy entities and enums
-  app/schemas/        Pydantic v2 request/response models
-  app/ml/             preprocessing, quality gate, model registry, risk policy, evaluation
-  app/core/           settings, database, security, error handling
-  alembic/            database migrations
-  config/             risk_policy.json
-  tests/              pytest (api/, ml/)
-frontend/
-  src/pages/          screens        src/components/  UI building blocks
-  src/hooks/          data hooks     src/lib/         API client, auth, utils
-  src/offline/        IndexedDB queue, backoff, sync
-  e2e/                Playwright journeys
-models/<condition>/   model.tflite (served), model_card.json; models/dr/model.keras (source for the agreement test)
-notebooks/            training notebooks; what each trained and printed: notebooks/README.md
-scripts/              init_env, seed, reset_demo_data, create_admin, benchmark, dr_v2_metrics, evaluate_fundus_check,
-                      extract_notebook_metrics, calibrate_threshold, export_tflite, e2e_server, sus_score
-docs/                 scope table, testing report, risk policy, metrics, evaluation evidence, benchmarks, diagrams, screenshots, report
-.github/workflows/     CI: backend tests on PostgreSQL, frontend checks, Docker build
-.env.example          the only environment template (local run, docker compose and CI all use it)
-docker-compose.yml    deployment stack (PostgreSQL + API + PWA); render.yaml: hosted demo on Render
+.
+├── .github/workflows/        CI: backend tests on PostgreSQL, frontend checks, Docker build
+├── backend/                  FastAPI API (Dockerfile, requirements, pytest.ini, alembic.ini)
+│   ├── alembic/versions/     database migrations
+│   ├── app/api/routes/       HTTP routers; app/api/ holds dependency injection
+│   ├── app/core/             settings, database, security, error handling
+│   ├── app/ml/               preprocessing, quality gate, model registry, risk policy, evaluation
+│   ├── app/models/           SQLAlchemy entities and enums
+│   ├── app/repositories/     database queries
+│   ├── app/schemas/          Pydantic v2 request/response models
+│   ├── app/services/         use cases: auth, patients, screening pipeline, reviews, sync, analytics
+│   ├── config/               risk_policy.json (every decision threshold)
+│   └── tests/                pytest: api/ (HTTP and database), ml/ (real models, scripts)
+├── frontend/                 React + Vite PWA (Dockerfile, nginx.conf, configs)
+│   ├── e2e/                  Playwright journeys (fixtures/: test images)
+│   ├── public/               icons and robots.txt
+│   ├── scripts/              diagram and report rendering
+│   └── src/                  pages/, components/, hooks/, lib/ (API client, auth), offline/ (IndexedDB queue), test/
+├── models/                   one folder per condition: model.tflite + model_card.json (dr/ also model.keras)
+├── notebooks/                Kaggle training notebooks; notebooks/README.md says what each trained and printed
+├── scripts/                  setup (init_env, seed, create_admin, reset_demo_data), evaluation, benchmark, e2e server
+├── docs/                     scope table, testing report, architecture, risk policy, metrics files
+│   ├── accessibility/        axe results
+│   ├── benchmarks/           inference and browser timings
+│   ├── diagrams/             architecture, use case, class, ERD, sequence (src/: Mermaid sources)
+│   ├── evaluation/           DR v2 predictions and results, DR v0.3 history
+│   ├── lighthouse/           Lighthouse reports
+│   ├── report/               technical report (HTML source, PDF, editable .docx, figures/)
+│   ├── screenshots/e2e/      screenshots written by the Playwright tests
+│   └── usability/            usability test plan, remote-session guide, SUS questionnaire, results
+├── .env.example              the only environment template (local run, docker compose and CI all use it)
+├── docker-compose.yml        deployment stack: PostgreSQL + API + PWA
+└── render.yaml               hosted demo on Render (must stay at the root)
 ```
 
 ## 6. Technical requirements (versions actually used)
