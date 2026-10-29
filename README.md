@@ -36,10 +36,10 @@ passwords first; the API refuses to start with the placeholder secret.
 
 ## 1. Problem and intended users
 
-Diabetic retinopathy (DR), glaucoma and cataract are leading causes of preventable blindness. Primary
-health centres in low-resource settings rarely have eye specialists or reliable internet. The intended
-context is **primary health centres in low-resource settings in Africa**. This describes the target
-setting only: no field deployment or clinical evaluation has taken place.
+Diabetic retinopathy (DR), glaucoma and cataract are the major causes of avoidable blindness. Primary
+Health Centres in low resource areas are usually without eye specialists and with poor internet access. The intended
+The context is: primary health centres in low resource settings in Africa. This is the goal or aim that I am trying to achieve.
+The field deployment and clinical evaluation of this setting have not been performed.
 
 | Role | What they do in the app |
 |---|---|
@@ -52,18 +52,19 @@ Patients have no accounts: they are records with an app-generated code.
 ### How access is controlled
 
 * **Sign-up is a request, not an account.** The form asks only for name, email, password and the role being
-  requested (health worker or specialist; admin cannot be requested). The request is **pending**: with the
-  correct password, signing in returns "Your account is waiting for administrator approval" until an admin
-  acts; a wrong password gets the generic "Incorrect email or password". The requested role grants nothing.
-* **One account per email.** Signing up again with a registered email (any letter case) is refused with "This
-  email is already registered. Sign in, or use Forgot password ..." and changes nothing: no second account,
-  and the existing name, password, role and status stay as they were. The clear message is a deliberate
-  choice (it reveals that the email is registered; sign-up is rate-limited).
-* **An admin decides.** On the Users page the admin approves the request with the requested role or another
-  one, optionally recording the person's facility, or rejects it with a reason (emailed to the person). Every
-  decision is in the audit log. Admins can also create staff accounts directly.
-* **The app does not verify anyone's identity or qualifications.** The admin is expected to check who the
-  person is outside the app (for example by phoning the facility).
+  Request was made by the health worker/specialist (admin may not be requested). The request is pending: with the
+  If you sign in then you will see "Your account is waiting for administrator approval" until it has been approved.
+  Instead of a specific password error message, the generic "Incorrect email or password" is shown if the password is wrong; The desired role provides no privileges.
+* **One account per email.** Signing up again with a registered email (any letter case) is not allowed.
+  email is already registered. Log in, or use Forgot password ..." and do nothing: no second account,
+  and current name, role and status remain unchanged. The simple message is an intended message
+  choice (shows that the email is registered; see sign-up for rate-limiting).
+* **An admin decides.**The admin approves the request with a requested role or another, on the Users page.
+  one, optionally saving the person's facility, or refuses with a reason (emailed to the person). Every
+  This decision can be found in the audit log. Staff accounts are also created directly by the admins..
+* **The app does not verify anyone's identity or qualifications.** There is no identity or qualifications verification for anyone in the app. The admin is supposed to determine who the
+  The person is not in the app (e.g. by calling the facility).
+They are checked by the role and recorded in the `AccessPolicy` and the route guards.
 * **Every request is checked on the server.** Route guards and one `AccessPolicy` check the role and record
   ownership, so a health worker calling a specialist or admin endpoint gets HTTP 403, and health workers see
   only their own patients. Users cannot change their own role. Sign-in and sign-up are rate-limited.
@@ -89,27 +90,27 @@ and restart. The registry verifies the SHA-256, and the card says which resize t
 
 ## 3. Features
 
-* Sign-up request with a requested role, pending until an admin approves (see "How access is controlled"); sign-in with Argon2-hashed passwords, JWT access + refresh tokens, sign-in and sign-up rate limits, role-based access enforced by the API
-* Forgot password by emailed one-time link; required patient consent per screening
-* Patient registry using pseudonymous clinic codes (no names), patient screening history
-* 3-step capture: patient, eye, photo (rear camera with a circular guide, or gallery), with on-device quality hints. After choosing a photo: **Cancel** or **Analyse**; a refused photo offers **Retake** or **Upload another**; after a result: **Save** or **Discard** (with a reason)
-* Server quality gate with plain-language 422 errors and nothing saved: blank, too small, and **photos that do not look like a retinal fundus photograph** (a heuristic check; see section 8); warnings for blur and darkness
+* Sign-up request with a requested role, which will be pending while awaiting admin approval (see "How access is controlled") Sign-in with Argon2-hashed passwords, JWT access + refresh tokens, sign-in and sign-up rate limits, role-based access enforced by the API
+* Email sent password link, forgot password (must provide patient consent for each screening)
+* Patient screening history(without name information)
+* 3 step capture: patient, eye, photo (rear camera with a circular guide or gallery), with on-device quality hints. Once you have selected an image, press Cancel or Analyse; if you are refused an image press Retake (or Upload another); once you have a result, press Save or Discard (with a reason).
+* No images saved: blank, too small, and photos that do not appear to be a retinal fundus photograph (A heuristic check; see section 8); warnings for blur and darkness.
 * One result card per condition: classification, model score explained, borderline flag, estimated severity band (DR), model version, the model's measured limits ("How reliable is this model?"), and one recommendation for the screening: "No referral needed", "Refer recommended" or "Uncertain, consider asking a specialist"
-* **Specialist review is a later confirmation, not a gate.** The health worker gives the patient the recommended action from the result straight away, at the same visit; the specialist's review (asynchronous, as in the proposal) confirms or corrects it later and comes back at the next sync. The review targets (urgent 24 h, routine 72 h, configurable) are my own design decision so that no sent case waits unnoticed; the proposal sets no time limit.
-* **Specialty routing (an extension beyond the proposal, which lists only a single Specialist role):** when asking a specialist, the health worker ticks which conditions the question is about (pre-ticked from borderline or positive results) and chooses routine or urgent. Each specialist has specialties (DR, glaucoma, cataract, general = all cases), set by the admin on the approval screen or in user management. The queue shows matching cases under "My specialties" and everything under "All cases"; "Take this case" assigns it, other specialists see it as taken, and the health worker sees "Being reviewed by <name>". Decisions come back as before; overdue cases (past 24 h urgent / 72 h routine) are counted per priority in the admin analytics. The server enforces it: a health worker cannot take or decide a case, a specialist can take only open cases in the queue and cannot decide a case another specialist has taken.
-* **Referral policy (configurable, as in the proposal's sequence diagram):** an uncertain case is flagged and queued for specialist review automatically: borderline results, and usable photos with quality warnings. A clear positive shows "Refer recommended" and the health worker sends it with "Ask a specialist"; a clear negative is not queued. The health worker can add a question to a queued case or send any case manually. Severe results (DR band 4-5) default to urgent, everything else to routine. Settings: `referral_advice` in `backend/config/risk_policy.json`
-* **Asynchronous review from a shared queue.** The specialist works from one shared queue: a single specialist with the "general" specialty sees every case, and one district specialist can serve several clinics. Specialists do not prescribe medication: they approve, override with a reason, request a retake or comment; the app supports screening and referral only. Notifications by SMS or email are future work: health workers and specialists see new cases and decisions when the screens refresh (every 30 seconds by default, `VITE_REFRESH_SECONDS`) or at the next sync
-* **New decisions:** the health worker's home shows how many specialist decisions have arrived and not been opened; History marks them "New decision" next to "Reviewed" (or "Retake needed"); opening the screening clears it
-* Results made by an earlier model are kept unchanged and labelled, with "Screen again" for current results
-* Asynchronous specialist review, as in the proposal: the queue shows the health worker's question, flagged conditions, waiting time and review target (urgent 24 h / routine 72 h, configurable; overdue first); approve, override any condition with a reason, request a retake or comment; append-only, timestamped history
-* Remove screening (soft delete by the health worker who made it, reason required): hidden everywhere, the photo file is deleted, the audit entry stays
-* Daily screening counts and a History day filter in the clinic's time zone (setting `TIME_ZONE`, default Africa/Kigali)
-* Offline queue in IndexedDB: capture while offline, automatic sync with exponential backoff, per-item retry; specialist decisions pulled back to the device
-* Admin user management (approve / reject requests, staff accounts, roles), aggregate analytics with overdue reviews; About screen built from the model cards
-* Installable PWA, mobile-first (bottom tabs) with a desktop sidebar
+* No specialist review is a requirement and not a gate. If specialist's review is asynch (as in proposal), then he confirms/corrects as soon as patient gets the health worker's recommended action, during the same sync, and reverts back during the next sync. My own design decision: targets for review – urgent: 24 h; routine: 72 h; configurable – no time limit for any case that is sent.
+* Specialty routing (an extension to the proposal, where only one Specialist role is offered): when contacting a specialist, the health worker checks off which conditions in the question he/she is interested in (pre-ticked in borderline/positive results) and selects routine/urgent. Specialties are set by the admin on the approval screen or user management and each specialist will have different specialties (DR, glaucoma, cataract, general = all cases). Matches are listed in the queue under "My specialties" and everything under "All cases", and it is assigned to the specialist who has it in the queue; other specialists see it as taken and the health worker sees "Being reviewed by <name>". Decisions will be returned as normal, and overdue cases (those more than 24 h urgent / 72 h routine) will be attributed to each priority in the admin analytics. It is enforced by the server: a health worker is not allowed to take or decide a case, a specialist can only take open cases in the queue and is not allowed to decide a case which a different specialist took.
+* Auto-flagging and auto-queueing for specialist review: a referral policy is configured (as in the proposal's sequence diagram), uncertain case is flagged and queued: borderline results, usable photos with quality warnings. If it is a clear positive, it will be marked "Refer recommended" and sent by the health worker with "Ask a specialist" added. If it is, a clear negative is not queued. The health worker can queue any case or manually send any case. If no result, or less severe – default to routine, severe (DR band 4-5) – default to urgent. This will be configured via the system settings: `referral_advice` in `backend/config/risk_policy.json`
+* Asynchronous Review from a Shared Queue. All cases are seen by one specialist with the "general" specialty, and one district specialist may be able to serve several clinics. Specialists are not prescribing medication – they are approving, overriding with reason, requesting a retake or commenting – the app only facilitates screening and referral. New cases and decisions are synced and visible by health workers and specialists when the screens refresh (every 30 seconds by default, VITE_REFRESH_SECONDS) or at the next sync, which is sent as notifications by SMS or email:
+* The health worker's home displays the number of specialist decisions that have arrived and not been opened (History shows "New decision" next to "Reviewed") (or "Retake needed" - if they have been opened, they are removed); opening the screening clears it
+Results are obtained by an earlier model are retained and marked, "Screen again" for current results.
+* Asynchronous specialist review, as in the proposal: the queue displays the health worker's question, conditions marked in it, waiting time and review target (first review is the urgent 24 h / routine 72 h period, which can be set to a different period on the proposal and is also writable); approve, override any condition with a reason, request a retake or comment; append only, timestamped history
+* The photo file is deleted, and the audit entry remains, meaning that the photo is hidden (soft deleted) by the health worker who made it and a reason is provided.
+Daily screening counts (as per setting `TIME_ZONE`, default Africa/Kigali), and a History day filter in the clinic's time zone (Africa/Kigali by default)
+Offline queue in IndexedDB: capture offline, sync automatically with exponential back-off, retry per item (specialist decisions delegated to the device)
+* Aggregate analytics and overdue reviews; About screen built from the model cards; * Admin user management (approve / reject requests, staff accounts, roles);
+The app is installable, mobile-first (bottom tabs) and features a desktop sidebar.
 
-**Not included (honest limits):** offline *inference* (photos taken offline are analysed after they
-sync), a native Android app (the PWA installs on Android and iPhone instead), a load balancer, field testing.
+Not included (honest limits): offline inference (Photos taken offline are analysed after being taken)
+A native Android application (the PWA installs onto Android and iPhone), load balancer, field testing (sync).
 
 **Planned vs implemented** (same rows as [docs/scope_table.md](docs/scope_table.md) and the report):
 
@@ -300,24 +301,22 @@ If PowerShell blocks `npm` scripts, use `npm.cmd` as shown. API documentation: h
 | Specialist | `specialist@example.org` | `DemoSpecialist2026!` |
 | Health worker (approved) | `nurse@example.org` | `DemoNurse2026!` |
 
-These are set by `scripts/init_env.py --demo-passwords` (without the flag, random passwords are written to
-`.env` instead) and created by `scripts/seed.py`. New accounts come from the sign-up page (health worker or specialist
-requested) and stay pending until the admin approves them on the Users page.
+These are set by using the flag: scripts/init_env.py --demo-passwords (otherwise random passwords are written to)
+These are created by the script `scripts/seed.py`, and are called `.env` (instead). New accounts are created from the sign up page (health worker/specialist)
+They are pending until the admin grants permission on the Users page (when requested) or if not then until the student is paid on the Student page.
 
-**Personal admin account (optional):** put `PERSONAL_ADMIN_EMAIL` and `PERSONAL_ADMIN_PASSWORD` in your local `.env` (git-ignored; use a password you use nowhere else), then run `.venv\Scripts\python scripts\create_admin.py`. The password is never printed or committed, and the demo reset keeps the account.
+If you want to use a personal admin account (not required, but convenient) you'll need to add the two lines below to your local copy of the .env file (it's ignored by git and you can use any password you don't use anywhere else):If you wish to use a personal admin account (not required, but convenient), you will need to add the two lines below to your local copy of the .env file (it's not tracked by git, and you can use any password you don't use anywhere else): The password is never printed or committed and the demo reset leaves the account intact.
 
-**Clean demo data:** `.venv\Scripts\python scripts\reset_demo_data.py --yes` (stop the backend first) backs up
-the local SQLite file, deletes it and the stored photos, re-runs the migrations and the seed. Approved accounts
-that are not demo accounts (for example your own) are carried over with their password; pending and rejected
-requests are removed (`--drop-accounts` removes every non-demo account). It refuses to run against anything
-except the SQLite file under `data/`.
+Backup demo data: `.venv\Scripts\python scripts\reset_demo_data.py --yes` (stop the backend first) backs up
+Expunges it and the photos that were stored in the local SQLite file and then re-runs the migrations and the seed. Approved accounts
+Pending and rejected accounts are transferred along with their password; that aren't demo accounts (such as your own).
+Every non-demo account is removed (`--drop-accounts` removes requests too). It won't run against anything.
+Except the SQLite file in the `data/`.
 
-**Switching to PostgreSQL:** set `DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db` in `.env`,
-`pip install "psycopg[binary]"`, then run `alembic upgrade head`.
+Installing PostgreSQL: Add the line `DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db` to your .env file,
+Run the commands pip install "psycopg[binary]" and then run alembic upgrade head.
 
-**Docker (deployment):** `docker compose up --build` serves the app on http://localhost:8080 with
-PostgreSQL. It reads the same root `.env` (created from `.env.example`); there is no separate Docker env file. CI builds both images on every push; the full stack has not been started locally because
-Docker is not installed on the development machine.
+**Docker (deployment):** `docker compose up --build` serves the app on http://localhost:8080 with PostgreSQL. It reads the same root `.env` (created from `.env.example`); there is no separate Docker env file. CI builds both images on every push; the full stack has not been started locally because Docker is not installed on the development machine. For local use without Docker, open http://localhost:5173 (`npm.cmd run dev`) or http://localhost:4173 (`npx.cmd vite preview`).
 
 **Hosted demo (Render, free plan):** [render.yaml](render.yaml) describes the whole deployment: PostgreSQL,
 the API (built from `backend/Dockerfile`) and the PWA as a static HTTPS site. In the Render dashboard choose
