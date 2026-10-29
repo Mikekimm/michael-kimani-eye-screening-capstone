@@ -1,7 +1,7 @@
 """Create a local .env with a random JWT secret and random demo-account passwords.
 
 Usage (from the repo root):  .venv\\Scripts\\python scripts\\init_env.py [--demo-passwords]
---demo-passwords uses the fixed demo-only passwords documented in docs/report/video_script.md instead of random ones,
+--demo-passwords uses the fixed demo-only passwords documented in README section 7 instead of random ones,
 so a clean install matches the walkthrough. Never use them on a hosted deployment.
 Refuses to overwrite an existing .env. The generated file is git-ignored; never commit it.
 """
@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-# Demo-only, synthetic data, local use. Documented in docs/report/video_script.md.
+# Demo-only, synthetic data, local use. Documented in README section 7.
 DEMO_PASSWORDS = {"SEED_ADMIN_PASSWORD": "DemoAdmin2026!", "SEED_SPECIALIST_PASSWORD": "DemoSpecialist2026!",
                   "SEED_HEALTH_WORKER_PASSWORD": "DemoNurse2026!"}
 TEMPLATE = ROOT / ".env.example"

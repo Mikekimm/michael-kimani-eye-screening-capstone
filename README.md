@@ -190,19 +190,62 @@ SHA-256 model verification in [registry.py](backend/app/ml/registry.py).
 │   ├── scripts/              diagram and report rendering
 │   └── src/                  pages/, components/, hooks/, lib/ (API client, auth), offline/ (IndexedDB queue), test/
 ├── models/                   one folder per condition: model.tflite + model_card.json (dr/ also model.keras)
-├── notebooks/                Kaggle training notebooks; notebooks/README.md says what each trained and printed
-├── scripts/                  setup, demo reset, evaluation, benchmark, e2e server; scripts/README.md says when to run each
-├── docs/                     docs/README.md lists every file; architecture.md and scope_table.md stay here (cited by the report)
+├── notebooks/                Kaggle training notebooks (see Notebooks below)
+├── scripts/                  setup, demo reset, evaluation, benchmark, e2e server (see Scripts below)
+├── docs/                     architecture.md, scope_table.md (see Documentation index below)
 │   ├── diagrams/             architecture, use case, class, ERD, sequence diagrams (src/: Mermaid sources)
 │   ├── models/               datasets and evaluation, risk policy, metrics files, DR evidence (evaluation/)
-│   ├── report/               technical report (PDF, HTML source, editable .docx, figures/), video script
+│   ├── report/               technical report: report.pdf and its HTML source
 │   ├── screenshots/e2e/      Playwright screenshots: iPhone set (18) + report Figure 3; other profiles git-ignored
 │   ├── testing/              testing report, accessibility (axe), benchmarks, Lighthouse
-│   └── usability/            usability test plan, remote-session guide, SUS questionnaire, results
+│   └── usability/            test plan, remote-session guide, SUS questionnaire, results
 ├── .env.example              the only environment template (local run, docker compose and CI all use it)
 ├── docker-compose.yml        deployment stack: PostgreSQL + API + PWA
 └── render.yaml               hosted demo on Render (must stay at the root)
 ```
+
+### Documentation index
+
+| Path | What it is |
+|---|---|
+| [docs/report/report.pdf](docs/report/report.pdf) | The technical report; [report.html](docs/report/report.html) is its source (`frontend/scripts/build-report.mjs` prints it) |
+| [docs/architecture.md](docs/architecture.md) | Architecture, use case, class, database and sequence diagrams with explanations ([docs/diagrams/](docs/diagrams/), Mermaid sources in `src/`) |
+| [docs/scope_table.md](docs/scope_table.md) | Every proposal item, what was delivered, and each deviation with its reason |
+| [docs/testing/testing_report.md](docs/testing/testing_report.md) | Testing strategies, real results and the fixes they led to; evidence in [accessibility/](docs/testing/accessibility/), [benchmarks/](docs/testing/benchmarks/), [lighthouse/](docs/testing/lighthouse/) |
+| [docs/screenshots/e2e/](docs/screenshots/e2e/) | Playwright screenshots: the iPhone 13 set and the report's Figure 3 (other browser profiles are git-ignored) |
+| [docs/models/data_and_evaluation.md](docs/models/data_and_evaluation.md) | Datasets, splits, how each model was evaluated, research questions |
+| [docs/models/risk_policy.md](docs/models/risk_policy.md) | How a score becomes a recommendation, band and referral advice (numbers in `backend/config/risk_policy.json`) |
+| [docs/models/metrics.json](docs/models/metrics.json), [odir_metrics.json](docs/models/odir_metrics.json) | DR v2 metrics (recomputed by `scripts/dr_v2_metrics.py`); glaucoma and cataract metrics |
+| [docs/models/evaluation/](docs/models/evaluation/) | DR v2 notebook outputs (predictions, history, parity scores) and the retired DR v0.3 figures |
+| [docs/usability/](docs/usability/) | [test plan](docs/usability/test_plan.md), [remote-session guide](docs/usability/remote_testing.md), [SUS questionnaire](docs/usability/sus_questionnaire.md), [results.csv](docs/usability/results.csv) |
+
+### Scripts
+
+Run from the repository root, for example `.venv\Scripts\python scripts\seed.py`.
+
+| Script | What it does | When |
+|---|---|---|
+| `init_env.py` | Creates `.env` from `.env.example` with a random `JWT_SECRET` and demo passwords (`--demo-passwords` for the ones in section 7); never overwrites | First install |
+| `seed.py` | Demo admin, specialist, health worker and 5 synthetic patients | After `alembic upgrade head` |
+| `create_admin.py` | Your personal admin from `PERSONAL_ADMIN_*` in `.env`; never prints the password | Optional |
+| `reset_demo_data.py` | Backs up and recreates the local demo database; keeps approved non-demo accounts (`--yes`) | Before a demo; stop the backend first |
+| `e2e_server.py` | Throwaway backend on port 8001 for Playwright | Started by `frontend/playwright.config.ts` |
+| `benchmark.py` | Inference and pipeline timings into `docs/testing/benchmarks/` | Measuring performance |
+| `dr_v2_metrics.py` | Recomputes every DR v2 figure from the notebook's predictions; writes `docs/models/metrics.json` and the DR model card | Only if the DR evidence changes |
+| `extract_notebook_metrics.py` | Copies the retired DR v0.3 figures from `model_notebook.ipynb` into `docs/models/evaluation/dr_v1_metrics.json` | Not needed again (a test re-checks them) |
+| `calibrate_threshold.py` | Threshold and metrics from hold-out predictions. **Overwrites the DR metrics and card**; do not run on the current model | Kept for its test, which the report cites |
+| `evaluate_fundus_check.py` | Counts fundus-check errors on real fundus photos and non-eye images (`docs/screenshots`, `docs/diagrams`) | After changing the fundus check |
+| `sus_score.py` | Scores SUS answers in `docs/usability/results.csv` | After usability sessions |
+
+### Notebooks
+
+All three ran on Kaggle (GPU); the datasets are downloaded by name and not stored here. None of these results is clinical validation.
+
+| Notebook | What it trained | Results |
+|---|---|---|
+| [dr_v2_finetune.ipynb](notebooks/dr_v2_finetune.ipynb) | **DR v2.0 (served)**: binary MobileNetV2 fine-tuned from `block_13_expand`; split by image group (train 165,319 / validation 35,425 / test 35,426) | Outputs saved: threshold 0.4182 (validation); test sensitivity 0.851, specificity 0.748, AUC 0.900; files in `docs/models/evaluation/dr_v2/` |
+| [odir_glaucoma_cataract.ipynb](notebooks/odir_glaucoma_cataract.ipynb) | **Glaucoma and cataract (served)**: one binary MobileNetV2 each on ODIR-5K, split by patient | Outputs not saved in this copy; results in `docs/models/odir_metrics.json`: glaucoma 0.762 / 0.721 / precision 0.103; cataract 0.978 / 0.962 / 0.542 |
+| [model_notebook.ipynb](notebooks/model_notebook.ipynb) | **DR v0.3 (retired)**: first DR model, frozen backbone | Outputs saved (validation fold only): sensitivity 0.542, cited in the report as history |
 
 ## 6. Technical requirements (versions actually used)
 

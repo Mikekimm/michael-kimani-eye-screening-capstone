@@ -1,7 +1,7 @@
 # Remote usability testing (video call + public HTTPS tunnel)
 
 How to let a tester on another device use the app from this laptop during a video call, then score the
-session with SUS. The tasks and the questionnaire are the ones in [README.md](README.md)
+session with SUS. The tasks and the questionnaire are the ones in [test_plan.md](test_plan.md)
 and [sus_questionnaire.md](sus_questionnaire.md). Screening support only; not a diagnostic device.
 
 ## 1. Run the app behind one public HTTPS address
@@ -43,7 +43,7 @@ API calls returned 200/201. Not verified through the tunnel: offline capture and
 
 ## 2. Safety checklist (every session)
 
-- [ ] Demo accounts only (`docs/report/video_script.md`); testers who sign up use a made-up address such as
+- [ ] Demo accounts only (README section 7); testers who sign up use a made-up address such as
       `t1.test@example.org`, never their own email.
 - [ ] Public fundus images only (e.g. two images from APTOS 2019 on Kaggle), sent to the tester before the call.
       No real patient photos and no real patient data anywhere.
@@ -73,7 +73,7 @@ the call. On a laptop, they can use Chrome DevTools > Network > "Offline" instea
    what you should do next."
 5. **Task 3:** "The internet is now off (switch on airplane mode). Screen the right eye. Then turn the internet
    back on and find out whether it was sent."
-6. Time each task and note errors and hesitations (as in `docs/usability/README.md`).
+6. Time each task and note errors and hesitations (as in `docs/usability/test_plan.md`).
 7. **SUS, after the tasks:** read the 10 statements from `docs/usability/sus_questionnaire.md` one by one
    (or paste them in the chat); the tester answers 1 (strongly disagree) to 5 (strongly agree).
 8. Ask: "What was most confusing?" and "What would you change?" Write the answers down word for word.

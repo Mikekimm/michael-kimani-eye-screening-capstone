@@ -2,7 +2,7 @@
 
 Results were produced on 26-28 October 2026 on the development laptop (Windows 11 Pro, Intel CPU with
 8 logical cores, Python 3.14.6, Node 24.22.1) unless stated otherwise, and in GitHub Actions (Ubuntu,
-PostgreSQL 16). Commands to reproduce them are in the [README](../README.md#8-tests).
+PostgreSQL 16). Commands to reproduce them are in the [README](../../README.md#8-tests).
 
 Seven strategies were used, each chosen for a specific risk in a screening-and-referral tool:
 
