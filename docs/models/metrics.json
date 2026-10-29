@@ -1,7 +1,7 @@
 {
   "status": "held-out test split by image (no patient IDs available; near-duplicates could not be excluded); not external validation; not clinically validated; 35,426 test images; meets the 85% sensitivity target; below the 80% specificity target",
   "model_version": "mobilenetv2-dr-binary-2.0",
-  "source": "notebooks/dr_v2_finetune.ipynb -> docs/evaluation/dr_v2/ (recomputed by scripts/dr_v2_metrics.py)",
+  "source": "notebooks/dr_v2_finetune.ipynb -> docs/models/evaluation/dr_v2/ (recomputed by scripts/dr_v2_metrics.py)",
   "evaluation_set": "held-out test split by image group (seed 42); the threshold was chosen on the validation split only",
   "split": {
     "method": "by image group (augmentation suffixes stripped), stratified, seed 42",
@@ -100,7 +100,7 @@
   "reference_only": "Gulshan et al. (2016) reported 90.3% sensitivity / 98.1% specificity on different data, model and operating point; not a like-for-like comparison.",
   "previous_model": {
     "version": "mobilenetv2-dr-binary-0.3",
-    "file": "docs/evaluation/dr_v1_metrics.json",
+    "file": "docs/models/evaluation/dr_v1_metrics.json",
     "summary": "validation fold only, threshold 0.5: sensitivity 0.542, specificity 0.97"
   }
 }

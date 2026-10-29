@@ -11,7 +11,7 @@ from app.ml.thresholding import metrics_at_threshold, select_threshold
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from extract_notebook_metrics import NOTEBOOK, notebook_output_text, parse  # noqa: E402
 
-EVIDENCE = REPO_ROOT / "docs" / "evaluation" / "dr_v2"
+EVIDENCE = REPO_ROOT / "docs" / "models" / "evaluation" / "dr_v2"
 
 
 def _read(name):
@@ -37,7 +37,7 @@ def test_v2_threshold_is_chosen_on_validation_and_metrics_recompute_from_test_pr
 
 def test_card_and_metrics_file_agree_and_carry_the_honesty_label():
     card = json.loads((REPO_ROOT / "models" / "dr" / "model_card.json").read_text(encoding="utf-8"))
-    report = json.loads((REPO_ROOT / "docs" / "metrics.json").read_text(encoding="utf-8"))
+    report = json.loads((REPO_ROOT / "docs" / "models" / "metrics.json").read_text(encoding="utf-8"))
     assert card["version"] == report["model_version"]
     assert card["metrics"]["sensitivity"] == report["metrics"]["sensitivity"]
     for phrase in ("held-out test split by image", "near-duplicates could not be excluded",

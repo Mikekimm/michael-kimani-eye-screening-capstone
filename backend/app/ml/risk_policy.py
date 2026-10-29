@@ -15,7 +15,7 @@ A policy only *suggests* referral (``refer_suggested``); ``ReferralAdvisor`` tur
 conditions and the photo quality into one recommendation, and decides from the config which recommendations
 are queued for a specialist automatically (default: uncertain cases only, as in the proposal).
 
-Every number comes from ``config/risk_policy.json`` and the model card; see docs/risk_policy.md.
+Every number comes from ``config/risk_policy.json`` and the model card; see docs/models/risk_policy.md.
 """
 import json
 from collections.abc import Iterable

@@ -1,4 +1,4 @@
-"""Copy the DR v1 validation metrics printed by its training notebook into docs/evaluation/dr_v1_metrics.json,
+"""Copy the DR v1 validation metrics printed by its training notebook into docs/models/evaluation/dr_v1_metrics.json,
 parsing the notebook's saved outputs so no number is typed by hand. v1 is retired (DR v2 replaced it, see
 scripts/dr_v2_metrics.py); this file keeps its figures as history and does not touch the model card.
 
@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK = ROOT / "notebooks" / "model_notebook.ipynb"
-METRICS = ROOT / "docs" / "evaluation" / "dr_v1_metrics.json"
+METRICS = ROOT / "docs" / "models" / "evaluation" / "dr_v1_metrics.json"
 TARGET_SENSITIVITY, TARGET_SPECIFICITY = 0.85, 0.80
 LABEL = "validation results from the training notebook, not an independent hold-out"
 

@@ -66,7 +66,7 @@
         "high": 0.7115200381651843
       }
     },
-    "source": "docs/metrics.json"
+    "source": "docs/models/metrics.json"
   },
   "metrics_status": "held-out test split by image (no patient IDs available; near-duplicates could not be excluded); not external validation; not clinically validated; 35,426 test images; meets the 85% sensitivity target; below the 80% specificity target",
   "limitations": [

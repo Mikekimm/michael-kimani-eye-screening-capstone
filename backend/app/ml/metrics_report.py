@@ -1,4 +1,4 @@
-"""Builds the metrics report (docs/metrics.json) from hold-out predictions, and applies the
+"""Builds the metrics report (docs/models/metrics.json) from hold-out predictions, and applies the
 calibrated threshold and metrics to a model card.
 
 Every number is computed from the predictions file; nothing is typed in by hand. The threshold
@@ -64,7 +64,7 @@ def apply_to_model_card(card_path: Path, report: dict) -> None:
         "sensitivity": tuned["sensitivity"], "specificity": tuned["specificity"],
         "precision": tuned["precision"], "f1": tuned["f1"], "accuracy": tuned["accuracy"], "auc": report["auc"],
         "test_images": report["protocol"]["test_images"], "confidence_intervals": report["confidence_intervals"],
-        "source": "docs/metrics.json",
+        "source": "docs/models/metrics.json",
     }
     card["metrics_status"] = report["status"]
     card["limitations"] = [line for line in card.get("limitations", [])

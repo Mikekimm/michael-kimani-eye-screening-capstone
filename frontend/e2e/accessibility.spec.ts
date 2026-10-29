@@ -11,7 +11,7 @@ import { acceptConsentIfAsked, askButton, approveAsAdmin, fillAskForm, registerP
 // Lighthouse can only audit the public sign-in page; this covers the rest.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.join(here, "..", "..", "docs", "accessibility");
+const OUT = path.join(here, "..", "..", "docs", "testing", "accessibility");
 const PASSWORD = process.env.E2E_PASSWORD!;
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 

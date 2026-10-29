@@ -54,7 +54,7 @@ class Settings(DatabaseSettings):
     signup_max_per_window: int = 5          # public sign-ups per client address per window
     signup_window_seconds: int = 60 * 60
 
-    # Specialist review targets (a design decision; the proposal sets no time limit). See docs/risk_policy.md.
+    # Specialist review targets (a design decision; the proposal sets no time limit). See docs/models/risk_policy.md.
     review_target_urgent_hours: int = 24
     review_target_routine_hours: int = 72
 

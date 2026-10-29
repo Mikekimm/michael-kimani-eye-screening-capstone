@@ -3,7 +3,7 @@
 This is a design decision, not a proposal requirement: the proposal makes specialist review
 asynchronous and sets no time limit. The default priority comes from the risk policy (urgent for severe
 results, DR band 4-5; routine otherwise); the health worker can change it when asking a specialist. The hours come from settings (REVIEW_TARGET_URGENT_HOURS,
-REVIEW_TARGET_ROUTINE_HOURS), defaults 24 h and 72 h. See docs/risk_policy.md.
+REVIEW_TARGET_ROUTINE_HOURS), defaults 24 h and 72 h. See docs/models/risk_policy.md.
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta

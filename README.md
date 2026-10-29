@@ -72,17 +72,17 @@ Patients have no accounts: they are records with an app-generated code.
 
 | Condition | Model | Status |
 |---|---|---|
-| Diabetic retinopathy | v2.0: MobileNetV2 fine-tuned from `block_13_expand`, binary (no DR / DR present), bilinear resize, TFLite run with LiteRT ([notebooks/dr_v2_finetune.ipynb](notebooks/dr_v2_finetune.ipynb)) | **Available.** Threshold 0.418 chosen on the validation split. On 35,426 test images: sensitivity **0.851** (95% CI 0.845-0.857), specificity **0.748** (0.743-0.754), precision 0.706, AUC 0.900 ([docs/metrics.json](docs/metrics.json)). **Sensitivity target met; specificity target (80%) not met.** Held-out test split by image (no patient IDs available; near-duplicates could not be excluded); not external validation; not clinically validated |
-| Glaucoma | MobileNetV2, binary, ODIR-5K, patient-separated split ([notebooks/odir_glaucoma_cataract.ipynb](notebooks/odir_glaucoma_cataract.ipynb)) | **Available, below target, limited evidence.** Threshold 0.320. On 1,040 test eyes (42 positive): sensitivity 0.762, specificity 0.721, **precision 0.103** (about 9 in 10 positive flags are false alarms), AUC 0.818 ([docs/odir_metrics.json](docs/odir_metrics.json)). Binary result only |
+| Diabetic retinopathy | v2.0: MobileNetV2 fine-tuned from `block_13_expand`, binary (no DR / DR present), bilinear resize, TFLite run with LiteRT ([notebooks/dr_v2_finetune.ipynb](notebooks/dr_v2_finetune.ipynb)) | **Available.** Threshold 0.418 chosen on the validation split. On 35,426 test images: sensitivity **0.851** (95% CI 0.845-0.857), specificity **0.748** (0.743-0.754), precision 0.706, AUC 0.900 ([docs/models/metrics.json](docs/models/metrics.json)). **Sensitivity target met; specificity target (80%) not met.** Held-out test split by image (no patient IDs available; near-duplicates could not be excluded); not external validation; not clinically validated |
+| Glaucoma | MobileNetV2, binary, ODIR-5K, patient-separated split ([notebooks/odir_glaucoma_cataract.ipynb](notebooks/odir_glaucoma_cataract.ipynb)) | **Available, below target, limited evidence.** Threshold 0.320. On 1,040 test eyes (42 positive): sensitivity 0.762, specificity 0.721, **precision 0.103** (about 9 in 10 positive flags are false alarms), AUC 0.818 ([docs/models/odir_metrics.json](docs/models/odir_metrics.json)). Binary result only |
 | Cataract | as glaucoma | **Available, limited evidence.** Threshold 0.541. On 1,044 test eyes (46 positive): sensitivity 0.978, specificity 0.962, precision 0.542, AUC 0.991; meets both targets, but with only 46 positives the intervals are wide. Binary result only: **no 1-5 cataract grading**, because ODIR-5K has no severity labels |
 
 ODIR-5K labels come from free-text diagnostic keywords per eye and may be noisy. The earlier DR model
 (v0.3, sensitivity 0.542 on its validation fold) is kept only as history in
-[docs/evaluation/dr_v1_metrics.json](docs/evaluation/dr_v1_metrics.json); results it produced keep its
+[docs/models/evaluation/dr_v1_metrics.json](docs/models/evaluation/dr_v1_metrics.json); results it produced keep its
 version label and the app says so on those screens.
 
 The 1-5 band shown for DR is an **estimated severity band** derived from the model score by a
-configurable policy ([docs/risk_policy.md](docs/risk_policy.md)). It is not an ICDR grade. Adding or
+configurable policy ([docs/models/risk_policy.md](docs/models/risk_policy.md)). It is not an ICDR grade. Adding or
 replacing a model needs no code change: drop `model.tflite` + `model_card.json` into `models/<condition>/`
 and restart. The registry verifies the SHA-256, and the card says which resize the model was trained with
 (the app feeds each model exactly that; a card that does not say is refused).
@@ -191,15 +191,13 @@ SHA-256 model verification in [registry.py](backend/app/ml/registry.py).
 │   └── src/                  pages/, components/, hooks/, lib/ (API client, auth), offline/ (IndexedDB queue), test/
 ├── models/                   one folder per condition: model.tflite + model_card.json (dr/ also model.keras)
 ├── notebooks/                Kaggle training notebooks; notebooks/README.md says what each trained and printed
-├── scripts/                  setup (init_env, seed, create_admin, reset_demo_data), evaluation, benchmark, e2e server
-├── docs/                     scope table, testing report, architecture, risk policy, metrics files
-│   ├── accessibility/        axe results
-│   ├── benchmarks/           inference and browser timings
-│   ├── diagrams/             architecture, use case, class, ERD, sequence (src/: Mermaid sources)
-│   ├── evaluation/           DR v2 predictions and results, DR v0.3 history
-│   ├── lighthouse/           Lighthouse reports
-│   ├── report/               technical report (HTML source, PDF, editable .docx, figures/)
-│   ├── screenshots/e2e/      screenshots written by the Playwright tests
+├── scripts/                  setup, demo reset, evaluation, benchmark, e2e server; scripts/README.md says when to run each
+├── docs/                     docs/README.md lists every file; architecture.md and scope_table.md stay here (cited by the report)
+│   ├── diagrams/             architecture, use case, class, ERD, sequence diagrams (src/: Mermaid sources)
+│   ├── models/               datasets and evaluation, risk policy, metrics files, DR evidence (evaluation/)
+│   ├── report/               technical report (PDF, HTML source, editable .docx, figures/), video script
+│   ├── screenshots/e2e/      Playwright screenshots: iPhone set (18) + report Figure 3; other profiles git-ignored
+│   ├── testing/              testing report, accessibility (axe), benchmarks, Lighthouse
 │   └── usability/            usability test plan, remote-session guide, SUS questionnaire, results
 ├── .env.example              the only environment template (local run, docker compose and CI all use it)
 ├── docker-compose.yml        deployment stack: PostgreSQL + API + PWA
@@ -324,8 +322,8 @@ installed there):
 | Accessibility, axe-core WCAG 2.1 A/AA (20 pages, all roles, mobile + desktop) | 0 violations |
 | Lighthouse, sign-in page (mobile / desktop) | 96/100/100/100 and 100/100/100/100 (performance/accessibility/best practices/SEO) |
 
-Strategies, results and the improvements they led to: [docs/testing_report.md](docs/testing_report.md).
-Server performance: [docs/benchmarks/](docs/benchmarks/) (200 runs on an Intel laptop CPU with 8 logical
+Strategies, results and the improvements they led to: [docs/testing/testing_report.md](docs/testing/testing_report.md).
+Server performance: [docs/testing/benchmarks/](docs/testing/benchmarks/) (200 runs on an Intel laptop CPU with 8 logical
 cores: model 55 ms mean, full pipeline on a 1024px photo 74 ms mean; restricted to 1 thread: 60 ms and
 77 ms; about 117 MB process memory). An earlier run on the same laptop under background load measured
 110 ms / 166 ms, so timings vary with machine load.
@@ -337,7 +335,7 @@ cores: model 55 ms mean, full pipeline on a 1024px photo 74 ms mean; restricted 
   `andrewmvd/ocular-disease-recognition-odir5k`. No images are stored in this repository.
 * DR v2 training: [notebooks/dr_v2_finetune.ipynb](notebooks/dr_v2_finetune.ipynb) (run on Kaggle, 2 x T4,
   224 min; 70/15/15 split by image group, train 165,319 / validation 35,425 / test 35,426). Its outputs are in
-  [docs/evaluation/dr_v2/](docs/evaluation/dr_v2/) (results, validation and test predictions, parity scores).
+  [docs/models/evaluation/dr_v2/](docs/models/evaluation/dr_v2/) (results, validation and test predictions, parity scores).
 * Every DR figure is recomputed from those predictions with the app's own code by
   `scripts/dr_v2_metrics.py`, which stops if anything differs from the notebook; a pytest test repeats it.
 * The served `model.tflite` has the SHA-256 the notebook recorded
