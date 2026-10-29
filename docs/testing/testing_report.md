@@ -16,7 +16,7 @@ Seven strategies were used, each chosen for a specific risk in a screening-and-r
 | 5b | Accessibility testing | health workers with low vision or screen readers cannot use it | axe-core (WCAG 2.1 A/AA) on every screen | 0 violations on 20 audited pages, mobile and desktop |
 | 6 | Model validation and parity | the model is worse than claimed, or the app feeds it differently from training | held-out test splits; recomputation with the app's code; 24-photo parity test | DR sensitivity 0.851 (target met), specificity 0.748 (not met); app reproduces notebook scores within 0.021 |
 
-Usability testing with health workers (SUS questionnaire, kit in [usability/](usability/)) is planned but
+Usability testing with health workers (SUS questionnaire, kit in [usability/](../usability/)) is planned but
 **has not been run**.
 
 ---
@@ -91,7 +91,10 @@ the software, not model accuracy.
 | Unauthorized access | worker opening `/admin/users` is redirected; API returns 401 without a token and 403 with a worker token |
 | Invalid input | future year of birth rejected by the form; blank photo -> server 422 shown as "blank or uniform" with Upload another |
 
-Screenshots of every step: [screenshots/e2e/](screenshots/e2e/) (files `10-` to `12-` show the fake sign-up).
+Screenshots of every step: [../screenshots/e2e/](../screenshots/e2e/) (files `10-` to `12-` show the fake sign-up).
+Every run writes them for all four browser profiles; the repository keeps the iPhone 13 set (`mobile-webkit-*`, 18
+images) and the report's Figure 3 (`desktop-chromium-08b-history-card.png`). The other three sets are regenerated
+locally by `npx.cmd playwright test` and are git-ignored.
 
 ## 4. Compatibility testing
 
@@ -162,8 +165,8 @@ lightness; 0 violations of any severity since.
 
 ## 6. Model validation and parity
 
-**DR v2** ([notebooks/dr_v2_finetune.ipynb](../notebooks/dr_v2_finetune.ipynb), outputs in
-[evaluation/dr_v2/](evaluation/dr_v2/)): split 70/15/15 by image group (train 165,319 / validation
+**DR v2** ([notebooks/dr_v2_finetune.ipynb](../../notebooks/dr_v2_finetune.ipynb), outputs in
+[evaluation/dr_v2/](../models/evaluation/dr_v2/)): split 70/15/15 by image group (train 165,319 / validation
 35,425 / test 35,426). The threshold (0.418) was chosen on validation as the highest with sensitivity
 >= 85%; the test split was scored once.
 
@@ -202,8 +205,8 @@ code (TensorFlow's JPEG decoder and `tf.image.resize` versus Pillow). The parity
 dataset and are not committed, so this test skips in CI and runs where `incoming/dr_v2/parity/` exists.
 The Keras-vs-TFLite agreement test also passes (tolerance 1e-3; the notebook measured 9.8e-06).
 
-**Glaucoma and cataract** ([notebooks/odir_glaucoma_cataract.ipynb](../notebooks/odir_glaucoma_cataract.ipynb),
-[odir_metrics.json](odir_metrics.json)): split by patient, thresholds chosen on validation, test scored
+**Glaucoma and cataract** ([notebooks/odir_glaucoma_cataract.ipynb](../../notebooks/odir_glaucoma_cataract.ipynb),
+[odir_metrics.json](../models/odir_metrics.json)): split by patient, thresholds chosen on validation, test scored
 once with the exported file; all integrity checks in the notebook passed.
 
 | Test split | Sensitivity | Specificity | Precision | AUC | Positives |
@@ -216,7 +219,7 @@ screens say so next to every glaucoma result. Cataract meets both targets, but w
 intervals are wide. ODIR-5K labels come from free-text keywords and may be noisy.
 
 **History:** the earlier DR model (v0.3) reported sensitivity 0.542 on its training-notebook validation
-fold ([evaluation/dr_v1_metrics.json](evaluation/dr_v1_metrics.json)). Results it produced keep its version
+fold ([evaluation/dr_v1_metrics.json](../models/evaluation/dr_v1_metrics.json)). Results it produced keep its version
 label, and the app shows a notice on them instead of re-scoring them silently.
 
 ## 7. Fundus check (refusing non-eye photos)
@@ -230,6 +233,9 @@ the frame that is lit). A photo that fails is refused with HTTP 422 and nothing 
 |---|---|---|
 | Real fundus photos (dataset images) | 25 | **3 wrongly rejected** (all grey-background processed dataset images) |
 | Non-eye images | 77 | **0 wrongly accepted** |
+
+The 77 non-eye images were the 72 Playwright screenshots (all four profiles) and 5 diagrams; after a full
+Playwright run the same set exists locally again (only 19 of the screenshots are kept in git).
 
 The thresholds were tuned on these same images and no photos of faces were available, so the figures are
 optimistic. The check is a heuristic and can be fooled; it is not a trained classifier.

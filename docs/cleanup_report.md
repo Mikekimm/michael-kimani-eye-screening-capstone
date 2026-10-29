@@ -63,3 +63,25 @@ empty `Documents and Settings/` and `$Recycle.Bin/` folders.
 ## 5. Links
 
 Every relative link in the tracked Markdown and HTML files was checked after the changes; none is broken.
+
+## 6. Third round: docs/ and scripts/ grouped, screenshots trimmed
+
+Moved (paths updated in code, tests, scripts, model card, README and docs in the same commit):
+
+| From | To |
+|---|---|
+| `docs/testing_report.md`, `docs/accessibility/`, `docs/benchmarks/`, `docs/lighthouse/` | `docs/testing/` |
+| `docs/metrics.json`, `docs/odir_metrics.json`, `docs/data_and_evaluation.md`, `docs/risk_policy.md`, `docs/evaluation/` | `docs/models/` |
+| `docs/video_script.md` | `docs/report/` |
+
+Not moved, because the submitted report names or links these paths and the report is not edited:
+`docs/architecture.md`, `docs/scope_table.md`, `docs/diagrams/`, `docs/screenshots/e2e/`, `docs/usability/`.
+
+Deleted: `scripts/export_tflite.py` (reads `models/dr/model.h5`, which does not exist; all three models were
+exported inside their notebooks; not used by tests, CI or the report).
+
+Screenshots: 53 of 72 untracked (`git rm --cached`) and git-ignored; kept: the iPhone 13 set (`mobile-webkit-*`,
+18) and the report's Figure 3 (`desktop-chromium-08b-history-card.png`). Playwright still writes all four sets.
+
+Added: `docs/README.md` (one line per file) and `scripts/README.md` (what each script does and when to run it).
+Every relative link in the tracked Markdown and HTML files resolves to a tracked file (116 links, 0 broken).

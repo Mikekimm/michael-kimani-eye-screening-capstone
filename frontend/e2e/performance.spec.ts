@@ -12,7 +12,7 @@ import { acceptConsentIfAsked, approveAsAdmin, registerPatient, signIn, signUp }
 // not a measurement on a physical low-end device.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.join(here, "..", "..", "docs", "benchmarks");
+const OUT = path.join(here, "..", "..", "docs", "testing", "benchmarks");
 const RUNS = 3;
 
 const PROFILES = {

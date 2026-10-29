@@ -1,4 +1,4 @@
-"""The metrics pipeline: CSV of predictions -> docs/metrics.json -> model card served by the API.
+"""The metrics pipeline: CSV of predictions -> docs/models/metrics.json -> model card served by the API.
 
 Uses SYNTHETIC predictions to exercise the code path only; they are not model results.
 """

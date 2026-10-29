@@ -3,7 +3,7 @@
 This answers the supervisor's second revision point: dataset access, source, labels and identifiers;
 patient-separated development and test sets; external evaluation; and the baselines and metrics that
 answer the research questions. It keeps the **research evaluation** (is the model good enough, and how
-sure are we?) separate from **software verification** ([testing_report.md](testing_report.md)).
+sure are we?) separate from **software verification** ([testing_report.md](../testing/testing_report.md)).
 
 ## 1. Dataset (diabetic retinopathy)
 
@@ -18,7 +18,7 @@ sure are we?) separate from **software verification** ([testing_report.md](testi
 
 ## 2. DR v2: split actually used (from the notebook's saved outputs)
 
-[../notebooks/dr_v2_finetune.ipynb](../notebooks/dr_v2_finetune.ipynb), run on Kaggle (2 x T4, 224 minutes):
+[notebooks/dr_v2_finetune.ipynb](../../notebooks/dr_v2_finetune.ipynb), run on Kaggle (2 x T4, 224 minutes):
 
 | Set | How it was made | Size |
 |---|---|---|
@@ -45,7 +45,7 @@ near-duplicates could not be excluded); not external validation; not clinically 
   any value differs from the notebook. It writes [metrics.json](metrics.json) and the served model card.
 * **Same file, same input:** the served `.tflite` has the checksum the notebook recorded, and the app's
   pipeline reproduces the notebook's scores on 24 test photos within 0.021 with no decision changed
-  ([testing_report.md](testing_report.md) section 6).
+  ([testing_report.md](../testing/testing_report.md) section 6).
 * **History:** the first DR model (v0.3, frozen backbone, nearest-neighbour resize, threshold 0.5) reported
   sensitivity 0.542 on its training-notebook validation fold
   ([evaluation/dr_v1_metrics.json](evaluation/dr_v1_metrics.json)); its independent hold-out run never finished.
@@ -63,13 +63,13 @@ near-duplicates could not be excluded); not external validation; not clinically 
 | Research question (proposal 1.4) | Evidence |
 |---|---|
 | RQ1 gaps in existing tools | literature review (proposal ch. 2); this prototype combines offline capture, multi-condition design and referral |
-| RQ2 architecture and sync for intermittent connectivity | idempotent sync with backoff; tests of lost replies and offline queues ([testing_report.md](testing_report.md)) |
+| RQ2 architecture and sync for intermittent connectivity | idempotent sync with backoff; tests of lost replies and offline queues ([testing_report.md](../testing/testing_report.md)) |
 | RQ3 how accurately the models classify DR, glaucoma and cataract | DR: held-out test split by image, sensitivity 0.851, specificity 0.748 ([metrics.json](metrics.json)). Glaucoma: 0.762 / 0.721, precision 0.103. Cataract: 0.978 / 0.962 ([odir_metrics.json](odir_metrics.json)). No images from low-cost smartphone lenses were tested |
 | RQ4 how the referral workflow connects workers to specialists | end-to-end journeys: referral, review, decision pulled back; no clinical outcome study |
 
 ## 6. Glaucoma and cataract (ODIR-5K)
 
-[notebooks/odir_glaucoma_cataract.ipynb](../notebooks/odir_glaucoma_cataract.ipynb) applies the same rigour
+[notebooks/odir_glaucoma_cataract.ipynb](../../notebooks/odir_glaucoma_cataract.ipynb) applies the same rigour
 with one improvement ODIR-5K allows: it has **patient IDs**, so the split is by patient (70/15/15,
 stratified), and no person appears in two splits (checked by an assertion and in the final checks).
 

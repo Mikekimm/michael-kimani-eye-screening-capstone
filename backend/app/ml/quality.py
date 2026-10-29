@@ -5,7 +5,7 @@ does not look like a retinal fundus photograph, because the classifiers cannot t
 face from an eye and would still return a score. Darkness, brightness and blur are warnings only.
 
 The fundus check is a heuristic tuned on 25 real fundus photos and 77 non-eye images
-(docs/evaluation/fundus_check.md); it can still be fooled, which is stated as a known limitation.
+(results: docs/testing/testing_report.md and README section 9); it can still be fooled, which is stated as a known limitation.
 """
 from dataclasses import dataclass
 from typing import Tuple

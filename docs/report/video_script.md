@@ -73,7 +73,7 @@ checked after a clean reset on 28 October (all three sign in). Never use them on
 19. **Admin:** Analytics: people who can use the system (health workers, specialists, admins) and requests waiting for approval at the top; then aggregates only, overdue reviews per priority. Say: the admin controls who can use the system (a human, logged decision, effective immediately) and keeps the records and the **About** screen (model cards, test-split
     figures and caveats).
 20. **Terminal:** `pytest -q`, `npm.cmd test`, the Playwright HTML report (four profiles), the GitHub Actions run.
-21. **docs/testing_report.md** section 5: performance and compatibility figures.
+21. **docs/testing/testing_report.md** section 5: performance and compatibility figures.
 22. **Code:** `registry.py`, `risk_policy.py` (`RiskPolicy`, `ReferralAdvisor`), `quality.py` (`FundusCheck`),
     `review_targets.py`, `syncQueue.ts`.
 23. **README known issues.**

@@ -71,7 +71,7 @@ approve, override with a reason, request a retake or comment.
   referral, so the policy flags the uncertain zone (`refer_when_uncertain`) and the screen recommends
   asking a specialist; the health worker decides.
 * **`m = 0.10`** matches the margin used since the MVP. It has not been tuned on data; the DR v2
-  validation predictions (`docs/evaluation/dr_v2/val_predictions.csv`) would allow choosing it from the
+  validation predictions (`docs/models/evaluation/dr_v2/val_predictions.csv`) would allow choosing it from the
   score distribution near the threshold.
 * **The 1-5 band is an estimate, not a clinical grade.** The model is binary (no DR vs DR grades 1-4).
   Higher scores mean the model is more confident that DR is present, not that the disease is more

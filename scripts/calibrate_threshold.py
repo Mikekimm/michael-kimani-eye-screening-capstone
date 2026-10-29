@@ -10,11 +10,11 @@ The file is split in two (stratified, fixed seed):
   * test half   : every reported number comes from here, with 95% bootstrap intervals
 
 Outputs (all computed from the CSV, nothing typed by hand):
-  * docs/metrics.json                 full report shown in the README, report and About screen
+  * docs/models/metrics.json                 full report shown in the README, report and About screen
   * models/dr/model_card.json         calibrated threshold + headline metrics served by GET /api/models
 
 Usage:
-    python scripts/calibrate_threshold.py --predictions docs/evaluation/holdout_predictions.csv
+    python scripts/calibrate_threshold.py --predictions docs/models/evaluation/holdout_predictions.csv
     (add --row-order-verified only after confirming the Kaggle df matched the training session)
 """
 import argparse
@@ -33,7 +33,7 @@ from app.ml.metrics_report import apply_to_model_card, build_report  # noqa: E40
 from app.ml.thresholding import metrics_at_threshold, select_threshold  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-METRICS_PATH = REPO_ROOT / "docs" / "metrics.json"
+METRICS_PATH = REPO_ROOT / "docs" / "models" / "metrics.json"
 MODEL_CARD_PATH = REPO_ROOT / "models" / "dr" / "model_card.json"
 
 TARGET_SPECIFICITY = 0.80  # from the proposal (Section 3.3)

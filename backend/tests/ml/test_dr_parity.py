@@ -1,6 +1,6 @@
 """The app's own pipeline must reproduce the scores the training notebook gave 24 test photos.
 
-Scores: docs/evaluation/dr_v2/parity.csv (committed). Photos: dr_v2_results.zip -> incoming/dr_v2/parity/
+Scores: docs/models/evaluation/dr_v2/parity.csv (committed). Photos: dr_v2_results.zip -> incoming/dr_v2/parity/
 (dataset images are never committed, so this test skips when they are absent, e.g. in CI).
 Tolerance: 0.03 on the score and no change in any screening decision. TensorFlow and Pillow decode
 JPEGs slightly differently, so exact equality is not expected; measured max difference 0.021.
@@ -14,7 +14,7 @@ from app.ml.preprocessing import ImagePreprocessor
 from app.ml.registry import ModelRegistry
 
 PHOTOS = REPO_ROOT / "incoming" / "dr_v2" / "parity"
-SCORES = REPO_ROOT / "docs" / "evaluation" / "dr_v2" / "parity.csv"
+SCORES = REPO_ROOT / "docs" / "models" / "evaluation" / "dr_v2" / "parity.csv"
 TOLERANCE = 0.03
 
 

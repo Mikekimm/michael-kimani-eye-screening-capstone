@@ -5,7 +5,7 @@ Times two things, each over --runs repetitions after one warm-up:
   * full pipeline:  decode -> quality gate -> preprocess -> every available model -> RiskPolicy
                     (the work done for one POST /api/screenings, excluding network and database)
 
-Results are written to docs/benchmarks/<machine-label>.json and .md. Run it on each device you
+Results are written to docs/testing/benchmarks/<machine-label>.json and .md. Run it on each device you
 want to compare (e.g. a high-end laptop and a low-end machine) and cite the files in the report.
 
 Usage (repo root):
@@ -35,7 +35,7 @@ from app.ml.registry import ModelRegistry  # noqa: E402
 from app.ml.risk_policy import RiskPolicyFactory  # noqa: E402
 from app.services.pipeline import ScreeningPipeline  # noqa: E402
 
-OUT_DIR = ROOT / "docs" / "benchmarks"
+OUT_DIR = ROOT / "docs" / "testing" / "benchmarks"
 
 
 def synthetic_fundus(size: int = 1024) -> bytes:

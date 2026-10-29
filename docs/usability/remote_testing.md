@@ -43,7 +43,7 @@ API calls returned 200/201. Not verified through the tunnel: offline capture and
 
 ## 2. Safety checklist (every session)
 
-- [ ] Demo accounts only (`docs/video_script.md`); testers who sign up use a made-up address such as
+- [ ] Demo accounts only (`docs/report/video_script.md`); testers who sign up use a made-up address such as
       `t1.test@example.org`, never their own email.
 - [ ] Public fundus images only (e.g. two images from APTOS 2019 on Kaggle), sent to the tester before the call.
       No real patient photos and no real patient data anywhere.

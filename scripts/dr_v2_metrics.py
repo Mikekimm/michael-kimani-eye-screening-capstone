@@ -1,6 +1,6 @@
-"""Write docs/metrics.json and models/dr/model_card.json for DR model v2 from the notebook's own files.
+"""Write docs/models/metrics.json and models/dr/model_card.json for DR model v2 from the notebook's own files.
 
-Inputs (copied from dr_v2_results.zip into docs/evaluation/dr_v2/):
+Inputs (copied from dr_v2_results.zip into docs/models/evaluation/dr_v2/):
   results.json          what notebooks/dr_v2_finetune.ipynb measured
   val_predictions.csv   validation split scores (the threshold is chosen here)
   test_predictions.csv  held-out test split scores (every reported number comes from here)
@@ -26,9 +26,9 @@ from app.ml.config import TARGET_SENSITIVITY  # noqa: E402
 from app.ml.evaluation import bootstrap_metric_ci, roc_auc  # noqa: E402
 from app.ml.thresholding import metrics_at_threshold, select_threshold  # noqa: E402
 
-EVIDENCE = ROOT / "docs" / "evaluation" / "dr_v2"
-METRICS = ROOT / "docs" / "metrics.json"
-V1_METRICS = ROOT / "docs" / "evaluation" / "dr_v1_metrics.json"
+EVIDENCE = ROOT / "docs" / "models" / "evaluation" / "dr_v2"
+METRICS = ROOT / "docs" / "models" / "metrics.json"
+V1_METRICS = ROOT / "docs" / "models" / "evaluation" / "dr_v1_metrics.json"
 CARD = ROOT / "models" / "dr" / "model_card.json"
 MODEL = ROOT / "models" / "dr" / "model.tflite"
 TARGET_SPECIFICITY = 0.80
@@ -76,7 +76,7 @@ def main() -> None:
     report = {
         "status": status,
         "model_version": VERSION,
-        "source": "notebooks/dr_v2_finetune.ipynb -> docs/evaluation/dr_v2/ (recomputed by scripts/dr_v2_metrics.py)",
+        "source": "notebooks/dr_v2_finetune.ipynb -> docs/models/evaluation/dr_v2/ (recomputed by scripts/dr_v2_metrics.py)",
         "evaluation_set": "held-out test split by image group (seed 42); the threshold was chosen on the validation split only",
         "split": {k: split[k] for k in ("method", "train", "validation", "test", "groups", "group_overlap")},
         "threshold": threshold,
@@ -100,7 +100,7 @@ def main() -> None:
         ],
         "reference_only": "Gulshan et al. (2016) reported 90.3% sensitivity / 98.1% specificity on different data, "
                           "model and operating point; not a like-for-like comparison.",
-        "previous_model": {"version": "mobilenetv2-dr-binary-0.3", "file": "docs/evaluation/dr_v1_metrics.json",
+        "previous_model": {"version": "mobilenetv2-dr-binary-0.3", "file": "docs/models/evaluation/dr_v1_metrics.json",
                            "summary": "validation fold only, threshold 0.5: sensitivity 0.542, specificity 0.97"},
     }
     METRICS.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
@@ -133,7 +133,7 @@ def main() -> None:
         "metrics": {"sensitivity": tuned.sensitivity, "specificity": tuned.specificity, "precision": tuned.precision,
                     "f1": tuned.f1, "accuracy": tuned.accuracy, "auc": auc, "test_images": int(len(y_test)),
                     "evaluation_set": "held-out test split by image", "confidence_intervals": intervals,
-                    "source": "docs/metrics.json"},
+                    "source": "docs/models/metrics.json"},
         "metrics_status": status,
         "limitations": [
             "Screening support only. Not a diagnosis and not clinically validated.",
