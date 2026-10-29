@@ -1,8 +1,8 @@
 # Remote usability testing (video call + public HTTPS tunnel)
 
 How to let a tester on another device use the app from this laptop during a video call, then score the
-session with SUS. The tasks and the questionnaire are the ones in [usability/README.md](usability/README.md)
-and [usability/sus_questionnaire.md](usability/sus_questionnaire.md). Screening support only; not a diagnostic device.
+session with SUS. The tasks and the questionnaire are the ones in [README.md](README.md)
+and [sus_questionnaire.md](sus_questionnaire.md). Screening support only; not a diagnostic device.
 
 ## 1. Run the app behind one public HTTPS address
 
@@ -83,7 +83,7 @@ Testers are identified only as T1, T2, ... with role (e.g. nurse, nursing studen
 
 ## 4. Results
 
-1. Add one row per tester to [usability/results.csv](usability/results.csv): `tester_id, role, device, q1..q10
+1. Add one row per tester to [results.csv](results.csv): `tester_id, role, device, q1..q10
    (1-5), task1_success..task3_success (yes/no), task1_seconds..task3_seconds, comments`. No names or emails.
 2. Score:
    ```powershell
