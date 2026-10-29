@@ -7,7 +7,7 @@ Status on 28 October 2026. Ticked items have evidence in the repository.
   `scripts/dr_v2_metrics.py` into `docs/metrics.json` and the model card; parity test passes (24 photos, max 0.021)
 - [x] Glaucoma and cataract (ODIR-5K) trained, installed and labelled with their real results (`docs/odir_metrics.json`)
 - [x] DR v1 figures kept as history only (`docs/evaluation/dr_v1_metrics.json`), labelled as validation results
-- [x] ~~Kaggle hold-out evaluation of DR v1 (`notebooks/kaggle_holdout_eval.ipynb`)~~ **Superseded** by the DR v2
+- [x] ~~Kaggle hold-out evaluation of DR v1 (notebook removed in the repo clean-up; in git history)~~ **Superseded** by the DR v2
   held-out test split (35,426 images; `docs/metrics.json`). The v1 hold-out run was never completed and is not cited
 - [x] Fundus check evaluated (`scripts/evaluate_fundus_check.py`): 3 of 25 real fundus photos wrongly refused,
   0 of 77 non-eye images accepted; tuned on the same images, no face photos: labelled optimistic

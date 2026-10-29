@@ -1,5 +1,6 @@
 # Deployment stack: PostgreSQL + API + PWA behind nginx.  Usage:  docker compose up --build
-# Secrets come from .env (run scripts/init_env.py first). Not needed for local development.
+# Secrets come from the same root .env the app uses locally (template: .env.example; run scripts/init_env.py
+# first). There is no separate Docker env file. Not needed for local development.
 services:
   db:
     image: postgres:16-alpine

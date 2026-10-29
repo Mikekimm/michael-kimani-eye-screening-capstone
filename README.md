@@ -170,10 +170,13 @@ frontend/
   src/offline/        IndexedDB queue, backoff, sync
   e2e/                Playwright journeys
 models/<condition>/   model.tflite (served), model_card.json; models/dr/model.keras (source for the agreement test)
-notebooks/            DR v2 and ODIR training notebooks (with outputs), DR v1 notebook, hold-out notebook
-scripts/              init_env, seed, reset_demo_data, benchmark, dr_v2_metrics, evaluate_fundus_check, extract_notebook_metrics, export_tflite, e2e_server
+notebooks/            training notebooks; what each trained and printed: notebooks/README.md
+scripts/              init_env, seed, reset_demo_data, create_admin, benchmark, dr_v2_metrics, evaluate_fundus_check,
+                      extract_notebook_metrics, calibrate_threshold, export_tflite, e2e_server, sus_score
 docs/                 scope table, testing report, risk policy, metrics, evaluation evidence, benchmarks, diagrams, screenshots, report
 .github/workflows/     CI: backend tests on PostgreSQL, frontend checks, Docker build
+.env.example          the only environment template (local run, docker compose and CI all use it)
+docker-compose.yml    deployment stack (PostgreSQL + API + PWA); render.yaml: hosted demo on Render
 ```
 
 ## 6. Technical requirements (versions actually used)
@@ -245,7 +248,7 @@ except the SQLite file under `data/`.
 `pip install "psycopg[binary]"`, then run `alembic upgrade head`.
 
 **Docker (deployment):** `docker compose up --build` serves the app on http://localhost:8080 with
-PostgreSQL. CI builds both images on every push; the full stack has not been started locally because
+PostgreSQL. It reads the same root `.env` (created from `.env.example`); there is no separate Docker env file. CI builds both images on every push; the full stack has not been started locally because
 Docker is not installed on the development machine.
 
 **Hosted demo (Render, free plan):** [render.yaml](render.yaml) describes the whole deployment: PostgreSQL,
